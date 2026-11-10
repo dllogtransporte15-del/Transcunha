@@ -50,6 +50,130 @@ import {
   normalizeDate 
 } from '../utils/atuaReportParser';
 
+// Tabela oficial do IBGE para os 2 primeiros dígitos da Chave de Acesso do CT-e
+const IBGE_UF_MAP: Record<string, string> = {
+  '11': 'RO', '12': 'AC', '13': 'AM', '14': 'RR', '15': 'PA', '16': 'AP', '17': 'TO',
+  '21': 'MA', '22': 'PI', '23': 'CE', '24': 'RN', '25': 'PB', '26': 'PE', '27': 'AL', '28': 'SE', '29': 'BA',
+  '31': 'MG', '32': 'ES', '33': 'RJ', '35': 'SP',
+  '41': 'PR', '42': 'SC', '43': 'RS',
+  '50': 'MS', '51': 'MT', '52': 'GO', '53': 'DF'
+};
+
+const VALID_BRAZILIAN_UFS = new Set([
+  'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 
+  'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 
+  'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'
+]);
+
+// Helper para detectar a UF e Filial da emissão fiscal do embarque no Transcunha
+const detectShipmentUf = (
+  shipment: Shipment,
+  cargo?: Cargo,
+  branchMap?: Map<string, Branch>
+): { uf: string; branchName: string } => {
+  // 1. Chave de acesso do CT-e (44 dígitos - os 2 primeiros são o código IBGE do estado emissor)
+  const docs = shipment.documents || {};
+  const accessKey = String(
+    docs.cte_access_key || 
+    docs.accessKey || 
+    docs.chave_acesso || 
+    docs.chaveCte || 
+    docs.cteKey || 
+    docs.chaveAcesso || 
+    (shipment as any).cteAccessKey || 
+    ''
+  ).replace(/[^0-9]/g, '');
+
+  if (accessKey.length >= 2) {
+    const ibgePrefix = accessKey.slice(0, 2);
+    if (IBGE_UF_MAP[ibgePrefix]) {
+      return { uf: IBGE_UF_MAP[ibgePrefix], branchName: '' };
+    }
+  }
+
+  // 2. Filial vinculada ao embarque ou à carga (branchId)
+  const branchId = shipment.branchId || (shipment as any).filialId || cargo?.branchId;
+  if (branchId && branchMap?.has(branchId)) {
+    const branch = branchMap.get(branchId);
+    if (branch) {
+      const st = (branch.state || '').trim().toUpperCase();
+      if (VALID_BRAZILIAN_UFS.has(st)) {
+        return { uf: st, branchName: branch.name || '' };
+      }
+    }
+  }
+
+  // 3. Origem do Embarque ou da Carga (ex: "UBERLANDIA - MG", "RIO VERDE / GO")
+  const originText = (cargo?.origin || (shipment as any).origin || '').trim();
+  if (originText) {
+    const match = originText.match(/(?:-|\/|\s)\s*([A-Za-z]{2})\s*$/);
+    if (match && VALID_BRAZILIAN_UFS.has(match[1].toUpperCase())) {
+      return { uf: match[1].toUpperCase(), branchName: originText };
+    }
+  }
+
+  // 4. Mapeamento por correspondência de nome ou cidade da filial
+  if (branchMap && branchMap.size > 0 && originText) {
+    const lowerOrigin = originText.toLowerCase();
+    for (const b of branchMap.values()) {
+      const bName = (b.name || '').toLowerCase();
+      const bCity = (b.city || '').toLowerCase();
+      if ((bName && lowerOrigin.includes(bName)) || (bCity && lowerOrigin.includes(bCity))) {
+        const st = (b.state || '').trim().toUpperCase();
+        if (VALID_BRAZILIAN_UFS.has(st)) {
+          return { uf: st, branchName: b.name };
+        }
+      }
+    }
+  }
+
+  return { uf: '', branchName: '' };
+};
+
+// Helper para detectar a UF e Filial do registro no relatório Atua TMS
+const detectAtuaRecordUf = (
+  rec: AtuaCteRecord
+): { uf: string; branchName: string } => {
+  // 1. Extração pela cidade de origem (ex: "UBERLANDIA / MG", "RIO VERDE / GO")
+  const originCity = (rec.originCity || '').trim();
+  if (originCity) {
+    const match = originCity.match(/\/\s*([A-Za-z]{2})\s*$/) || originCity.match(/-\s*([A-Za-z]{2})\s*$/);
+    if (match && VALID_BRAZILIAN_UFS.has(match[1].toUpperCase())) {
+      return { uf: match[1].toUpperCase(), branchName: rec.branch || '' };
+    }
+  }
+
+  // 2. Extração pelo campo de filial do Atua (rec.branch)
+  const branchText = (rec.branch || '').trim();
+  if (branchText) {
+    // Procura sigla de UF isolada no texto da filial (ex: "FILIAL MG", "UBERLANDIA-MG")
+    const matchUf = branchText.match(/\b([A-Za-z]{2})\b/);
+    if (matchUf && VALID_BRAZILIAN_UFS.has(matchUf[1].toUpperCase())) {
+      return { uf: matchUf[1].toUpperCase(), branchName: branchText };
+    }
+    
+    // Mapeamento por cidades conhecidas
+    const upper = branchText.toUpperCase();
+    if (upper.includes('UBERLANDIA') || upper.includes('UBERABA') || upper.includes('CONTAGEM') || upper.includes('MINAS') || upper.includes('ARAGUARI') || upper.includes('PATOS')) {
+      return { uf: 'MG', branchName: branchText };
+    }
+    if (upper.includes('GOIANIA') || upper.includes('RIO VERDE') || upper.includes('ANAPOLIS') || upper.includes('JATAI') || upper.includes('ITUMBIARA')) {
+      return { uf: 'GO', branchName: branchText };
+    }
+    if (upper.includes('SAO PAULO') || upper.includes('SANTOS') || upper.includes('CAMPINAS') || upper.includes('BARRETOS')) {
+      return { uf: 'SP', branchName: branchText };
+    }
+    if (upper.includes('RONDONOPOLIS') || upper.includes('CUIABA') || upper.includes('SINOP') || upper.includes('SORRISO') || upper.includes('MUTUM')) {
+      return { uf: 'MT', branchName: branchText };
+    }
+    if (upper.includes('CURITIBA') || upper.includes('PARANAGUA') || upper.includes('MARINGA') || upper.includes('LONDRINA')) {
+      return { uf: 'PR', branchName: branchText };
+    }
+  }
+
+  return { uf: '', branchName: branchText || '' };
+};
+
 interface AtuaReconciliationPageProps {
   currentUser: User;
   shipments: Shipment[];
@@ -390,16 +514,14 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
       const plate = normalizePlate(s.horsePlate);
       if (!plate) return false;
 
-      // Se o CT-e do embarque constar no relatório do Atua importado, SEMPRE inclui (independente do filtro de data)
-      if (atuaCteSet.has(directCte)) {
-        return true;
-      }
-
+      // 3. REGRA ESTRITA DE PERÍODO: O embarque deve estar rigorosamente dentro do intervalo de data determinado
       // Prioriza a data contábil/efetiva da emissão do CT-e sobre a data agendada
       const effectiveDate = getShipmentEffectiveDate(s);
       const dateStr = normalizeDate(effectiveDate || s.scheduledDate || '');
-      if (startDate && dateStr && dateStr < startDate) return false;
-      if (endDate && dateStr && dateStr > endDate) return false;
+      if (!dateStr) return false;
+
+      if (startDate && dateStr < startDate) return false;
+      if (endDate && dateStr > endDate) return false;
       return true;
     });
 
@@ -426,6 +548,8 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
       origin: string;
       destination: string;
       driverName: string;
+      branchUf: string;
+      branchName: string;
     }> = [];
 
     validShipments.forEach(s => {
@@ -434,6 +558,9 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
       const cte = extractShipmentCteClean(s);
       const calculatedExpenses = calculateShipmentExpenses(s, cargo, DEFAULT_EXPENSES_CONFIG, stays);
       const toll = (s.tollValue !== undefined && s.tollValue !== null) ? Number(s.tollValue) || 0 : (s.realProfitData?.toll || 0);
+
+      // Identificação da UF e Filial de Faturamento do Embarque
+      const { uf: branchUf, branchName } = detectShipmentUf(s, cargo, branchMap);
 
       // Estadias vinculadas
       const shipmentStays = stays.filter(stay => isStayForShipment(stay, s));
@@ -526,7 +653,9 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
         clientName,
         origin: cargo?.origin || '',
         destination: cargo?.destination || '',
-        driverName: s.driverName || '---'
+        driverName: s.driverName || '---',
+        branchUf: branchUf || '',
+        branchName: branchName || ''
       });
 
       // Sub-linha de CT-e Complementar de Estadia (apenas se possuir CT-e complementar emitido)
@@ -562,7 +691,9 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
             clientName,
             origin: cargo?.origin || '',
             destination: cargo?.destination || '',
-            driverName: s.driverName || '---'
+            driverName: s.driverName || '---',
+            branchUf: branchUf || '',
+            branchName: branchName || ''
           });
         });
       }
@@ -576,6 +707,10 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
 
         const plateNorm = normalizePlate(tr.plate);
         const dateNorm = normalizeDate(tr.date);
+
+        // Aplica rigorosamente o filtro de período nas linhas do arquivo
+        if (startDate && dateNorm && dateNorm < startDate) return;
+        if (endDate && dateNorm && dateNorm > endDate) return;
 
         // Se já está nos itens pelo banco de dados (mesma placa e data), não duplica
         const exists = items.some(it => it.plate === plateNorm && it.date === dateNorm);
@@ -614,20 +749,29 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
             clientName: tr.clientName,
             origin: '',
             destination: '',
-            driverName: '---'
+            driverName: '---',
+            branchUf: '',
+            branchName: ''
           });
         }
       });
     }
 
     return items;
-  }, [shipments, cargos, cargoMap, clientMap, stays, startDate, endDate, uploadedTranscunhaRecords, atuaResult]);
+  }, [shipments, cargos, cargoMap, clientMap, branchMap, stays, startDate, endDate, uploadedTranscunhaRecords, atuaResult]);
 
   // 2. Motor de Reconciliação / Auditoria Cruzada baseado em CT-E e PLACA + DATA DO EMBARQUE
   const reconciliationItems: ReconciliationItem[] = useMemo(() => {
     if (!atuaResult && enrichedTranscunhaData.length === 0) return [];
 
-    const atuaRecords = atuaResult?.records || [];
+    // Filtra registros do Atua estritamente pelo período selecionado caso informado
+    const atuaRecords = (atuaResult?.records || []).filter(r => {
+      const atuaDateClean = normalizeDate(r.emissionDate || '');
+      if (startDate && atuaDateClean && atuaDateClean < startDate) return false;
+      if (endDate && atuaDateClean && atuaDateClean > endDate) return false;
+      return true;
+    });
+
     const matchedTranscunhaKeys = new Set<string>();
     const matchedAtuaIndexes = new Set<number>();
     const results: ReconciliationItem[] = [];
@@ -637,6 +781,10 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
       const atuaCteClean = atuaRec.cteNumber.replace(/[^0-9]/g, '');
       const atuaPlateClean = normalizePlate(atuaRec.plate);
       const atuaDateClean = normalizeDate(atuaRec.emissionDate || '');
+
+      // Detecção da UF e Filial do registro do Atua
+      const atuaUfInfo = detectAtuaRecordUf(atuaRec);
+      const atuaUf = atuaUfInfo.uf;
 
       // Taxas por tonelada no Atua
       const atuaWeight = atuaRec.weight || 0;
@@ -650,14 +798,59 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
 
       let match: typeof enrichedTranscunhaData[0] | undefined;
 
-      // Fase 1: Pareamento Direto por Número do CT-e (Prioridade Absoluta)
-      // Se tanto o Atua quanto a Transcunha possuem o CT-e com mesmo número (ex: 2053), pertencem garantidamente à mesma operação fiscal
+      // Fase 1: Pareamento por Número do CT-e
+      // NOTA CRÍTICA: Cada estado/filial pode ter sua própria sequência numérica de CT-e.
+      // Se houver mais de um CT-e com mesmo número (homônimos de estados distintos),
+      // desempatamos obrigatoriamente por Mesma Placa e Mesma UF.
       if (atuaCteClean) {
-        match = enrichedTranscunhaData.find(t => 
+        const cteCandidates = enrichedTranscunhaData.filter(t => 
           !matchedTranscunhaKeys.has(t.key) && 
           t.cteNumber && 
           (t.cteNumber === atuaCteClean || parseInt(t.cteNumber, 10) === parseInt(atuaCteClean, 10))
         );
+
+        if (cteCandidates.length > 0) {
+          // 1. Prioridade máxima: Mesma Placa E Mesma UF
+          const exactMatch = cteCandidates.find(t => 
+            t.plate === atuaPlateClean && 
+            atuaUf && t.branchUf && atuaUf === t.branchUf
+          );
+
+          if (exactMatch) {
+            match = exactMatch;
+          } else {
+            // 2. Mesma Placa (veículo confere com o CT-e)
+            const samePlateMatch = cteCandidates.find(t => 
+              t.plate === atuaPlateClean ||
+              normalizePlate(t.shipment?.trailer1Plate || '') === atuaPlateClean ||
+              normalizePlate(t.shipment?.trailer2Plate || '') === atuaPlateClean
+            );
+
+            if (samePlateMatch) {
+              match = samePlateMatch;
+            } else if (cteCandidates.length === 1) {
+              // Apenas 1 candidato no período com este número de CT-e
+              const cand = cteCandidates[0];
+              const isUfCompatible = !atuaUf || !cand.branchUf || atuaUf === cand.branchUf;
+              if (isUfCompatible) {
+                match = cand;
+              } else {
+                // Se a UF é comprovadamente diferente e placas diferentes, é de outro estado
+                match = undefined;
+              }
+            } else {
+              // Múltiplos candidatos: filtra por UF compatível se possível
+              const sameUfCandidates = atuaUf ? cteCandidates.filter(t => t.branchUf === atuaUf) : cteCandidates;
+              const pool = sameUfCandidates.length > 0 ? sameUfCandidates : cteCandidates;
+              
+              match = pool.reduce((best, cur) => {
+                const diffBest = Math.abs(best.weight - atuaWeight) + Math.abs(best.companyFreight - atuaRec.companyFreight) / 1000;
+                const diffCur = Math.abs(cur.weight - atuaWeight) + Math.abs(cur.companyFreight - atuaRec.companyFreight) / 1000;
+                return diffCur < diffBest ? cur : best;
+              });
+            }
+          }
+        }
       }
 
       // Fase 2: Pareamento por Placa Normalizada + Data de Emissão/Embarque (para auditar numeração de CT-e ou ausência de CT-e)
@@ -678,7 +871,9 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
           if (cteMatch) {
             match = cteMatch;
           } else {
-            match = exactMatches.reduce((best, cur) => {
+            const sameUfMatches = atuaUf ? exactMatches.filter(t => t.branchUf === atuaUf) : exactMatches;
+            const pool = sameUfMatches.length > 0 ? sameUfMatches : exactMatches;
+            match = pool.reduce((best, cur) => {
               const diffBest = Math.abs(best.weight - atuaWeight) + Math.abs(best.companyFreight - atuaRec.companyFreight) / 1000;
               const diffCur = Math.abs(cur.weight - atuaWeight) + Math.abs(cur.companyFreight - atuaRec.companyFreight) / 1000;
               return diffCur < diffBest ? cur : best;
@@ -700,7 +895,9 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
           if (nearDateMatches.length === 1) {
             match = nearDateMatches[0];
           } else if (nearDateMatches.length > 1) {
-            match = nearDateMatches.reduce((best, cur) => {
+            const sameUfMatches = atuaUf ? nearDateMatches.filter(t => t.branchUf === atuaUf) : nearDateMatches;
+            const pool = sameUfMatches.length > 0 ? sameUfMatches : nearDateMatches;
+            match = pool.reduce((best, cur) => {
               const diffBest = Math.abs(best.weight - atuaWeight) + Math.abs(best.companyFreight - atuaRec.companyFreight) / 1000;
               const diffCur = Math.abs(cur.weight - atuaWeight) + Math.abs(cur.companyFreight - atuaRec.companyFreight) / 1000;
               return diffCur < diffBest ? cur : best;
@@ -844,6 +1041,11 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
           isDriverFreightReconciledByToll,
           isCompanyFreightReconciledByToll,
 
+          transUf: match.branchUf || '',
+          atuaUf: atuaUf || '',
+          transBranch: match.branchName || '',
+          atuaBranch: atuaUfInfo.branchName || '',
+
           transcunha: {
             weight: match.weight,
             companyFreight: match.companyFreight,
@@ -908,6 +1110,10 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
           isDriverRateDivergent: false,
           isTollDivergent: atuaRec.toll > 0,
           isIcmsDivergent: atuaRec.icmsIssqn > 0,
+          transUf: '',
+          atuaUf: atuaUf || '',
+          transBranch: '',
+          atuaBranch: atuaUfInfo.branchName || '',
           transcunha: null,
           atua: {
             weight: atuaRec.weight,
@@ -967,6 +1173,10 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
           isDriverRateDivergent: false,
           isTollDivergent: t.toll > 0,
           isIcmsDivergent: t.icms > 0,
+          transUf: t.branchUf || '',
+          atuaUf: '',
+          transBranch: t.branchName || '',
+          atuaBranch: '',
           transcunha: {
             weight: t.weight,
             companyFreight: t.companyFreight,
@@ -1287,8 +1497,8 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
         statusText += ` (Desacordo ${item.similarMatch.similarityScore}%)`;
       }
 
-      const cteAtuaStr = item.cteNumberAtua ? `CT-e ${item.cteNumberAtua}` : '---';
-      const cteTransStr = item.cteNumberTrans ? `CT-e ${item.cteNumberTrans}` : 'S/ CT-e';
+      const cteAtuaStr = item.cteNumberAtua ? `CT-e ${item.cteNumberAtua}${item.atuaUf ? ` [${item.atuaUf}]` : ''}` : '---';
+      const cteTransStr = item.cteNumberTrans ? `CT-e ${item.cteNumberTrans}${item.transUf ? ` [${item.transUf}]` : ''}` : 'S/ CT-e';
 
       const compRateStr = (item.transcunha && item.atua)
         ? `R$ ${item.transcunha.companyRatePerTon.toFixed(2)} / ${item.atua.companyRatePerTon.toFixed(2)}`
@@ -1359,7 +1569,9 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
       'Placa',
       'Data Embarque',
       'CT-e Atua TMS',
+      'UF Atua',
       'CT-e Transcunha',
+      'UF Transcunha',
       'Divergencia CT-e',
       'ID Embarque Transcunha',
       'Tipo Conhecimento',
@@ -1411,8 +1623,10 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
       const row = [
         item.plate,
         item.date || '',
-        item.cteNumberAtua || '',
-        item.cteNumberTrans || '',
+        item.cteNumberAtua ? `CT-e ${item.cteNumberAtua}` : '',
+        item.atuaUf || '',
+        item.cteNumberTrans ? `CT-e ${item.cteNumberTrans}` : '',
+        item.transUf || '',
         item.isCteDivergent ? 'SIM' : 'NAO',
         item.shipmentId || '',
         item.isComplementary ? 'Complementar (Estadia)' : 'Original (Normal)',
@@ -2027,6 +2241,11 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
                               <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
                                 {item.cteNumberAtua ? `CT-e ${item.cteNumberAtua}` : '---'}
                               </span>
+                              {item.atuaUf && (
+                                <span className="text-[8px] font-extrabold px-1 py-0.2 rounded bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-600" title={`Filial Atua: ${item.atuaBranch || item.atuaUf}`}>
+                                  [{item.atuaUf}]
+                                </span>
+                              )}
                             </div>
                             <div className="flex items-center gap-1.5">
                               <span className="text-[9px] font-bold text-slate-400">Trans:</span>
@@ -2035,6 +2254,11 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
                               }`}>
                                 {item.cteNumberTrans ? `CT-e ${item.cteNumberTrans}` : 'S/ CT-e'}
                               </span>
+                              {item.transUf && (
+                                <span className="text-[8px] font-extrabold px-1 py-0.2 rounded bg-indigo-100 text-indigo-700 dark:bg-indigo-950/80 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800" title={`Filial Transcunha: ${item.transBranch || item.transUf}`}>
+                                  [{item.transUf}]
+                                </span>
+                              )}
                             </div>
                             {item.isCteDivergent && item.status !== 'ORPHAN_ATUA' && item.status !== 'PENDING_ATUA' && (
                               <span className="inline-block text-[8px] font-extrabold px-1.5 py-0.2 rounded bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-300">

@@ -27,6 +27,30 @@ export interface SystemRelease {
  */
 export const SYSTEM_RELEASES: SystemRelease[] = [
   {
+    id: 'rel_2026_11_10_v2_116_5',
+    version: 'v2.116.5',
+    date: '10/11/2026',
+    title: 'Auditoria Atua TMS: Filtro Rígido de Período e Diferenciação de CT-e por UF/Filial',
+    summary: 'Aprimoramento crítico na conciliação e auditoria contra o Atua TMS: eliminação definitiva do vazamento de embarques de meses anteriores ao filtrar um período ou mês específico, e introdução do suporte a CT-es homônimos com identificação automática da UF da filial emissora (MG, GO, SP, MT, etc.).',
+    items: [
+      {
+        category: 'fix',
+        title: 'Bloqueio Estrito de Datas Fora do Período',
+        description: 'Ao selecionar o mês 10 (ou qualquer intervalo customizado como últimos 7 dias ou data específica), apenas embarques cuja data contábil/emissão de CT-e esteja rigorosamente dentro do intervalo são considerados. Embarques de agosto ou setembro não são mais puxados indevidamente para a tela.'
+      },
+      {
+        category: 'feature',
+        title: 'Identificação de UF e Desempate de Sequências Homônimas',
+        description: 'Como cada estado inicia sua própria sequência numérica de CT-e, o sistema agora identifica a UF da filial de faturamento (via Chave de Acesso SEFAZ, Filial e Cidade de Origem). Na conciliação, notas com o mesmo número são desemparelhadas e validadas cruzando Placa e UF, impedindo cruzamentos incorretos entre filiais de estados distintos.'
+      },
+      {
+        category: 'improvement',
+        title: 'Badges de UF e Exportações Detalhadas',
+        description: 'Exibição de crachás visuais com a sigla do estado ([MG], [GO], etc.) ao lado do CT-e Atua e Transcunha na tabela comparativa, além de colunas dedicadas de UF na exportação em PDF e Excel.'
+      }
+    ]
+  },
+  {
     id: 'rel_2026_11_10_v2_116_4',
     version: 'v2.116.4',
     date: '10/11/2026',
