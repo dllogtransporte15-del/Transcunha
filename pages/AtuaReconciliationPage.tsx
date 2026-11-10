@@ -115,6 +115,12 @@ export interface ReconciliationItem {
   isDriverFreightReconciledByToll?: boolean;
   isCompanyFreightReconciledByToll?: boolean;
 
+  // Filial e UF de Faturamento (diferenciação de sequências estaduais de CT-e)
+  transUf?: string;
+  atuaUf?: string;
+  transBranch?: string;
+  atuaBranch?: string;
+
   transcunha: {
     weight: number;
     companyFreight: number;
@@ -199,6 +205,7 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
 
   const cargoMap = useMemo(() => new Map(cargos.map(c => [c.id, c])), [cargos]);
   const clientMap = useMemo(() => new Map(clients.map(c => [c.id, c.nomeFantasia || c.razaoSocial || ''])), [clients]);
+  const branchMap = useMemo(() => new Map(branches.map(b => [b.id, b])), [branches]);
 
   // Handler de upload do arquivo Atua TMS (com detecção inteligente caso o usuário envie o arquivo Transcunha)
   const handleFileUpload = async (file: File) => {
