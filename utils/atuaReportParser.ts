@@ -111,11 +111,31 @@ export const parseBrazilianNumber = (val: any): number => {
 };
 
 /**
- * Normaliza placa de veículo (remove traços, espaços e converte para maiúsculo)
+ * Normaliza placa de veículo (remove traços, espaços, converte para maiúsculo
+ * e resolve confusões clássicas de OCR/digitação no padrão Mercosul LLLNLNN)
  */
 export const normalizePlate = (plate: string): string => {
   if (!plate) return '';
-  return plate.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+  const clean = plate.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+  if (clean.length === 7) {
+    const p = clean.split('');
+    const ocrToDigit: Record<string, string> = { S: '5', O: '0', I: '1', B: '8', Z: '2', G: '6' };
+    const ocrToLetter: Record<string, string> = { '5': 'S', '0': 'O', '1': 'I', '8': 'B', '2': 'Z', '6': 'G' };
+
+    // Se os 3 primeiros são letras (padrão Brasil/Mercosul):
+    if (/[A-Z]/.test(p[0]) && /[A-Z]/.test(p[1]) && /[A-Z]/.test(p[2])) {
+      // 4º caractere em padrão Mercosul (LLLNLNN) é obrigatoriamente dígito
+      if (/[A-Z]/.test(p[3]) && ocrToDigit[p[3]]) {
+        p[3] = ocrToDigit[p[3]];
+      }
+      // 5º caractere em padrão Mercosul é obrigatoriamente letra (se o 6º e 7º forem dígitos)
+      if (/[0-9]/.test(p[4]) && /[0-9]/.test(p[5]) && /[0-9]/.test(p[6]) && ocrToLetter[p[4]]) {
+        p[4] = ocrToLetter[p[4]];
+      }
+    }
+    return p.join('');
+  }
+  return clean;
 };
 
 /**
@@ -185,9 +205,19 @@ export const parseAtuaTextLine = (line: string): AtuaCteRecord | null => {
     emissionDate = normalizeDate(altMatch[3]);
   }
 
-  // Procura padrão de placa Mercosul ou cinza tradicional
-  const plateMatch = cleaned.match(/\b([A-Z]{3}[0-9][A-Z0-9][0-9]{2})\b/);
-  const plate = plateMatch ? plateMatch[1].toUpperCase() : '';
+  // Procura padrão de placa Mercosul ou tradicional (7 caracteres alfanuméricos com 3 letras no início)
+  const plateMatch = cleaned.match(/\b([A-Z]{3}[A-Z0-9]{4})\b/i);
+  const plate = plateMatch ? normalizePlate(plateMatch[1]) : '';
+
+  // Extração do Pagador (Tomador do frete) que antecede a placa no relatório
+  let payer = '';
+  if (plateMatch && plateMatch.index !== undefined && plateMatch.index > 0) {
+    const beforePlate = cleaned.substring(0, plateMatch.index).trim();
+    const tokens = beforePlate.split(/\s{2,}|\t/);
+    if (tokens.length >= 2) {
+      payer = tokens[tokens.length - 1].trim();
+    }
+  }
 
   // Procura números decimais após a placa
   let afterPlate = '';
@@ -254,6 +284,7 @@ export const parseAtuaTextLine = (line: string): AtuaCteRecord | null => {
     emissionDate,
     emissionTime,
     branch: 'Transcunha',
+    payer,
     plate,
     weight,
     companyFreight,
@@ -400,6 +431,7 @@ export const parseTranscunhaTextReport = (fullText: string): AtuaReportParseResu
         isCanceled: false,
         emissionDate: date,
         branch: 'Transcunha',
+        payer: clientName,
         plate,
         weight,
         companyFreight,
@@ -480,12 +512,17 @@ const extractAtuaFromCoordinates = (allPagesItems: any[][]): AtuaCteRecord[] => 
       const cteNumber = cteItem.str.trim();
 
       // Placa (X entre 270 e 325)
-      const plateItem = validItems.find(it => 
-        it.transform[4] >= 270 && 
-        it.transform[4] <= 325 && 
-        /[A-Z]{3}[0-9][A-Z0-9][0-9]{2}/.test(it.str.replace(/[^A-Za-z0-9]/g, ''))
-      );
-      const plate = plateItem ? plateItem.str.replace(/[^A-Za-z0-9]/g, '').toUpperCase() : '';
+      const plateItem = validItems.find(it => {
+        const cleanedStr = it.str.replace(/[^A-Za-z0-9]/g, '');
+        return it.transform[4] >= 270 && 
+          it.transform[4] <= 325 && 
+          /^[A-Za-z]{3}[A-Za-z0-9]{4}$/.test(cleanedStr);
+      });
+      const plate = plateItem ? normalizePlate(plateItem.str) : '';
+
+      // Pagador / Tomador do Frete (X entre 160 e 270, antecede a placa)
+      const payerItem = validItems.find(it => it.transform[4] >= 160 && it.transform[4] < 270 && !/^\d+$/.test(it.str.trim()));
+      const payer = payerItem ? payerItem.str.trim() : '';
 
       // Data de Emissão (X entre 65 e 115)
       const dateItem = validItems.find(it => it.transform[4] >= 65 && it.transform[4] <= 115 && /\d{2}\/\d{2}/.test(it.str));
@@ -558,6 +595,7 @@ const extractAtuaFromCoordinates = (allPagesItems: any[][]): AtuaCteRecord[] => 
         cancelDate,
         emissionDate,
         branch: 'Transcunha',
+        payer,
         plate,
         weight,
         companyFreight,
@@ -733,6 +771,8 @@ export const parseAtuaExcelFile = async (file: File): Promise<AtuaReportParseRes
         else if (c.includes('peso')) colIndexMap['weight'] = idx;
         else if (c.includes('frete empr') || c.includes('fr. empr') || c.includes('frete empresa')) colIndexMap['freightCompany'] = idx;
         else if (c.includes('frete mot') || c.includes('fr. mot') || c.includes('frete motorista')) colIndexMap['freightDriver'] = idx;
+        else if (c.includes('tarifa empr') || c.includes('tarifa empresa') || c.includes('tar. empr')) colIndexMap['companyTariff'] = idx;
+        else if (c.includes('tarifa mot') || c.includes('tarifa motorista') || c.includes('tar. mot')) colIndexMap['driverTariff'] = idx;
         else if (c.includes('icms') || c.includes('issqn')) colIndexMap['icms'] = idx;
         else if (c.includes('ped.') || c.includes('pedagio') || c.includes('pedágio')) colIndexMap['toll'] = idx;
         else if (c.includes('imp. fed') || c.includes('fed. imp') || c.includes('imposto federal')) colIndexMap['federalTax'] = idx;
@@ -740,7 +780,7 @@ export const parseAtuaExcelFile = async (file: File): Promise<AtuaReportParseRes
         else if (c.includes('result') || c.includes('resultado')) colIndexMap['result'] = idx;
         else if (c.includes('origem')) colIndexMap['origin'] = idx;
         else if (c.includes('destino')) colIndexMap['destination'] = idx;
-        else if (c.includes('cliente') || c.includes('pagador') || c.includes('remetente')) colIndexMap['client'] = idx;
+        else if (c.includes('pagador') || c.includes('tomador') || c.includes('cliente') || c.includes('remetente')) colIndexMap['client'] = idx;
       });
       break;
     }
@@ -767,6 +807,9 @@ export const parseAtuaExcelFile = async (file: File): Promise<AtuaReportParseRes
     const weight = colIndexMap['weight'] !== undefined ? parseBrazilianNumber(row[colIndexMap['weight']]) : 0;
     const companyFreight = colIndexMap['freightCompany'] !== undefined ? parseBrazilianNumber(row[colIndexMap['freightCompany']]) : 0;
     const driverFreight = colIndexMap['freightDriver'] !== undefined ? parseBrazilianNumber(row[colIndexMap['freightDriver']]) : 0;
+    const companyTariff = colIndexMap['companyTariff'] !== undefined ? parseBrazilianNumber(row[colIndexMap['companyTariff']]) : undefined;
+    const driverTariff = colIndexMap['driverTariff'] !== undefined ? parseBrazilianNumber(row[colIndexMap['driverTariff']]) : undefined;
+    const payer = colIndexMap['client'] !== undefined ? String(row[colIndexMap['client']]).trim() : '';
     const icmsIssqn = colIndexMap['icms'] !== undefined ? parseBrazilianNumber(row[colIndexMap['icms']]) : 0;
     const toll = colIndexMap['toll'] !== undefined ? parseBrazilianNumber(row[colIndexMap['toll']]) : 0;
     const federalTax = colIndexMap['federalTax'] !== undefined ? parseBrazilianNumber(row[colIndexMap['federalTax']]) : 0;
@@ -783,10 +826,13 @@ export const parseAtuaExcelFile = async (file: File): Promise<AtuaReportParseRes
       isCanceled: false,
       emissionDate,
       branch: 'Transcunha',
+      payer,
       plate,
       weight,
       companyFreight,
       driverFreight,
+      companyTariff,
+      driverTariff,
       icmsIssqn,
       toll,
       federalTax,

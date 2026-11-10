@@ -2648,6 +2648,10 @@ const AttachmentModal: React.FC<AttachmentModalProps> = ({
           : resolvedFreightWithToll)
       : undefined;
 
+    const resolvedCteCompanyFreight = (isAguardandoFiscal && companyFreightDecision === 'use_cte' && companyFreightDivergenceInfo) 
+      ? companyFreightDivergenceInfo.cteServiceTotal 
+      : (cteExtractedServiceTotal && cteExtractedServiceTotal > 0 ? cteExtractedServiceTotal : undefined);
+
     setError('');
     setIsSaving(true);
     try {
@@ -2663,10 +2667,10 @@ const AttachmentModal: React.FC<AttachmentModalProps> = ({
           : ((isAguardandoFiscal && icmsDecision === 'use_cte' && icmsDivergenceInfo) 
               ? icmsDivergenceInfo.cteIcms 
               : (isAguardandoFiscal && cteExtractedIcms !== undefined && !icmsDivergenceInfo ? cteExtractedIcms : undefined)),
-        realProfitData: (isAguardandoFiscal && companyFreightDecision === 'use_cte' && companyFreightDivergenceInfo) 
+        realProfitData: (resolvedCteCompanyFreight !== undefined) 
           ? ({
               ...(shipment.realProfitData || {}),
-              companyFreight: companyFreightDivergenceInfo.cteServiceTotal,
+              companyFreight: resolvedCteCompanyFreight,
               ...(isCargoWithoutIcms ? { isIcmsExempt: true, icmsDifference: 0 } : (icmsDecision === 'use_cte' && icmsDivergenceInfo ? { icmsDifference: icmsDivergenceInfo.cteIcms } : {})),
             } as any)
           : (isCargoWithoutIcms
@@ -2932,9 +2936,12 @@ const AttachmentModal: React.FC<AttachmentModalProps> = ({
     ? calculatedDriverFreight
     : (Number(shipment.driverFreightValue) || calculatedDriverFreight);
   const driverFreightNetOfToll = Math.max(0, totalDriverFreight - effectiveToll);
-  const totalCompanyFreight = shipment.realProfitData?.companyFreight !== undefined && shipment.realProfitData.companyFreight > 0
-    ? shipment.realProfitData.companyFreight
-    : (companyRate * (shipment.shipmentTonnage || 0));
+  const calculatedCompanyFreight = (companyRate > 0 && ton > 0) ? Number((companyRate * ton).toFixed(2)) : 0;
+  const totalCompanyFreight = (calculatedCompanyFreight > 0 && shipment.realProfitData?.companyFreight && Math.abs(shipment.realProfitData.companyFreight - calculatedCompanyFreight) > 5.00 && (shipment.companyFreightRateSnapshot || cargo?.companyFreightValuePerTon))
+    ? calculatedCompanyFreight
+    : (shipment.realProfitData?.companyFreight !== undefined && shipment.realProfitData.companyFreight > 0
+        ? shipment.realProfitData.companyFreight
+        : calculatedCompanyFreight);
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4">

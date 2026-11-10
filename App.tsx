@@ -2583,12 +2583,17 @@ const App: React.FC = () => {
 
     let updatedTonnage = originalShipment.shipmentTonnage;
     let updatedDriverFreight = originalShipment.driverFreightValue;
+    let updatedCompanyFreight: number | undefined;
     
     if (loadedTonnage !== undefined && loadedTonnage > 0) {
         updatedTonnage = loadedTonnage;
         if (driverFreightValue === undefined) {
           const rateToUse = originalShipment.driverFreightRateSnapshot || cargos.find(c => c.id === originalShipment.cargoId)?.driverFreightValuePerTon || 0;
           updatedDriverFreight = rateToUse * loadedTonnage;
+        }
+        const compRateToUse = originalShipment.companyFreightRateSnapshot || cargos.find(c => c.id === originalShipment.cargoId)?.companyFreightValuePerTon || 0;
+        if (compRateToUse > 0) {
+          updatedCompanyFreight = Number((compRateToUse * loadedTonnage).toFixed(2));
         }
         const formattedVal = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(updatedDriverFreight);
         if (loadedTonnage !== originalShipment.shipmentTonnage) {
@@ -2765,9 +2770,10 @@ const App: React.FC = () => {
         isIcmsExempt: isCargoWithoutIcms ? true : (originalShipment.isIcmsExempt ?? (updatedDocuments.is_icms_exempt === true || updatedDocuments.isIcmsExempt === true)),
         icmsValue: isCargoWithoutIcms ? 0 : (icmsValue !== undefined ? icmsValue : originalShipment.icmsValue),
         codigoAtua: (codigoAtua !== undefined && codigoAtua !== null && String(codigoAtua).trim() !== '') ? String(codigoAtua).trim() : originalShipment.codigoAtua,
-        realProfitData: (realProfitData || originalShipment.realProfitData || extractedFiscalNums?.sestSenatValue !== undefined || icmsValue !== undefined || isCargoWithoutIcms)
+        realProfitData: (realProfitData || originalShipment.realProfitData || extractedFiscalNums?.sestSenatValue !== undefined || icmsValue !== undefined || isCargoWithoutIcms || updatedCompanyFreight !== undefined)
           ? {
               ...(originalShipment.realProfitData || {}),
+              ...(updatedCompanyFreight !== undefined ? { companyFreight: updatedCompanyFreight } : {}),
               ...(realProfitData || {}),
               ...(extractedFiscalNums?.sestSenatValue !== undefined ? { sestSenat: extractedFiscalNums.sestSenatValue } : {}),
               ...(extractedFiscalNums?.inssRetidoValue !== undefined ? { inssRetido: extractedFiscalNums.inssRetidoValue } : {}),

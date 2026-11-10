@@ -27,6 +27,203 @@ export interface SystemRelease {
  */
 export const SYSTEM_RELEASES: SystemRelease[] = [
   {
+    id: 'rel_2026_11_10_v2_116_4',
+    version: 'v2.116.4',
+    date: '10/11/2026',
+    title: 'Filtro Estrito de Auditoria: Exclusividade de Embarques Efetivados com CT-e',
+    summary: 'A tela de auditoria Atua TMS vs. Transcunha passa a processar e exibir exclusivamente embarques efetivados que possuem CT-e fiscal emitido. Embarques em trânsito, agendados, aguardando nota ou sem CT-e emitido foram totalmente filtrados do painel, garantindo conciliação fiscal limpa e precisa.',
+    items: [
+      {
+        category: 'feature',
+        title: 'Filtragem Estrita de Embarques com CT-e Emitido',
+        description: 'A lista de embarques da Transcunha na auditoria agora exige obrigatoriamente a presença de CT-e fiscal emitido (descartando cancelados e embarques sem CT-e), eliminando pendências falsas de embarques operacionais que ainda não foram faturados.'
+      },
+      {
+        category: 'improvement',
+        title: 'Depuração dos Pendentes no Atua',
+        description: 'A aba "Pendentes Atua" agora exibe apenas fretes e estadias complementares que possuem CT-e oficial emitido no Transcunha mas que ainda não constam no relatório do Atua TMS importado.'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_10_v2_116_3',
+    version: 'v2.116.3',
+    date: '10/11/2026',
+    title: 'Blindagem da Extração de CT-e: Eliminação de Números Falsos de Código Atua e Timestamps',
+    summary: 'Correção crítica na identificação de CT-es do sistema Transcunha na auditoria: códigos internos do Atua (codigo_atua / codg_atua como 5485, 5740, 5735) e prefixos de timestamp de upload de anexos foram estritamente desvinculados do campo de CT-e. Embarques sem CT-e emitido passam a ser identificados fielmente como "Trans: S/ CT-e".',
+    items: [
+      {
+        category: 'fix',
+        title: 'Desvinculação Total de "codigo_atua" do Número Fiscal de CT-e',
+        description: 'O campo codigo_atua representa uma ordem/código operacional interno da agência e não um CT-e emitido. A extração de CT-e agora ignora completamente esse campo, garantindo que embarques em trânsito ou sem faturamento exibam fielmente "Trans: S/ CT-e".'
+      },
+      {
+        category: 'fix',
+        title: 'Higienização de Timestamps de Anexos no Storage',
+        description: 'Eliminada a possibilidade de anexos do Supabase Storage com prefixo de data/hora (ex: CT-e_1790176548521_...) terem seus timestamps lidos erroneamente como numeração de CT-e.'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_10_v2_116_2',
+    version: 'v2.116.2',
+    date: '10/11/2026',
+    title: 'Conciliação Automática de Frete com Pedágio Incluso vs. Destacado (Atua TMS vs. Transcunha)',
+    summary: 'Configuração da auditoria contábil para conciliar automaticamente variações de Frete Motorista e Frete Empresa quando a diferença entre os sistemas corresponder exatamente ao valor do pedágio da operação (embutido no frete bruto na Transcunha e destacado em coluna própria no relatório Atua TMS).',
+    items: [
+      {
+        category: 'feature',
+        title: 'Conciliação Inteligente de Pedágio no Frete Motorista e Empresa',
+        description: 'A auditoria agora reconhece operações em que o valor do frete na Transcunha inclui o pedágio (ex: R$ 8.160,90) e o relatório Atua TMS destaca o pedágio à parte (ex: Frete R$ 7.321,65 + Pedágio R$ 839,25). Quando a diferença conferir com o pedágio, o sistema valida a conciliação automaticamente sem apontar divergência indevida.'
+      },
+      {
+        category: 'improvement',
+        title: 'Indicador Visual "✓ Conciliado c/ Pedágio"',
+        description: 'Substituição do delta vermelho de divergência pelo selo verde "✓ Conciliado c/ Pedágio" na coluna e no detalhe expandido da auditoria, mantendo o delta residual zerado (R$ 0,00) para preservar a integridade dos somatórios gerais.'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_10_v2_116_1',
+    version: 'v2.116.1',
+    date: '10/11/2026',
+    title: 'Correção Crítica no Pareamento de CT-e e Normalização Canônica de Placas (Resolução CT-e 2053)',
+    summary: 'Correção de 4 causas-raiz que impediam embarques existentes na Transcunha (como o CT-e 2053) de serem auditados contra o Atua TMS: pareamento prioritário por número exato de CT-e, priorização da data de emissão contábil do CT-e sobre agendamento, inclusão mandatória de embarques listados no arquivo Atua e normalização de confusões OCR/digitação em placas Mercosul (ex: RNISF37 -> RNI5F37).',
+    items: [
+      {
+        category: 'fix',
+        title: 'Pareamento Prioritário por Número Exato de CT-e',
+        description: 'Quando o número do CT-e constar tanto no relatório Atua quanto nos dados do embarque da Transcunha (ex: CT-e 2053), o pareamento é estabelecido de forma imediata e de alta prioridade, confrontando diretamente os 6 pilares de frete, peso, pedágio e ICMS sem apontar falsos "Órfãos Atua".'
+      },
+      {
+        category: 'fix',
+        title: 'Inclusão Mandatória e Priorização da Data Efetiva de Emissão',
+        description: 'Embarques com CT-e listado no relatório importado do Atua nunca mais são excluídos pelo filtro de período. A data contábil do embarque passa a priorizar a data real de emissão do CT-e (cteEmissionDate) sobre a data agendada, evitando que embarques de virada de mês (agendados em 30/09 e emitidos em 01/10) sejam descartados.'
+      },
+      {
+        category: 'improvement',
+        title: 'Normalização Canônica de Placas Mercosul e Tolerância OCR',
+        description: 'Algoritmo inteligente de normalização de placas que resolve automaticamente variações e confusões clássicas de OCR/digitação no formato Mercosul (ex: conversão automática de "S" para "5" na 4ª posição da placa RNISF37 / RNI5F37), garantindo conciliação precisa até mesmo em documentos com ruído de digitalização.'
+      },
+      {
+        category: 'improvement',
+        title: 'Extração Resiliente de CT-e do Embarque',
+        description: 'Função de captura de CT-e no Transcunha aprimorada para buscar em múltiplos campos (cteNumber, documents.cte_number, codigo_atua e anexos DACTE) sem depender de travas restritivas de status operacional.'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_10_v2_116_0',
+    version: 'v2.116.0',
+    date: '10/11/2026',
+    title: 'Especificação Oficial Atua TMS vs. Transcunha: Pareamento Placa+Data, 6 Pilares Estritos e Heurística de Desacordo',
+    summary: 'Implementação completa e padronizada da auditoria do Relatório Detalhado do CTRC (Atua TMS) confrontado contra o Transcunha. Extração de tomador/pagador, pareamento primário estrito por [Placa do Cavalo] + [Data de Embarque/Emissão], regras de divergência estritas nos 6 pilares oficiais com status "100% OK (Conciliado)" e motor heurístico calibrado (+40, +25, +20, +15, +10, +10) com crachá visual "🔄 Desacordo? (X%)" para score >= 60%.',
+    items: [
+      {
+        category: 'feature',
+        title: 'Pareamento Primário Estrito por Placa e Data de Embarque',
+        description: 'Cruzamento inicial entre Atua TMS e Transcunha executado rigorosamente pela chave [Placa do Veículo] + [Data de Embarque/Emissão] no período filtrado, permitindo auditar divergências de CT-e sem mascarar reemissões.'
+      },
+      {
+        category: 'feature',
+        title: 'Motor Heurístico de Desacordo Comercial Calibrado',
+        description: 'Algoritmo de 6 critérios oficiais (+40 placa/carretas, +25 frete motorista, +20 peso, +15 frete empresa, +10 janela 30 dias, +10 tarifas) que detecta e marca com crachá visual "🔄 Desacordo? (X%)" qualquer semelhança >= 60% entre órfãos do Atua e pendentes da Transcunha.'
+      },
+      {
+        category: 'improvement',
+        title: 'Auditoria Rigorosa dos 6 Pilares sem Falsas Divergências',
+        description: 'Status "100% OK (Conciliado)" atribuído quando houver conformidade em CT-e, Frete Empresa (Total e R$/t), Frete Motorista (Total e R$/t), Peso Carregado, Pedágio e ICMS, desconsiderando margem DIF. FR. e sem apontar divergência por estimativa fiscal ou lucro interno.'
+      },
+      {
+        category: 'improvement',
+        title: 'Extração de Tomador/Pagador e Relatórios Executivos PDF/Excel',
+        description: 'Captura do cliente/pagador do CTRC para vinculação nos relatórios, dropdown com filtro exclusivo dos 6 pilares e exportações em PDF e Excel enriquecidas com crachá e evidências de desacordo comercial.'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_09_v2_115_0',
+    version: 'v2.115.0',
+    date: '09/11/2026',
+    title: 'Auditoria Refinada Atua TMS: Motor Heurístico de Desacordo de CT-e e Eliminação de Falsas Divergências',
+    summary: 'Ajuste de precisão nos critérios de divergência da auditoria Atua TMS, restringindo o status Divergente estritamente aos 6 pilares contratados (CT-e, Frete Empresa, Frete Motorista, Peso, Pedágio e ICMS). Introdução de motor heurístico de cruzamento inteligente entre Conhecimentos Órfãos no Atua e Embarques Pendentes na Transcunha para identificação automática de desacordos comerciais e substituições de CT-e.',
+    items: [
+      {
+        category: 'fix',
+        title: 'Eliminação de Falsas Divergências Financeiras',
+        description: 'Correção na regra de cálculo que marcava embarques como divergentes devido ao cálculo de resultado/lucro real interno ou imposto federal estimativo. Agora a classificação de divergência segue estritamente os 6 pilares oficiais: número de CT-e, frete empresa (total e tarifa), frete motorista (total e tarifa), peso em toneladas, pedágio e ICMS.'
+      },
+      {
+        category: 'feature',
+        title: 'Motor Heurístico de Desacordo Comercial e Substituição de CT-e',
+        description: 'Algoritmo inteligente que cruza automaticamente conhecimentos que constam apenas no Atua (órfãos) com embarques pendentes na Transcunha. Avalia placas de cavalo e carretas, igualdade de frete ao motorista, peso e janela de datas (até 30 dias), calculando um score percentual de similaridade com evidências detalhadas de correspondência.'
+      },
+      {
+        category: 'improvement',
+        title: 'Filtro Rápido e Alertas de Possível Desacordo',
+        description: 'Novo botão de filtro rápido "Possível Desacordo", crachás visuais com percentual de similaridade nas linhas e bloco informativo detalhado na linha expandida, apontando o CT-e substituto e as razões do desacordo.'
+      },
+      {
+        category: 'improvement',
+        title: 'Exportação PDF e Excel com Indicador de Desacordo',
+        description: 'Os relatórios exportados em PDF e CSV agora incluem a observação e coluna de similaridade/desacordo comercial para facilitar a conferência pelo setor financeiro e fiscal.'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_09_v2_114_0',
+    version: 'v2.114.0',
+    date: '09/11/2026',
+    title: 'Nova Auditoria Atua TMS vs. Transcunha: Pareamento por Placa e Data com Análise dos 6 Pilares',
+    summary: 'Reformulação profunda do motor de conciliação e auditoria entre o Atua TMS (CTRC) e o Transcunha. A associação agora é realizada pela chave Placa do Cavalo + Data do Embarque, permitindo a detecção precisa de divergências no próprio número do CT-e, confrontos de Frete Empresa e Motorista (valor total e R$/ton), Peso em toneladas, Pedágio e ICMS lado a lado com tolerâncias configuráveis.',
+    items: [
+      {
+        category: 'feature',
+        title: 'Pareamento Primário por Placa do Cavalo e Data do Embarque',
+        description: 'Substituição do matching estrito por CT-e pelo cruzamento inteligente de Placa + Data dentro do período filtrado. Isso elimina falsos órfãos e viabiliza a auditoria do número do CT-e lançado no Atua versus o cadastrado na Transcunha.'
+      },
+      {
+        category: 'feature',
+        title: 'Auditoria de Frete Total e Frete por Tonelada (R$/ton)',
+        description: 'Confronto simultâneo do valor financeiro total e do valor unitário por tonelada tanto para o Frete Empresa quanto para o Frete Motorista, apontando divergências de tarifas contratadas com tolerância dedicada.'
+      },
+      {
+        category: 'improvement',
+        title: 'Confronto Completo dos 6 Pilares: CT-e, Fretes, Peso, Pedágio e ICMS',
+        description: 'Tabela comparativa lado a lado e painel expandido exibindo individualmente os valores de cada sistema e o delta de diferença para Número de CT-e, Frete Empresa, Frete Motorista, Peso (t), Pedágio (R$) e ICMS (R$).'
+      },
+      {
+        category: 'improvement',
+        title: 'Filtros de Auditoria por Motivo Específico e Exportação PDF/Excel Aprimorada',
+        description: 'Novos filtros por tipo de divergência (CT-e, Frete Empresa, Frete Motorista, Peso, Pedágio, ICMS) e exportação em PDF e Excel atualizadas com colunas comparativas completas.'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_09_v2_113_0',
+    version: 'v2.113.0',
+    date: '09/11/2026',
+    title: 'Sincronização Automática do Frete Empresa com Peso Efetivado e CT-e',
+    summary: 'Correção e aprimoramento no cálculo e exibição do Total Frete Empresa no modal Gerenciar Anexos, Painel de Automação do CT-e e Apuração de Resultados. O valor agora é recalculado automaticamente ao alterar a tonelagem carregada e prioriza o Valor Total do Serviço do CT-e emitido, evitando valores defasados provenientes do peso estimado inicial.',
+    items: [
+      {
+        category: 'fix',
+        title: 'Recálculo Proporcional do Frete Empresa na Atualização de Tonelagem',
+        description: 'Ao registrar ou alterar as toneladas carregadas no ticket (ex: de 47,00 t para 48,34 t), o sistema agora atualiza proporcionalmente o Frete Empresa (Tarifa Empresa × Toneladas Efetivas), eliminando divergências onde o valor permanecia travado no peso previsto anterior.'
+      },
+      {
+        category: 'improvement',
+        title: 'Captura e Persistência do Valor Total do Serviço do CT-e',
+        description: 'Ao anexar ou validar o CT-e no fiscal, o sistema passa a gravar o Valor Total do Serviço extraído do DACTE diretamente no frete da empresa do embarque, garantindo conformidade fiscal absoluta entre o faturamento e o painel operacional.'
+      },
+      {
+        category: 'fix',
+        title: 'Auto-Correção Defensiva em Visualizações Financeiras',
+        description: 'Implementado mecanismo de auto-correção defensiva no cabeçalho do Gerenciar Anexos, no Painel CT-e e na calculadora de despesas operacionais para que, caso haja discrepância com o peso e a tarifa vigentes, o valor exibido reflita dinamicamente o cálculo correto.'
+      }
+    ]
+  },
+  {
     id: 'rel_2026_11_06_v2_112_0',
     version: 'v2.112.0',
     date: '06/11/2026',

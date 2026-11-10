@@ -93,9 +93,12 @@ export function calculateShipmentExpenses(
   const tonnage = shipment.shipmentTonnage || cargo?.totalVolume || 0;
 
   // 1. Frete Empresa Bruto
-  const companyFreight = shipment.realProfitData?.companyFreight !== undefined && shipment.realProfitData.companyFreight > 0
-    ? shipment.realProfitData.companyFreight
-    : (companyFreightRate > 0 && tonnage > 0 ? Number((companyFreightRate * tonnage).toFixed(2)) : (shipment.driverFreightValue || 0));
+  const calculatedCompanyFreight = (companyFreightRate > 0 && tonnage > 0) ? Number((companyFreightRate * tonnage).toFixed(2)) : 0;
+  const companyFreight = (calculatedCompanyFreight > 0 && shipment.realProfitData?.companyFreight && Math.abs(shipment.realProfitData.companyFreight - calculatedCompanyFreight) > 5.00 && (shipment.companyFreightRateSnapshot || cargo?.companyFreightValuePerTon))
+    ? calculatedCompanyFreight
+    : (shipment.realProfitData?.companyFreight !== undefined && shipment.realProfitData.companyFreight > 0
+        ? shipment.realProfitData.companyFreight
+        : (calculatedCompanyFreight > 0 ? calculatedCompanyFreight : (shipment.driverFreightValue || 0)));
 
   // 2. Frete Motorista
   const driverRate = shipment.driverFreightRateSnapshot || cargo?.driverFreightValuePerTon || 0;

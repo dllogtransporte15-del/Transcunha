@@ -1401,11 +1401,14 @@ export const CteCostAutomationPanel: React.FC<CteCostAutomationPanelProps> = ({
     }
   };
 
-  const cteGrossFreight = shipment.realProfitData?.companyFreight !== undefined && shipment.realProfitData.companyFreight > 0
-    ? shipment.realProfitData.companyFreight
-    : (companyRate > 0 && tonnage > 0 
-        ? Number((companyRate * tonnage).toFixed(2)) 
-        : (shipment.driverFreightValue || 0));
+  const calculatedCompanyFreight = (companyRate > 0 && tonnage > 0) ? Number((companyRate * tonnage).toFixed(2)) : 0;
+  const cteGrossFreight = (calculatedCompanyFreight > 0 && shipment.realProfitData?.companyFreight && Math.abs(shipment.realProfitData.companyFreight - calculatedCompanyFreight) > 5.00 && (shipment.companyFreightRateSnapshot || cargo?.companyFreightValuePerTon))
+    ? calculatedCompanyFreight
+    : (shipment.realProfitData?.companyFreight !== undefined && shipment.realProfitData.companyFreight > 0
+        ? shipment.realProfitData.companyFreight
+        : (calculatedCompanyFreight > 0 
+            ? calculatedCompanyFreight 
+            : (shipment.driverFreightValue || 0)));
 
   // Estados para capturas automáticas do XML/Documentos
   const [autoToll, setAutoToll] = React.useState<number | undefined>(undefined);

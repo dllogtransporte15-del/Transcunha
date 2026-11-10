@@ -236,26 +236,36 @@ export function getShipmentCte(shipment?: { status?: any; cteNumber?: string; do
     return directNum;
   }
 
-  // 3. Fallback: extração a partir dos anexos
+  // 3. Fallback: extração a partir dos anexos (removendo prefixo de timestamp de upload para evitar números falsos)
   const cteDocs = shipment.documents?.['CT-e'] || shipment.documents?.['CT-E'] || shipment.documents?.['cte'] || shipment.documents?.['Cte'];
   if (Array.isArray(cteDocs) && cteDocs.length > 0) {
     const extractedList: string[] = [];
     for (const item of cteDocs) {
       if (typeof item === 'string') {
-        const match = item.match(/DACTE_(\d+)/i) || 
-                      item.match(/CT[-_]?e[^\d]*(\d{3,8})/i) || 
-                      item.match(/_(\d{3,8})\.(?:pdf|xml)/i);
+        const cleanItem = item.replace(/CT[-_]?e_\d{10,14}_/i, '').replace(/DACTE_\d{10,14}_/i, '');
+        const match = cleanItem.match(/DACTE_(\d{1,8})/i) || 
+                      cleanItem.match(/(?:^|_)CTE_(\d{1,8})/i) || 
+                      cleanItem.match(/_(\d{1,8})\.(?:pdf|xml)/i);
         if (match && match[1]) {
-          if (!extractedList.includes(match[1])) extractedList.push(match[1]);
+          const numStr = match[1];
+          if (!numStr.startsWith('178') && !numStr.startsWith('179') && !extractedList.includes(numStr)) {
+            extractedList.push(numStr);
+          }
         }
       }
     }
     if (extractedList.length > 0) return extractedList.join('/');
   } else if (typeof cteDocs === 'string' && cteDocs.trim() !== '') {
-    const match = cteDocs.match(/DACTE_(\d+)/i) || 
-                  cteDocs.match(/CT[-_]?e[^\d]*(\d{3,8})/i) || 
-                  cteDocs.match(/_(\d{3,8})\.(?:pdf|xml)/i);
-    if (match && match[1]) return match[1];
+    const cleanItem = cteDocs.replace(/CT[-_]?e_\d{10,14}_/i, '').replace(/DACTE_\d{10,14}_/i, '');
+    const match = cleanItem.match(/DACTE_(\d{1,8})/i) || 
+                  cleanItem.match(/(?:^|_)CTE_(\d{1,8})/i) || 
+                  cleanItem.match(/_(\d{1,8})\.(?:pdf|xml)/i);
+    if (match && match[1]) {
+      const numStr = match[1];
+      if (!numStr.startsWith('178') && !numStr.startsWith('179')) {
+        return numStr;
+      }
+    }
   }
 
   return '-';
