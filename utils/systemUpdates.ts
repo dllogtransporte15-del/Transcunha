@@ -27,6 +27,25 @@ export interface SystemRelease {
  */
 export const SYSTEM_RELEASES: SystemRelease[] = [
   {
+    id: 'rel_2026_11_11_v2_116_6',
+    version: 'v2.116.6',
+    date: '11/11/2026',
+    title: 'Embarque Complementar: Dispensa de MDF-e e Carta Frete na Etapa Fiscal',
+    summary: 'Configuração das regras de validação para embarques complementares no status "Aguardando Fiscal": dispensa total da obrigatoriedade de anexar MDF-e e Carta Frete para avançar de etapa, exigindo estritamente apenas a emissão e anexo do CT-e Complementar.',
+    items: [
+      {
+        category: 'improvement',
+        title: 'Dispensa de MDF-e e Carta Frete no Complementar',
+        description: 'Embarques complementares em "Ag. Fiscal" agora possuem os campos de MDF-e e Carta Frete configurados como opcionais/dispensados, com labels informativas de dispensa e sem bloqueio no avanço.'
+      },
+      {
+        category: 'fix',
+        title: 'Desbloqueio de Avanço sem Falsas Divergências',
+        description: 'O botão de avanço e as validações de divergência fiscal agora liberam o avanço imediatamente após o anexo e validação do CT-e Complementar, eliminando travamentos decorrentes da ausência de Carta Frete ou MDF-e.'
+      }
+    ]
+  },
+  {
     id: 'rel_2026_11_10_v2_116_5',
     version: 'v2.116.5',
     date: '10/11/2026',

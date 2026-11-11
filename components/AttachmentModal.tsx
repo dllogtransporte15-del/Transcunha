@@ -480,6 +480,19 @@ const AttachmentModal: React.FC<AttachmentModalProps> = ({
   const isDemo = isDemoUser(currentUser);
   const isEmbarcador = currentUser?.profile === UserProfile.Embarcador || (currentUser?.profile as string) === 'Embarcador';
   const canValidateTicket = !isEmbarcador && currentUser?.profile !== UserProfile.Cliente && currentUser?.profile !== UserProfile.Motorista;
+  
+  // Identificação robusta de Embarque Complementar
+  const isComplementar = Boolean(
+    shipment.isComplementar ||
+    (shipment as any).isComplementary ||
+    (shipment as any).parentShipmentId ||
+    (shipment.documents as any)?.is_complementar ||
+    (shipment.documents as any)?.isComplementar ||
+    (shipment.documents as any)?.parent_shipment_id ||
+    (shipment as any).complementarOriginType ||
+    (shipment.documents as any)?.complementar_origin_type ||
+    (shipment.id && typeof shipment.id === 'string' && shipment.id.endsWith('-COMP'))
+  );
   const riskQueryOptions = React.useMemo<RiskQueryOption[]>(() => {
     if (propRiskQueryOptions && propRiskQueryOptions.length > 0) {
       return propRiskQueryOptions;
@@ -992,6 +1005,8 @@ const AttachmentModal: React.FC<AttachmentModalProps> = ({
   }, [shipment.driverFreightValue, shipment.driverFreightRateSnapshot, cargo?.driverFreightValuePerTon, shipment.shipmentTonnage, tollValue, shipment.tollValue, shipment.documents, docExtractedToll]);
 
   const freightDivergenceInfo = React.useMemo(() => {
+    // No embarque complementar em Ag. Fiscal, não há exigência de Carta Frete
+    if (isComplementar) return null;
     if (!cartaFreteExtractedFreight || cartaFreteExtractedFreight <= 0 || systemDriverFreight <= 0) return null;
 
     // Carta Frete Anexada: considerar frete total motorista sem o valor do pedágio
@@ -1201,11 +1216,11 @@ const AttachmentModal: React.FC<AttachmentModalProps> = ({
     return null;
   }, [isAguardandoAdiantamento, cartaFreteExtractedAdvance, advanceValue, systemCalculatedAdvance]);
 
-  const hasUnresolvedWeightDivergence = isAguardandoFiscal && !!weightDivergenceInfo && weightDecision === 'unresolved';
-  const hasUnresolvedFreightDivergence = isAguardandoFiscal && !!freightDivergenceInfo && freightDecision === 'unresolved';
-  const hasUnresolvedCompanyFreightDivergence = isAguardandoFiscal && !!companyFreightDivergenceInfo && companyFreightDecision === 'unresolved';
-  const hasUnresolvedIcmsDivergence = isAguardandoFiscal && !!icmsDivergenceInfo && icmsDecision === 'unresolved';
-  const hasUnresolvedTollDivergence = isAguardandoFiscal && !!tollDivergenceInfo && tollDecision === 'unresolved';
+  const hasUnresolvedWeightDivergence = isAguardandoFiscal && !isComplementar && !!weightDivergenceInfo && weightDecision === 'unresolved';
+  const hasUnresolvedFreightDivergence = isAguardandoFiscal && !isComplementar && !!freightDivergenceInfo && freightDecision === 'unresolved';
+  const hasUnresolvedCompanyFreightDivergence = isAguardandoFiscal && !isComplementar && !!companyFreightDivergenceInfo && companyFreightDecision === 'unresolved';
+  const hasUnresolvedIcmsDivergence = isAguardandoFiscal && !isComplementar && !!icmsDivergenceInfo && icmsDecision === 'unresolved';
+  const hasUnresolvedTollDivergence = isAguardandoFiscal && !isComplementar && !!tollDivergenceInfo && tollDecision === 'unresolved';
   const hasUnresolvedTomadorDivergence = !!tomadorDivergenceInfo && tomadorDecision === 'unresolved';
   const hasUnresolvedAdvanceDivergence = isAguardandoAdiantamento && !!advanceDivergenceInfo && Math.abs((Number(advanceValue) || 0) - (cartaFreteExtractedAdvance || 0)) > 1.00;
   const hasUnresolvedFiscalDivergence = hasUnresolvedWeightDivergence || hasUnresolvedFreightDivergence || hasUnresolvedCompanyFreightDivergence || hasUnresolvedIcmsDivergence || hasUnresolvedTollDivergence || hasUnresolvedTomadorDivergence;
@@ -1219,7 +1234,7 @@ const AttachmentModal: React.FC<AttachmentModalProps> = ({
   const hasDocForCategory = React.useCallback((catName: 'CT-e' | 'MDF-e' | 'Carta Frete'): boolean => {
     const newFiles = multiFiles[catName];
     if (Array.isArray(newFiles) && newFiles.length > 0) return true;
-    if (catName === 'CT-e' && (multiFiles['DACTE']?.length > 0 || multiFiles['Conhecimento de Transporte']?.length > 0)) return true;
+    if (catName === 'CT-e' && (multiFiles['DACTE']?.length > 0 || multiFiles['Conhecimento de Transporte']?.length > 0 || multiFiles['CT-e Complementar']?.length > 0)) return true;
     if (catName === 'MDF-e' && (multiFiles['DAMDFE']?.length > 0 || multiFiles['Manifesto']?.length > 0)) return true;
     if (catName === 'Carta Frete' && (multiFiles['Contrato de Transporte']?.length > 0 || multiFiles['Carta de Frete']?.length > 0)) return true;
 
@@ -1229,7 +1244,7 @@ const AttachmentModal: React.FC<AttachmentModalProps> = ({
         const keyLower = key.toLowerCase().trim();
         const hasUrl = Array.isArray(val) ? val.some(isActualDocumentUrl) : isActualDocumentUrl(val);
         if (!hasUrl) continue;
-        if (catName === 'CT-e' && (keyLower === 'ct-e' || keyLower === 'cte' || keyLower === 'dacte' || keyLower.includes('conhecimento'))) return true;
+        if (catName === 'CT-e' && (keyLower === 'ct-e' || keyLower === 'cte' || keyLower === 'dacte' || keyLower.includes('conhecimento') || keyLower.includes('complementar'))) return true;
         if (catName === 'MDF-e' && (keyLower === 'mdf-e' || keyLower === 'mdfe' || keyLower === 'damdfe' || keyLower.includes('manifesto'))) return true;
         if (catName === 'Carta Frete' && (keyLower === 'carta frete' || keyLower === 'carta de frete' || keyLower === 'contrato de transporte' || keyLower.includes('carta frete'))) return true;
       }
@@ -1248,16 +1263,10 @@ const AttachmentModal: React.FC<AttachmentModalProps> = ({
     return hasDocForCategory(catName);
   }, [multiFiles, detectedDocTypes, hasDocForCategory]);
 
-  const isComplementar = Boolean(
-    shipment.isComplementar ||
-    (shipment.documents as any)?.is_complementar ||
-    (shipment.documents as any)?.isComplementar
-  );
-
   const missingFiscalDocs = React.useMemo(() => {
     if (!isAguardandoFiscal) return [];
     const missing: string[] = [];
-    if (!hasValidDocForCategory('CT-e')) missing.push('CT-e');
+    if (!hasValidDocForCategory('CT-e')) missing.push(isComplementar ? 'CT-e Complementar' : 'CT-e');
     if (!isComplementar) {
       if (!hasValidDocForCategory('MDF-e')) missing.push('MDF-e');
       if (!hasValidDocForCategory('Carta Frete')) missing.push('Carta Frete');
@@ -1288,18 +1297,22 @@ const AttachmentModal: React.FC<AttachmentModalProps> = ({
       });
     });
     return errors;
-  }, [isAguardandoFiscal, multiFiles, detectedDocTypes]);
+  }, [isAguardandoFiscal, multiFiles, detectedDocTypes, isComplementar]);
 
   const hasAttachmentMismatch = React.useMemo(() => {
     for (const [cat, list] of Object.entries(multiFiles)) {
       if (!Array.isArray(list)) continue;
+      // No embarque complementar em Aguardando Fiscal, MDF-e e Carta Frete são dispensados e não causam bloqueio se vazios
+      if (isAguardandoFiscal && isComplementar && (cat === 'MDF-e' || cat === 'Carta Frete') && list.length === 0) {
+        continue;
+      }
       for (const file of list) {
         const mismatch = detectAttachmentMismatch(file, cat, detectedDocTypes[file.name]);
         if (mismatch?.isMismatch) return true;
       }
     }
     return false;
-  }, [multiFiles, detectedDocTypes]);
+  }, [multiFiles, detectedDocTypes, isAguardandoFiscal, isComplementar]);
 
   // Alertas em tempo real quando houver divergências no Aguardando Fiscal
   useEffect(() => {
@@ -2430,8 +2443,9 @@ const AttachmentModal: React.FC<AttachmentModalProps> = ({
     let filesToAttach: { [key: string]: File[] } = {};
     if (shipment.status === ShipmentStatus.AguardandoNota || shipment.status === ShipmentStatus.AguardandoFiscal) {
       const someFiles = Object.values(multiFiles).some(arr => Array.isArray(arr) && arr.length > 0);
-      if (!someFiles) {
-        setError('Anexe pelo menos um documento para avançar.');
+      const hasExistingCte = hasValidDocForCategory('CT-e');
+      if (!someFiles && !hasExistingCte) {
+        setError(isComplementar ? 'Anexe o CT-e Complementar para avançar.' : 'Anexe pelo menos um documento para avançar.');
         return;
       }
       if (shipment.status === ShipmentStatus.AguardandoNota && !shipment.bankDetails && !bankDetails) {
@@ -3472,13 +3486,37 @@ const AttachmentModal: React.FC<AttachmentModalProps> = ({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6">
                   {travelDocTypes.map(docType => {
                     const config = TRAVEL_DOC_CONFIG[docType];
+                    const isDocRequired = isComplementar
+                      ? (docType === 'CT-e')
+                      : (config?.isRequired ?? false);
+
+                    const displayLabel = isComplementar
+                      ? (docType === 'CT-e'
+                          ? 'CT-e Complementar * (Obrigatório)'
+                          : docType === 'MDF-e'
+                            ? 'MDF-e (Opcional - Dispensa em Complementar)'
+                            : docType === 'Carta Frete'
+                              ? 'Carta Frete (Opcional - Dispensa em Complementar)'
+                              : (config?.labelDisplay || docType))
+                      : (config?.labelDisplay || docType);
+
+                    const subtext = isComplementar
+                      ? (docType === 'CT-e'
+                          ? 'Anexe o DACTE do CT-e Complementar (PDF ou Imagem). O sistema valida automaticamente o cabeçalho e chave do CT-e.'
+                          : docType === 'MDF-e'
+                            ? 'Documento dispensado para embarques complementares.'
+                            : docType === 'Carta Frete'
+                              ? 'Documento dispensado para embarques complementares.'
+                              : config?.subtext)
+                      : config?.subtext;
+
                     return (
                       <FileInput
                         key={docType}
                         label={docType}
-                        displayLabel={config?.labelDisplay || docType}
-                        subtext={config?.subtext}
-                        isRequired={config?.isRequired}
+                        displayLabel={displayLabel}
+                        subtext={subtext}
+                        isRequired={isDocRequired}
                         files={multiFiles[docType] || []}
                         onFileChange={(f) => handleMultiFileChange(docType, f)}
                         onInspectFile={(file, type) => setSelectedDocForDetails({ fileOrUrl: file, docType: type, docName: file.name })}
@@ -3492,7 +3530,7 @@ const AttachmentModal: React.FC<AttachmentModalProps> = ({
                   })}
                 </div>
 
-                {/* Banner de Obrigatoriedade dos 3 Documentos Fiscais */}
+                {/* Banner de Obrigatoriedade dos Documentos Fiscais */}
                 <div className={`p-4 rounded-xl border-2 transition-all ${
                   hasMissingFiscalDocs || fiscalAttachmentMismatches.length > 0
                     ? 'bg-amber-50/80 dark:bg-amber-950/30 border-amber-300 dark:border-amber-700 shadow-xs'
@@ -3513,7 +3551,7 @@ const AttachmentModal: React.FC<AttachmentModalProps> = ({
                     <div className="flex-1">
                       <div className="flex items-center justify-between flex-wrap gap-2">
                         <h4 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                          <span>Obrigatoriedade dos Documentos Fiscais de Viagem</span>
+                          <span>{isComplementar ? 'Obrigatoriedade Fiscal: Embarque Complementar' : 'Obrigatoriedade dos Documentos Fiscais de Viagem'}</span>
                           {hasMissingFiscalDocs || fiscalAttachmentMismatches.length > 0 ? (
                             <span className="text-[11px] font-extrabold px-2 py-0.5 rounded-full bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-800">
                               Avanço Bloqueado
@@ -3526,7 +3564,15 @@ const AttachmentModal: React.FC<AttachmentModalProps> = ({
                         </h4>
                       </div>
                       <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">
-                        Para avançar para o status <strong>"Aguardando Adiantamento"</strong>, é estritamente obrigatório anexar e validar os 3 documentos:
+                        {isComplementar ? (
+                          <>
+                            No embarque complementar, <strong>MDF-e e Carta Frete não são obrigatórios</strong> para avançar. É exigido apenas o anexo do <strong>CT-e Complementar</strong>:
+                          </>
+                        ) : (
+                          <>
+                            Para avançar para o status <strong>"Aguardando Adiantamento"</strong>, é estritamente obrigatório anexar e validar os 3 documentos:
+                          </>
+                        )}
                       </p>
                       <div className="mt-2.5 flex flex-wrap gap-2 text-xs">
                         <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg font-bold border transition-all ${
@@ -3534,22 +3580,36 @@ const AttachmentModal: React.FC<AttachmentModalProps> = ({
                             ? 'bg-rose-50 text-rose-700 border-rose-300 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800 shadow-xs'
                             : 'bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800'
                         }`}>
-                          {hasValidDocForCategory('CT-e') ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />} 1. CT-e (DACTE)
+                          {hasValidDocForCategory('CT-e') ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />} {isComplementar ? '1. CT-e Complementar (Obrigatório)' : '1. CT-e (DACTE)'}
                         </span>
-                        <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg font-bold border transition-all ${
-                          !hasValidDocForCategory('MDF-e')
-                            ? 'bg-rose-50 text-rose-700 border-rose-300 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800 shadow-xs'
-                            : 'bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800'
-                        }`}>
-                          {hasValidDocForCategory('MDF-e') ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />} 2. MDF-e (DAMDFE)
-                        </span>
-                        <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg font-bold border transition-all ${
-                          !hasValidDocForCategory('Carta Frete')
-                            ? 'bg-rose-50 text-rose-700 border-rose-300 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800 shadow-xs'
-                            : 'bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800'
-                        }`}>
-                          {hasValidDocForCategory('Carta Frete') ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />} 3. Carta Frete
-                        </span>
+
+                        {isComplementar ? (
+                          <>
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg font-medium border text-slate-500 bg-slate-50 border-slate-200 dark:bg-slate-800/60 dark:text-slate-400 dark:border-slate-700">
+                              {hasValidDocForCategory('MDF-e') ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : null} 2. MDF-e (Dispensado)
+                            </span>
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg font-medium border text-slate-500 bg-slate-50 border-slate-200 dark:bg-slate-800/60 dark:text-slate-400 dark:border-slate-700">
+                              {hasValidDocForCategory('Carta Frete') ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : null} 3. Carta Frete (Dispensada)
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg font-bold border transition-all ${
+                              !hasValidDocForCategory('MDF-e')
+                                ? 'bg-rose-50 text-rose-700 border-rose-300 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800 shadow-xs'
+                                : 'bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800'
+                            }`}>
+                              {hasValidDocForCategory('MDF-e') ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />} 2. MDF-e (DAMDFE)
+                            </span>
+                            <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg font-bold border transition-all ${
+                              !hasValidDocForCategory('Carta Frete')
+                                ? 'bg-rose-50 text-rose-700 border-rose-300 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800 shadow-xs'
+                                : 'bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800'
+                            }`}>
+                              {hasValidDocForCategory('Carta Frete') ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />} 3. Carta Frete
+                            </span>
+                          </>
+                        )}
                       </div>
                       {fiscalAttachmentMismatches.length > 0 && (
                         <div className="mt-2.5 p-2.5 rounded-lg bg-rose-100 dark:bg-rose-900/60 border border-rose-300 dark:border-rose-700 text-rose-900 dark:text-rose-100 text-xs flex items-start gap-2">
@@ -5668,7 +5728,9 @@ const AttachmentModal: React.FC<AttachmentModalProps> = ({
                   )}
                   {hasMissingFiscalDocs && (
                     <div className="absolute bottom-full right-0 mb-2 hidden group-hover:block bg-rose-950 text-rose-200 border border-rose-700 text-[11px] font-semibold py-1.5 px-3 rounded-lg shadow-xl whitespace-nowrap z-50 pointer-events-none">
-                      ⛔ Para avançar, anexe obrigatoriamente o CT-e, o MDF-e e a Carta Frete corretos em seus respectivos campos. Pendente: {missingFiscalDocs.join(', ')}
+                      {isComplementar
+                        ? '⛔ Para avançar o embarque complementar, anexe obrigatoriamente o CT-e Complementar.'
+                        : `⛔ Para avançar, anexe obrigatoriamente o CT-e, o MDF-e e a Carta Frete corretos em seus respectivos campos. Pendente: ${missingFiscalDocs.join(', ')}`}
                     </div>
                   )}
                   {fiscalAttachmentMismatches.length > 0 && !hasMissingFiscalDocs && (
