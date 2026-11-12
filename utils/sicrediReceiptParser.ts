@@ -10,7 +10,10 @@ export interface SicrediReceiptParsedData {
   discountAmount?: number;   // R$ desconto / abatimento
   paidAmount?: number;       // R$ valor real pago / valor cobrado
   authCode?: string;         // Código de autenticação / controle / protocolo
-  beneficiaryName?: string;  // Favorecido / Cedente / Beneficiário
+  txId?: string;             // ID da transação Pix (E2E)
+  identificador?: string;    // Identificador da transação / DARF / DARE
+  controlNumber?: string;    // Número de controle
+  beneficiaryName?: string;  // Favorecido / Cedente / Beneficiário / Destinatário
   payerName?: string;        // Pagador (Transcunha...)
   barCode?: string;          // Linha digitável ou código de barras
   operationType?: string;    // 'Boleto' | 'Pix' | 'Transferência' | 'Outro'
@@ -91,6 +94,7 @@ export function parseSicrediReceipt(text: string): SicrediReceiptParsedData {
   // 3. Extração da Data do Pagamento / Débito
   let paymentDate: string | undefined;
   const payDatePatterns = [
+    /(?:realizado\s*em)\s*[:=]?\s*(\d{2}[\/.-]\d{2}[\/.-]\d{4})/i,
     /(?:data\s*(?:do\s*)?(?:pagamento|d[eé]bito|opera[cç][aã]o|movimento))\s*[:=]?\s*(\d{2}[\/.-]\d{2}[\/.-]\d{4})/i,
     /(?:pago\s*em|efetivado\s*em|liquidado\s*em)\s*[:=]?\s*(\d{2}[\/.-]\d{2}[\/.-]\d{4})/i,
     /(\d{2}\/\d{2}\/\d{4})\s*-\s*\d{2}:\d{2}:\d{2}/,
@@ -126,7 +130,8 @@ export function parseSicrediReceipt(text: string): SicrediReceiptParsedData {
 
   // Valor do Título / Documento (Original)
   const origAmountPatterns = [
-    /(?:valor\s*(?:do\s*)?(?:t[ií]tulo|documento|nominal|original))\s*[:=]?\s*(?:R\$\s*)?([\d.,]+)/i,
+    /(?:valor\s*original)\s*[:=]?\s*(?:R\$\s*)?([\d.,]+)/i,
+    /(?:valor\s*(?:do\s*)?(?:t[ií]tulo|documento|nominal))\s*[:=]?\s*(?:R\$\s*)?([\d.,]+)/i,
     /(?:valor\s*principal)\s*[:=]?\s*(?:R\$\s*)?([\d.,]+)/i
   ];
   for (const regex of origAmountPatterns) {
@@ -186,30 +191,39 @@ export function parseSicrediReceipt(text: string): SicrediReceiptParsedData {
   }
 
   // Regra de Consistência e Recálculo Automático:
-  // Se encontrou original e juros ou abatimento, mas paidAmount não foi encontrado ou diverge:
   if (originalAmount !== undefined) {
     const calculatedPaid = Number((originalAmount + interestAmount - discountAmount).toFixed(2));
     if (paidAmount === undefined || paidAmount === 0) {
       paidAmount = calculatedPaid;
     } else if (interestAmount === 0 && paidAmount > originalAmount) {
-      // Se o valor pago é maior que o original mas a linha de juros não foi nomeada explicitamente:
       interestAmount = Number((paidAmount - originalAmount).toFixed(2));
     } else if (discountAmount === 0 && paidAmount < originalAmount) {
-      // Se o valor pago é menor que o original mas a linha de desconto não foi captada:
       discountAmount = Number((originalAmount - paidAmount).toFixed(2));
     }
   } else if (paidAmount !== undefined && originalAmount === undefined) {
     originalAmount = Number((paidAmount - interestAmount + discountAmount).toFixed(2));
   }
 
-  // 6. Extração do Código de Autenticação / Protocolo / Controle
+  // 6. Extração do Código de Autenticação / Protocolo / Controle / Transação
   let authCode: string | undefined;
+  let txId: string | undefined;
+  let identificador: string | undefined;
+  let controlNumber: string | undefined;
+
+  const txMatch = normText.match(/(?:id\s*(?:da\s*)?transa[cç][aã]o|e2eid)\s*[:=]?\s*([A-Za-z0-9.\-_]{16,})/i);
+  if (txMatch) txId = txMatch[1].trim();
+
+  const identMatch = normText.match(/(?:identificador)\s*[:=]?\s*([0-9.\-_]{10,40})/i);
+  if (identMatch) identificador = identMatch[1].trim();
+
+  const ctrlMatch = normText.match(/(?:n[uú]mero\s*de\s*controle|controle(?:\s*sicredi)?)\s*[:=]?\s*([A-Za-z0-9.\-_]{8,})/i);
+  if (ctrlMatch) controlNumber = ctrlMatch[1].trim();
+
   const authPatterns = [
-    /(?:autentica[cç][aã]o(?:\s*mec[aâ]nica)?)\s*[:=]?\s*([A-Z0-9.\-_]{12,})/i,
-    /(?:c[oó]digo\s*(?:de\s*)?autentica[cç][aã]o)\s*[:=]?\s*([A-Z0-9.\-_]{12,})/i,
-    /(?:protocolo(?:\s*de\s*autoriza[cç][aã]o)?)\s*[:=]?\s*([A-Z0-9.\-_]{12,})/i,
-    /(?:id\s*(?:da\s*)?transa[cç][aã]o|e2eid)\s*[:=]?\s*([A-Z0-9.\-_]{16,})/i,
-    /(?:controle(?:\s*sicredi)?)\s*[:=]?\s*([A-Z0-9.\-_]{10,})/i
+    /(?:autentica[cç][aã]o\s*eletr[oô]nica)\s*[:=]?\s*([A-Za-z0-9.\-_]{12,})/i,
+    /(?:autentica[cç][aã]o(?:\s*mec[aâ]nica)?)\s*[:=]?\s*([A-Za-z0-9.\-_]{12,})/i,
+    /(?:c[oó]digo\s*(?:de\s*)?autentica[cç][aã]o)\s*[:=]?\s*([A-Za-z0-9.\-_]{12,})/i,
+    /(?:protocolo(?:\s*de\s*autoriza[cç][aã]o)?)\s*[:=]?\s*([A-Za-z0-9.\-_]{12,})/i
   ];
   for (const regex of authPatterns) {
     const match = normText.match(regex);
@@ -219,9 +233,15 @@ export function parseSicrediReceipt(text: string): SicrediReceiptParsedData {
     }
   }
 
-  // 7. Favorecido / Beneficiário
+  // Se não tem authCode, usa txId ou controlNumber
+  if (!authCode) {
+    authCode = txId || controlNumber;
+  }
+
+  // 7. Favorecido / Beneficiário / Destinatário
   let beneficiaryName: string | undefined;
   const beneficiaryPatterns = [
+    /(?:nome\s*(?:do\s*)?destinat[aá]rio)\s*[:=]?\s*([^\n\r]+)/i,
     /(?:benefici[aá]rio|favorecido|cedente|nome\s*fantasia)\s*[:=]?\s*([^\n\r]+)/i,
     /(?:para\s*:)\s*([^\n\r]+)/i
   ];
@@ -238,7 +258,8 @@ export function parseSicrediReceipt(text: string): SicrediReceiptParsedData {
 
   // 8. Linha Digitável
   let barCode: string | undefined;
-  const barCodeMatch = normText.match(/(\d{5}\.\d{5}\s+\d{5}\.\d{6}\s+\d{5}\.\d{6}\s+\d\s+\d{14})/);
+  const barCodeMatch = normText.match(/(\d{5}\.\d{5}\s+\d{5}\.\d{6}\s+\d{5}\.\d{6}\s+\d\s+\d{14})/) ||
+                        normText.match(/(\d{11,12}[-\s]?\d\s+\d{11,12}[-\s]?\d\s+\d{11,12}[-\s]?\d\s+\d{11,12}[-\s]?\d)/);
   if (barCodeMatch?.[1]) {
     barCode = barCodeMatch[1].replace(/\s+/g, ' ').trim();
   }
@@ -253,6 +274,9 @@ export function parseSicrediReceipt(text: string): SicrediReceiptParsedData {
     discountAmount,
     paidAmount,
     authCode,
+    txId,
+    identificador,
+    controlNumber,
     beneficiaryName,
     barCode,
     operationType,

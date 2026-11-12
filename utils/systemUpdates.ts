@@ -27,6 +27,30 @@ export interface SystemRelease {
  */
 export const SYSTEM_RELEASES: SystemRelease[] = [
   {
+    id: 'rel_2026_11_11_v2_116_7',
+    version: 'v2.116.7',
+    date: '11/11/2026',
+    title: 'Nova Aba de Impostos & Tributos com Leitura Automática de Guias e Quitação Inteligente',
+    summary: 'Lançamento da nova aba de Impostos & Tributos em Contas a Pagar, leitor automático inteligente via OCR e IA para guias fiscais (PIS, COFINS, ICMS, CSLL, IRPJ, FGTS e INSS) e quitação automática com transição para o status "Pago" ao anexar comprovantes bancários.',
+    items: [
+      {
+        category: 'feature',
+        title: 'Nova Aba de Impostos & Tributos em Contas a Pagar',
+        description: 'Aba dedicada no Contas a Pagar ao lado da Folha de Pagamento com contagem em tempo real, sub-filtros específicos por tipo de tributo (PIS/COFINS, ICMS, CSLL, IRPJ, FGTS e INSS) e painel consolidado de KPIs fiscais.'
+      },
+      {
+        category: 'feature',
+        title: 'Leitor Inteligente de Guias Tributárias (OCR & IA)',
+        description: 'Importador em lote que processa arquivos em PDF ou imagem identificando DARE-SP (ICMS Transporte), DARF Sicalc (PIS/COFINS), DARF Estimativa (CSLL e IRPJ), DCTFWeb (INSS) e FGTS Digital, extraindo códigos, período de apuração, valores e linha digitável.'
+      },
+      {
+        category: 'feature',
+        title: 'Quitação e Status "Pago" Automático com Comprovante',
+        description: 'Ao anexar um comprovante de pagamento (como o Pix Sicredi da Receita Federal ou de outros bancos), o sistema extrai o valor debitado, data e autenticação eletrônica, mudando o status da guia para "Pago" de forma instantânea.'
+      }
+    ]
+  },
+  {
     id: 'rel_2026_11_11_v2_116_6',
     version: 'v2.116.6',
     date: '11/11/2026',

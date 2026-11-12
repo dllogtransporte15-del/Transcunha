@@ -34,7 +34,7 @@ import type { FinancialInvoice, InvoicePaymentStatus } from '../../types';
 
 export interface SettlingAccountItem {
   id: string;
-  kind: 'invoice' | 'manual' | 'leader' | 'cte' | 'driver';
+  kind: 'invoice' | 'manual' | 'leader' | 'cte' | 'driver' | 'tax';
   docNumber: string;
   title: string;
   entityName: string;
@@ -386,6 +386,8 @@ export const AccountsPayableSettlementModal: React.FC<AccountsPayableSettlementM
                     <span className={`text-xs px-2.5 py-0.5 rounded-md font-bold uppercase tracking-wider border ${
                       item.kind === 'cte'
                         ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950/80 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800'
+                        : item.kind === 'tax'
+                        ? 'bg-purple-100 text-purple-800 dark:bg-purple-950/80 dark:text-purple-300 border-purple-200 dark:border-purple-800'
                         : 'bg-blue-100 text-blue-800 dark:bg-blue-950/80 dark:text-blue-300 border-blue-200 dark:border-blue-800'
                     }`}>
                       {item.docNumber}

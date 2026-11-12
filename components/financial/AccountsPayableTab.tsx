@@ -11,9 +11,10 @@ import type {
   PayrollSettlementDoc,
   PayrollAdvanceRecord,
   PayrollAdvanceItem,
-  PayrollAdvanceInstallment
+  PayrollAdvanceInstallment,
+  TaxType
 } from '../../types';
-import { FinancialTransactionStatus, UserProfile, ShipmentStatus, INTERNAL_PROFILES } from '../../types';
+import { FinancialTransactionStatus, UserProfile, ShipmentStatus, INTERNAL_PROFILES, FinancialCategoryType } from '../../types';
 import { isDeveloperUser, isDemoUser } from '../../auth';
 import { isShipment100PercentAdvance } from '../../utils/freightCalculation';
 import {
@@ -86,6 +87,8 @@ import { AccountsPayableSettlementModal, type SettlingAccountItem } from './Acco
 import { InvoicesManagementTab } from './InvoicesManagementTab';
 import { calculateBoletoLateFees } from '../../utils/invoiceExtractionService';
 import { parseHoleriteFile, type ParsedHoleriteData } from '../../utils/holeriteParser';
+import { TaxInvoiceImportModal, type TaxImportItem } from './TaxInvoiceImportModal';
+import { parseReceiptFile } from '../../utils/sicrediReceiptParser';
 
 export const formatMonthKeyToLabel = (monthKey: string): string => {
   if (!monthKey) return '-';
@@ -372,8 +375,8 @@ export const AccountsPayableTab: React.FC<AccountsPayableTabProps> = ({
   onNavigateToInvoices: _onNavigateToInvoices,
   initialSection = 'all',
 }) => {
-  // Sub-abas do Contas a Pagar (Empresa, Motoristas/Fretes, Avulsos e Folha)
-  const [activeSection, setActiveSection] = useState<'all' | 'invoices' | 'cte' | 'manual' | 'leaders'>(initialSection);
+  // Sub-abas do Contas a Pagar (Empresa, Motoristas/Fretes, Avulsos, Folha e Impostos)
+  const [activeSection, setActiveSection] = useState<'all' | 'invoices' | 'cte' | 'manual' | 'leaders' | 'taxes'>(initialSection);
 
   useEffect(() => {
     if (initialSection) {
@@ -385,6 +388,8 @@ export const AccountsPayableTab: React.FC<AccountsPayableTabProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedLeaderFilter, setSelectedLeaderFilter] = useState<string>('all');
+  const [selectedTaxTypeFilter, setSelectedTaxTypeFilter] = useState<'all' | TaxType>('all');
+  const [isTaxImportModalOpen, setIsTaxImportModalOpen] = useState(false);
 
   // Filtro de Período (Presets OPZ rápidos)
   const [periodPreset, setPeriodPreset] = useState<'all' | 'today_onwards' | 'today' | 'next_7_days' | 'current_month' | 'last_month' | 'custom'>('all');
@@ -1368,10 +1373,31 @@ export const AccountsPayableTab: React.FC<AccountsPayableTabProps> = ({
     return list.sort((a, b) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime());
   }, [transactions, todayStr, shipments]);
 
-  // 4. Processar Lançamentos Manuais Avulsos Gerais (não-líderes e NÃO-CTE)
+  // Helper para verificar se a transação é uma Guia de Imposto / Tributo
+  const isTaxTx = useCallback((t: FinancialTransaction): boolean => {
+    if (t.taxType) return true;
+    const cat = (t.category || '').toLowerCase();
+    const desc = (t.description || '').toLowerCase();
+    const notes = (t.notes || '').toLowerCase();
+    return (
+      cat.includes('imposto') ||
+      cat.includes('tributo') ||
+      cat === 'custoimposto' ||
+      desc.includes('dare') ||
+      desc.includes('darf') ||
+      desc.includes('dctfweb') ||
+      desc.includes('pis / cofins') ||
+      desc.includes('pis/cofins') ||
+      desc.includes('fgts digital') ||
+      desc.includes('icms transporte') ||
+      notes.includes('[imposto]')
+    );
+  }, []);
+
+  // 4. Processar Lançamentos Manuais Avulsos Gerais (não-líderes, NÃO-CTE e NÃO-IMPOSTOS)
   const manualPayables = useMemo(() => {
     return (transactions || [])
-      .filter(t => t.type === 'payable' && !isLeaderTx(t) && !isCteTx(t))
+      .filter(t => t.type === 'payable' && !isLeaderTx(t) && !isCteTx(t) && !isTaxTx(t))
       .map(t => {
         const isOverdue = t.status === FinancialTransactionStatus.Atrasado || (t.status === FinancialTransactionStatus.Pendente && t.dueDate < todayStr);
         const displayStatus: 'Pendente' | 'Pago' | 'Atrasado' = t.status === FinancialTransactionStatus.Pago ? 'Pago' : isOverdue ? 'Atrasado' : 'Pendente';
@@ -1405,7 +1431,87 @@ export const AccountsPayableTab: React.FC<AccountsPayableTabProps> = ({
         };
       })
       .sort((a, b) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime());
-  }, [transactions, todayStr, leaderUsers, payrollUsers]);
+  }, [transactions, todayStr, leaderUsers, payrollUsers, isTaxTx]);
+
+  // 5. Processar Guias de Impostos e Tributos
+  const taxPayables = useMemo(() => {
+    return (transactions || [])
+      .filter(t => t.type === 'payable' && isTaxTx(t))
+      .map(t => {
+        const isOverdue = t.status === FinancialTransactionStatus.Atrasado || (t.status === FinancialTransactionStatus.Pendente && t.dueDate < todayStr);
+        const displayStatus: 'Pendente' | 'Pago' | 'Atrasado' = t.status === FinancialTransactionStatus.Pago ? 'Pago' : isOverdue ? 'Atrasado' : 'Pendente';
+
+        let detectedTaxType: TaxType = t.taxType || 'OUTROS';
+        let detectedTaxTypeName = 'Guia Tributária';
+        const upper = `${t.description} ${t.category} ${t.notes || ''}`.toUpperCase();
+
+        if (t.taxType) {
+          detectedTaxType = t.taxType;
+          if (t.taxType === 'PIS_COFINS') detectedTaxTypeName = 'PIS / COFINS';
+          else if (t.taxType === 'ICMS') detectedTaxTypeName = 'ICMS Transporte';
+          else if (t.taxType === 'CSLL') detectedTaxTypeName = 'CSLL Estimativa';
+          else if (t.taxType === 'IRPJ') detectedTaxTypeName = 'IRPJ Estimativa';
+          else if (t.taxType === 'FGTS') detectedTaxTypeName = 'Guia de FGTS';
+          else if (t.taxType === 'INSS') detectedTaxTypeName = 'INSS / DCTFWeb';
+        } else {
+          if (upper.includes('COFINS') || upper.includes('5856') || upper.includes('6912') || upper.includes('PIS')) {
+            detectedTaxType = 'PIS_COFINS';
+            detectedTaxTypeName = 'PIS / COFINS';
+          } else if (upper.includes('ICMS') || upper.includes('DARE') || upper.includes('GNRE') || upper.includes('111-9')) {
+            detectedTaxType = 'ICMS';
+            detectedTaxTypeName = 'ICMS Transporte';
+          } else if (upper.includes('CSLL') || upper.includes('2484')) {
+            detectedTaxType = 'CSLL';
+            detectedTaxTypeName = 'CSLL Estimativa';
+          } else if (upper.includes('IRPJ') || upper.includes('5993')) {
+            detectedTaxType = 'IRPJ';
+            detectedTaxTypeName = 'IRPJ Estimativa';
+          } else if (upper.includes('FGTS')) {
+            detectedTaxType = 'FGTS';
+            detectedTaxTypeName = 'Guia de FGTS';
+          } else if (upper.includes('INSS') || upper.includes('DCTFWEB') || upper.includes('PREVIDENCI')) {
+            detectedTaxType = 'INSS';
+            detectedTaxTypeName = 'INSS / DCTFWeb';
+          }
+        }
+
+        return {
+          id: t.id,
+          description: t.description,
+          beneficiaryName: t.supplierOrClientName || 'Órgão Arrecadador / Fisco',
+          category: t.category || 'Impostos e Tributos',
+          costCenter: t.costCenter || 'Fiscal / Tributário',
+          totalAmount: t.amount,
+          payableAmount: t.amount,
+          dueDate: t.dueDate,
+          paymentDate: t.paymentDate,
+          status: displayStatus,
+          rawStatus: t.status,
+          documentNumber: t.documentNumber,
+          taxType: detectedTaxType,
+          taxTypeName: detectedTaxTypeName,
+          taxCode: t.taxCode,
+          taxPeriod: t.taxPeriod,
+          taxPrincipalAmount: t.taxPrincipalAmount,
+          taxFineAmount: t.taxFineAmount,
+          taxInterestAmount: t.taxInterestAmount,
+          barcode: t.barcode,
+          attachmentUrl: t.attachmentUrl,
+          attachmentName: t.attachmentName,
+          receiptFileUrl: t.receiptFileUrl,
+          receiptFileName: t.receiptFileName,
+          receiptFileType: t.receiptFileType,
+          receiptFileSize: t.receiptFileSize,
+          paymentAuthCode: t.paymentAuthCode,
+          paidAmount: t.paidAmount,
+          bankAccount: t.bankAccount,
+          notes: t.notes,
+          createdAt: t.createdAt,
+          originalItem: t,
+        };
+      })
+      .sort((a, b) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime());
+  }, [transactions, todayStr, isTaxTx]);
 
   // Alternar status de Nota Fiscal (Dar Baixa rápida ou Reabrir)
   const handleToggleInvoiceStatus = async (invoiceId: string, currentStatus: string) => {
@@ -1833,6 +1939,39 @@ export const AccountsPayableTab: React.FC<AccountsPayableTabProps> = ({
       return true;
     });
   }, [leaderPayables, selectedLeaderFilter, searchTerm, statusFilter, periodPreset, customStartDate, customEndDate, currentMonthPrefix, lastMonthPrefix, leaderUsers]);
+
+  // Filtragem: Guias de Impostos e Tributos
+  const filteredTaxes = useMemo(() => {
+    return taxPayables.filter(item => {
+      if (selectedTaxTypeFilter !== 'all' && item.taxType !== selectedTaxTypeFilter) {
+        return false;
+      }
+
+      if (searchTerm) {
+        const s = searchTerm.toLowerCase();
+        const match =
+          item.description.toLowerCase().includes(s) ||
+          item.beneficiaryName.toLowerCase().includes(s) ||
+          item.category.toLowerCase().includes(s) ||
+          (item.documentNumber && item.documentNumber.toLowerCase().includes(s)) ||
+          (item.taxCode && item.taxCode.toLowerCase().includes(s)) ||
+          (item.taxPeriod && item.taxPeriod.toLowerCase().includes(s)) ||
+          (item.barcode && item.barcode.toLowerCase().includes(s)) ||
+          (item.notes && item.notes.toLowerCase().includes(s));
+        if (!match) return false;
+      }
+
+      if (statusFilter !== 'all' && item.status !== statusFilter) {
+        return false;
+      }
+
+      if (!matchesPeriod(item.dueDate) && !(item.paymentDate && matchesPeriod(item.paymentDate))) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [taxPayables, selectedTaxTypeFilter, searchTerm, statusFilter, periodPreset, customStartDate, customEndDate, currentMonthPrefix, lastMonthPrefix]);
 
   // Mapeamento de Cargas e Filiais para Apuração das Comissões
   const cargoMap = useMemo(() => {
@@ -2444,7 +2583,7 @@ export const AccountsPayableTab: React.FC<AccountsPayableTabProps> = ({
   const consolidatedList = useMemo(() => {
     const list: Array<{
       id: string;
-      kind: 'invoice' | 'manual' | 'leader' | 'driver' | 'cte';
+      kind: 'invoice' | 'manual' | 'leader' | 'driver' | 'cte' | 'tax';
       docNumber: string;
       title: string;
       entityName: string;
@@ -2589,8 +2728,37 @@ export const AccountsPayableTab: React.FC<AccountsPayableTabProps> = ({
       });
     }
 
+    // 5. Impostos e Guias Tributárias
+    if (activeSection === 'all' || activeSection === 'taxes') {
+      filteredTaxes.forEach(tax => {
+        list.push({
+          id: `tax_${tax.id}`,
+          kind: 'tax',
+          docNumber: tax.documentNumber ? `Guia ${tax.documentNumber}` : tax.taxTypeName,
+          title: tax.description || tax.taxTypeName,
+          entityName: tax.beneficiaryName,
+          categoryOrCenter: `${tax.category} • ${tax.costCenter}`,
+          dueDate: tax.dueDate,
+          entryDate: tax.createdAt ? tax.createdAt.split('T')[0] : tax.dueDate,
+          totalAmount: tax.totalAmount,
+          payableAmount: tax.payableAmount,
+          status: tax.status,
+          documentUrl: tax.attachmentUrl || null,
+          boletoUrl: null,
+          receiptUrl: tax.receiptFileUrl || null,
+          receiptName: tax.receiptFileName || null,
+          details: tax.taxCode ? `Cód: ${tax.taxCode}${tax.taxPeriod ? ` • PA: ${tax.taxPeriod}` : ''}` : tax.notes,
+          pixKey: tax.barcode,
+          bankAccount: tax.bankAccount,
+          isReconciled: Boolean(tax.originalItem?.isReconciled),
+          reconciledAt: tax.originalItem?.reconciledAt,
+          originalItem: tax.originalItem || tax,
+        });
+      });
+    }
+
     return list.sort((a, b) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime());
-  }, [activeSection, filteredInvoices, filteredCtePayables, filteredManuals, filteredLeaderPayables, todayStr, periodPreset, customStartDate, customEndDate]);
+  }, [activeSection, filteredInvoices, filteredCtePayables, filteredManuals, filteredLeaderPayables, filteredTaxes, todayStr, periodPreset, customStartDate, customEndDate]);
 
   // Resumo Bancário (OB): Totalizadores por Banco (Sicredi, Itaú, etc.)
   const bankingSummary = useMemo(() => {
@@ -2629,7 +2797,7 @@ export const AccountsPayableTab: React.FC<AccountsPayableTabProps> = ({
   const allPeriodPayables = useMemo(() => {
     const list: Array<{
       id: string;
-      kind: 'invoice' | 'cte' | 'manual' | 'leader';
+      kind: 'invoice' | 'cte' | 'manual' | 'leader' | 'tax';
       totalAmount: number;
       payableAmount: number;
       status: string;
@@ -2695,8 +2863,23 @@ export const AccountsPayableTab: React.FC<AccountsPayableTabProps> = ({
       }
     });
 
+    taxPayables.forEach(tax => {
+      if (matchesPeriod(tax.dueDate) || (tax.paymentDate && matchesPeriod(tax.paymentDate))) {
+        list.push({
+          id: `tax_${tax.id}`,
+          kind: 'tax',
+          totalAmount: tax.totalAmount,
+          payableAmount: tax.payableAmount !== undefined ? tax.payableAmount : tax.totalAmount,
+          status: tax.status,
+          dueDate: tax.dueDate,
+          issueDate: tax.createdAt ? tax.createdAt.split('T')[0] : tax.dueDate,
+          originalItem: tax.originalItem || tax,
+        });
+      }
+    });
+
     return list;
-  }, [invoicePayables, ctePayables, manualPayables, leaderPayables, periodPreset, customStartDate, customEndDate, currentMonthPrefix, lastMonthPrefix]);
+  }, [invoicePayables, ctePayables, manualPayables, leaderPayables, taxPayables, periodPreset, customStartDate, customEndDate, currentMonthPrefix, lastMonthPrefix]);
 
   // Contas vencidas / em atraso no período selecionado
   const overduePeriodItems = useMemo(() => {
@@ -2773,6 +2956,7 @@ export const AccountsPayableTab: React.FC<AccountsPayableTabProps> = ({
   const subtotalCte = useMemo(() => filteredCtePayables.reduce((acc, i) => acc + i.payableAmount, 0), [filteredCtePayables]);
   const subtotalManuals = useMemo(() => filteredManuals.reduce((acc, i) => acc + i.payableAmount, 0), [filteredManuals]);
   const subtotalLeaders = useMemo(() => filteredLeaderPayables.reduce((acc, i) => acc + i.payableAmount, 0), [filteredLeaderPayables]);
+  const subtotalTaxes = useMemo(() => filteredTaxes.reduce((acc, i) => acc + i.payableAmount, 0), [filteredTaxes]);
 
   // KPIs Específicos da Folha de Pagamento
   const kpiPayrollGross = useMemo(() => leadersSummary.reduce((acc, l) => acc + (l.grossTotal || l.totalDue), 0), [leadersSummary]);
@@ -3143,6 +3327,99 @@ export const AccountsPayableTab: React.FC<AccountsPayableTabProps> = ({
     setTimeout(() => setCopiedPixId(null), 2500);
   };
 
+  // Importação e Lançamento de Guias de Impostos no Contas a Pagar
+  const handleImportTaxes = async (importedItems: TaxImportItem[]) => {
+    try {
+      showToast(`Processando ${importedItems.length} guia(s) tributária(s)...`, 'info');
+
+      for (const item of importedItems) {
+        let uploadedUrl = '';
+        try {
+          uploadedUrl = await uploadInvoiceAttachmentToStorage(
+            item.file,
+            item.id,
+            'guia_imposto',
+            item.file.name,
+            item.file.type
+          );
+        } catch (uploadErr) {
+          console.warn('[handleImportTaxes] Erro ao enviar anexo da guia:', uploadErr);
+        }
+
+        const newTx: Omit<FinancialTransaction, 'id' | 'createdAt'> = {
+          type: 'payable',
+          description: item.description,
+          amount: item.totalAmount,
+          dueDate: item.dueDate || todayStr,
+          status: FinancialTransactionStatus.Pendente,
+          category: FinancialCategoryType.CustoImposto,
+          costCenter: 'Fiscal / Tributário',
+          documentNumber: item.documentNumber,
+          supplierOrClientName: item.beneficiary || 'Órgão Arrecadador / Fisco',
+          attachmentUrl: uploadedUrl || undefined,
+          attachmentName: item.file.name,
+          taxType: item.taxType,
+          taxCode: item.taxCode,
+          taxPeriod: item.period,
+          taxPrincipalAmount: item.principalAmount,
+          taxFineAmount: item.fineAmount,
+          taxInterestAmount: item.interestAmount,
+          barcode: item.barcode,
+          notes: `[Imposto] ${item.taxTypeName}${item.taxCode ? ` | Cód: ${item.taxCode}` : ''}${item.period ? ` | PA: ${item.period}` : ''}${item.notes ? ` | ${item.notes}` : ''}`,
+        };
+
+        onAddTransaction(newTx);
+      }
+
+      showToast(`${importedItems.length} guia(s) lançada(s) com sucesso na aba de Impostos!`, 'success');
+    } catch (err: any) {
+      console.error('[handleImportTaxes] Erro ao salvar guias:', err);
+      showToast(`Erro ao importar guias: ${err?.message || 'Tente novamente.'}`, 'error');
+    }
+  };
+
+  // Quitação Automática ao Anexar Comprovante na Guia de Imposto
+  const handleAttachReceiptToTax = async (taxId: string, taxTotal: number, file: File) => {
+    try {
+      showToast('Lendo comprovante Sicredi e registrando quitação...', 'info');
+      const parsed = await parseReceiptFile(file);
+
+      const uploadedUrl = await uploadInvoiceAttachmentToStorage(
+        file,
+        taxId,
+        'comprovante',
+        file.name,
+        file.type
+      );
+
+      const paymentDate = parsed.paymentDate || todayStr;
+      const paidAmount = parsed.paidAmount && parsed.paidAmount > 0 ? parsed.paidAmount : taxTotal;
+      const paymentAuthCode = parsed.authCode || parsed.txId || parsed.controlNumber || parsed.identificador || '';
+      const bankAccount = parsed.bankName || 'Sicredi';
+
+      if (onUpdateTransaction) {
+        onUpdateTransaction(taxId, {
+          status: FinancialTransactionStatus.Pago,
+          paymentDate,
+          paidAmount,
+          paymentAuthCode,
+          bankAccount,
+          receiptFileUrl: uploadedUrl,
+          receiptFileName: file.name,
+          receiptFileType: file.type,
+          receiptFileSize: file.size
+        });
+      } else {
+        onUpdateStatus(taxId, FinancialTransactionStatus.Pago);
+      }
+
+      showToast(`Guia liquidada com sucesso! Status alterado para PAGO automaticamente (${formatBrl(paidAmount)}).`, 'success');
+    } catch (err: any) {
+      console.error('[handleAttachReceiptToTax] Erro na baixa automática:', err);
+      showToast(`Erro ao processar comprovante: ${err?.message || 'Tente novamente.'}`, 'error');
+    }
+  };
+
   // Obter líder/colaborador atualmente em auditoria
   const currentAuditingSummary = useMemo(() => {
     if (!auditingLeaderId) return null;
@@ -3162,12 +3439,12 @@ export const AccountsPayableTab: React.FC<AccountsPayableTabProps> = ({
                 ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
                 : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700/60'
               }`}
-            title="Visão geral de despesas corporativas a pagar: Notas Fiscais, Faturas, Lançamentos Avulsos e Folha (Fretes CT-e gerenciados na aba própria)"
+            title="Visão geral de despesas corporativas a pagar: Notas Fiscais, Faturas, Lançamentos Avulsos, Folha e Impostos"
           >
             <ArrowDownCircle className="w-4 h-4" />
             <span>Todas as Contas a Pagar</span>
             <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-white/20 text-white font-mono">
-              {invoicePayables.length + manualPayables.length + leaderPayables.length}
+              {invoicePayables.length + manualPayables.length + leaderPayables.length + taxPayables.length}
             </span>
           </button>
 
@@ -3220,7 +3497,7 @@ export const AccountsPayableTab: React.FC<AccountsPayableTabProps> = ({
             </span>
           </button>
 
-          {/* Aba 4: Folha de Pagamento */}
+          {/* Aba 5: Folha de Pagamento */}
           <button
             onClick={() => setActiveSection('leaders')}
             className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap cursor-pointer ${activeSection === 'leaders'
@@ -3236,6 +3513,25 @@ export const AccountsPayableTab: React.FC<AccountsPayableTabProps> = ({
                 : 'bg-amber-100 text-amber-800 dark:bg-amber-950/70 dark:text-amber-300'
               }`}>
               {payrollUsers.length}
+            </span>
+          </button>
+
+          {/* Aba 6: Impostos & Tributos */}
+          <button
+            onClick={() => setActiveSection('taxes')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap cursor-pointer ${activeSection === 'taxes'
+                ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30 ring-2 ring-purple-400/30'
+                : 'text-slate-600 dark:text-slate-400 hover:bg-purple-50 dark:hover:bg-purple-950/30 hover:text-purple-700 dark:hover:text-purple-300'
+              }`}
+            title="Aba de Impostos & Tributos: PIS/COFINS, ICMS, CSLL, IRPJ, Guias de FGTS e INSS com leitura automática"
+          >
+            <Landmark className="w-4 h-4 text-purple-400" />
+            <span>Impostos & Tributos</span>
+            <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono ${activeSection === 'taxes'
+                ? 'bg-white/20 text-white'
+                : 'bg-purple-100 text-purple-800 dark:bg-purple-950/70 dark:text-purple-300'
+              }`}>
+              {taxPayables.length}
             </span>
           </button>
         </div>
@@ -3268,6 +3564,18 @@ export const AccountsPayableTab: React.FC<AccountsPayableTabProps> = ({
             >
               <CalendarClock className="w-3.5 h-3.5 text-amber-200" />
               <span>+ Planejar Pagamento</span>
+            </button>
+          )}
+
+          {/* Botão de Importar Guia de Imposto (apenas na aba de Impostos) */}
+          {activeSection === 'taxes' && (
+            <button
+              onClick={() => setIsTaxImportModalOpen(true)}
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-linear-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-xl text-xs font-bold shadow-md shadow-purple-600/25 transition-all cursor-pointer active:scale-95 whitespace-nowrap"
+              title="Ler e cadastrar guias de impostos automaticamente via OCR / IA"
+            >
+              <Upload className="w-3.5 h-3.5" />
+              <span>+ Ler Guia Automática (OCR)</span>
             </button>
           )}
         </div>
@@ -3413,6 +3721,122 @@ export const AccountsPayableTab: React.FC<AccountsPayableTabProps> = ({
             </span>
           </div>
         </div>
+      ) : activeSection === 'taxes' ? (
+        /* KPIs Especializados para Impostos & Tributos */
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* 1. Total Impostos A Pagar */}
+            <div
+              onClick={() => setStatusFilter(prev => prev === 'Pendente' ? 'all' : 'Pendente')}
+              className={`p-5 rounded-2xl border transition-all cursor-pointer shadow-sm flex items-center justify-between ${
+                statusFilter === 'Pendente'
+                  ? 'bg-purple-500/10 dark:bg-purple-950/40 border-purple-400 dark:border-purple-700 ring-2 ring-purple-500/30'
+                  : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-purple-300 dark:hover:border-purple-800'
+              }`}
+              title="Filtrar guias pendentes"
+            >
+              <div>
+                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5 text-purple-500" />
+                  Impostos a Pagar
+                </span>
+                <div className="text-2xl font-black text-purple-600 dark:text-purple-400 mt-1.5 tracking-tight">
+                  {formatBrl(filteredTaxes.filter(t => t.status === 'Pendente').reduce((acc, t) => acc + t.payableAmount, 0))}
+                </div>
+                <span className="text-[11px] text-slate-400 mt-0.5 block">
+                  {filteredTaxes.filter(t => t.status === 'Pendente').length} guias a recolher
+                </span>
+              </div>
+              <div className="p-3.5 bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 rounded-2xl">
+                <Landmark className="w-6 h-6" />
+              </div>
+            </div>
+
+            {/* 2. Total Impostos Já Pagos */}
+            <div
+              onClick={() => setStatusFilter(prev => prev === 'Pago' ? 'all' : 'Pago')}
+              className={`p-5 rounded-2xl border transition-all cursor-pointer shadow-sm flex items-center justify-between ${
+                statusFilter === 'Pago'
+                  ? 'bg-emerald-50/90 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700 ring-2 ring-emerald-500/30'
+                  : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-emerald-300 dark:hover:border-emerald-800'
+              }`}
+              title="Filtrar guias pagas"
+            >
+              <div>
+                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                  Tributos Já Pagos
+                </span>
+                <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1.5 tracking-tight">
+                  {formatBrl(filteredTaxes.filter(t => t.status === 'Pago').reduce((acc, t) => acc + (t.paidAmount || t.payableAmount), 0))}
+                </div>
+                <span className="text-[11px] text-slate-400 mt-0.5 block">
+                  {filteredTaxes.filter(t => t.status === 'Pago').length} guias com comprovante
+                </span>
+              </div>
+              <div className="p-3.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 rounded-2xl">
+                <CheckCircle2 className="w-6 h-6" />
+              </div>
+            </div>
+
+            {/* 3. Total Impostos Vencidos */}
+            <div
+              onClick={() => setStatusFilter(prev => prev === 'Atrasado' ? 'all' : 'Atrasado')}
+              className={`p-5 rounded-2xl border transition-all cursor-pointer shadow-sm flex items-center justify-between ${
+                statusFilter === 'Atrasado'
+                  ? 'bg-rose-50/90 dark:bg-rose-950/40 border-rose-300 dark:border-rose-700 ring-2 ring-rose-500/30'
+                  : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-rose-300 dark:hover:border-rose-800'
+              }`}
+              title="Filtrar guias em atraso"
+            >
+              <div>
+                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <AlertCircle className="w-3.5 h-3.5 text-rose-500" />
+                  Guias em Atraso
+                </span>
+                <div className="text-2xl font-black text-rose-600 dark:text-rose-400 mt-1.5 tracking-tight">
+                  {formatBrl(filteredTaxes.filter(t => t.status === 'Atrasado').reduce((acc, t) => acc + t.payableAmount, 0))}
+                </div>
+                <span className="text-[11px] text-slate-400 mt-0.5 block">
+                  {filteredTaxes.filter(t => t.status === 'Atrasado').length} guias vencidas
+                </span>
+              </div>
+              <div className="p-3.5 bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 rounded-2xl">
+                <AlertCircle className="w-6 h-6" />
+              </div>
+            </div>
+
+            {/* 4. Subdivisão por Tipo de Imposto */}
+            <div className="bg-white dark:bg-slate-800 p-4.5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col justify-between">
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700/60 pb-1.5">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  Resumo Tributário
+                </span>
+                <span className="text-xs font-black text-purple-600 dark:text-purple-400">
+                  {formatBrl(filteredTaxes.reduce((acc, t) => acc + t.payableAmount, 0))}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-[11px] pt-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500">PIS/COFINS:</span>
+                  <strong className="text-blue-600 font-mono">{formatBrl(filteredTaxes.filter(t => t.taxType === 'PIS_COFINS').reduce((acc, t) => acc + t.payableAmount, 0))}</strong>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500">ICMS:</span>
+                  <strong className="text-purple-600 font-mono">{formatBrl(filteredTaxes.filter(t => t.taxType === 'ICMS').reduce((acc, t) => acc + t.payableAmount, 0))}</strong>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500">CSLL/IRPJ:</span>
+                  <strong className="text-amber-600 font-mono">{formatBrl(filteredTaxes.filter(t => t.taxType === 'CSLL' || t.taxType === 'IRPJ').reduce((acc, t) => acc + t.payableAmount, 0))}</strong>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500">INSS/FGTS:</span>
+                  <strong className="text-rose-600 font-mono">{formatBrl(filteredTaxes.filter(t => t.taxType === 'INSS' || t.taxType === 'FGTS').reduce((acc, t) => acc + t.payableAmount, 0))}</strong>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       ) : (
         /* KPIs Padrão de Contas a Pagar */
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -3541,7 +3965,7 @@ export const AccountsPayableTab: React.FC<AccountsPayableTabProps> = ({
                 Composição Atual
               </span>
               <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                {formatBrl(subtotalInvoices + subtotalCte + subtotalManuals + subtotalLeaders)}
+                {formatBrl(subtotalInvoices + subtotalCte + subtotalManuals + subtotalLeaders + subtotalTaxes)}
               </span>
             </div>
             <div className="mt-2 space-y-1.5 text-[11px]">
@@ -3588,6 +4012,17 @@ export const AccountsPayableTab: React.FC<AccountsPayableTabProps> = ({
                   Folha de Pagamento:
                 </span>
                 <span className="font-bold">{formatBrl(subtotalLeaders)}</span>
+              </div>
+              <div
+                onClick={() => setActiveSection('taxes')}
+                className="flex items-center justify-between text-slate-600 dark:text-slate-300 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-purple-50/60 dark:hover:bg-purple-950/40 px-1 py-0.5 rounded cursor-pointer transition-colors"
+                title="Abrir Impostos & Tributos"
+              >
+                <span className="flex items-center gap-1">
+                  <Landmark className="w-3 h-3 text-purple-500" />
+                  Impostos & Tributos:
+                </span>
+                <span className="font-bold text-purple-600 dark:text-purple-400">{formatBrl(subtotalTaxes)}</span>
               </div>
             </div>
           </div>
@@ -3770,7 +4205,7 @@ export const AccountsPayableTab: React.FC<AccountsPayableTabProps> = ({
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
               type="text"
-              placeholder={activeSection === 'leaders' ? "Buscar por líder, agência, observação, forma de pagamento..." : activeSection === 'cte' ? "Buscar por Doc CT-e, motorista, placa, embarque..." : "Buscar por descrição, fornecedor, centro de custo, número da NF..."}
+              placeholder={activeSection === 'leaders' ? "Buscar por líder, agência, observação, forma de pagamento..." : activeSection === 'cte' ? "Buscar por Doc CT-e, motorista, placa, embarque..." : activeSection === 'taxes' ? "Buscar por tributo (PIS, COFINS, ICMS, CSLL, IRPJ, FGTS, INSS), número do DARF/DARE, período..." : "Buscar por descrição, fornecedor, centro de custo, número da NF..."}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2 rounded-xl text-xs sm:text-sm border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
@@ -3778,6 +4213,26 @@ export const AccountsPayableTab: React.FC<AccountsPayableTabProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            {/* Filtro por Tipo de Tributo (na aba de Impostos & Tributos) */}
+            {activeSection === 'taxes' && (
+              <div className="relative">
+                <select
+                  value={selectedTaxTypeFilter}
+                  onChange={(e) => setSelectedTaxTypeFilter(e.target.value as any)}
+                  className="px-3 py-2 rounded-xl text-xs font-semibold border border-purple-300 dark:border-purple-700/80 bg-purple-50/50 dark:bg-purple-950/30 text-purple-900 dark:text-purple-200 outline-none cursor-pointer"
+                >
+                  <option value="all">🏛️ Todos os Tributos</option>
+                  <option value="PIS_COFINS">PIS / COFINS (Sicalc)</option>
+                  <option value="ICMS">ICMS Transporte (DARE/GNRE)</option>
+                  <option value="CSLL">CSLL Estimativa Mensal</option>
+                  <option value="IRPJ">IRPJ Estimativa Mensal</option>
+                  <option value="FGTS">Guias de FGTS</option>
+                  <option value="INSS">Guia de INSS (DCTFWeb)</option>
+                  <option value="OUTROS">Outros Tributos</option>
+                </select>
+              </div>
+            )}
+
             {/* Filtro por Líder Específico (na aba de Agenciadores Líder) */}
             {activeSection === 'leaders' && (
               <div className="relative">
@@ -3844,6 +4299,19 @@ export const AccountsPayableTab: React.FC<AccountsPayableTabProps> = ({
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>+ Lançamento Avulso</span>
+              </button>
+            )}
+
+            {/* Botão de Importar Guia (exclusivo para a aba de Impostos & Tributos) */}
+            {activeSection === 'taxes' && (
+              <button
+                type="button"
+                onClick={() => setIsTaxImportModalOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-xl text-xs font-bold shadow-md shadow-purple-600/30 transition-all cursor-pointer whitespace-nowrap"
+                title="Ler guias automaticamente via OCR e importar para o sistema"
+              >
+                <Upload className="w-3.5 h-3.5" />
+                <span>+ Ler Guia Automática (OCR)</span>
               </button>
             )}
           </div>
@@ -5142,6 +5610,10 @@ export const AccountsPayableTab: React.FC<AccountsPayableTabProps> = ({
                               <div className="p-2 bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 rounded-xl shrink-0 border border-amber-200 dark:border-amber-800" title="Pagamento / Planejamento de Agenciador Líder">
                                 <Award className="w-4 h-4" />
                               </div>
+                            ) : item.kind === 'tax' ? (
+                              <div className="p-2 bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 rounded-xl shrink-0 border border-purple-200 dark:border-purple-800" title="Guia de Imposto / Tributo">
+                                <Landmark className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                              </div>
                             ) : (
                               isValeTransaction(item.originalItem || item) ? (
                                 <div className="p-2 bg-orange-100 dark:bg-orange-950/60 text-orange-700 dark:text-orange-300 rounded-xl shrink-0 border border-orange-200 dark:border-orange-800" title="Vale / Adiantamento Salarial">
@@ -5176,6 +5648,11 @@ export const AccountsPayableTab: React.FC<AccountsPayableTabProps> = ({
                                 {item.kind === 'leader' && (
                                   <span className="text-[10px] px-1.5 py-0.5 rounded font-bold border bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300 border-amber-200 dark:border-amber-800 shrink-0">
                                     Agenciador Líder
+                                  </span>
+                                )}
+                                {item.kind === 'tax' && (
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded font-bold border bg-purple-100 text-purple-800 dark:bg-purple-950/80 dark:text-purple-300 border-purple-200 dark:border-purple-800 shrink-0">
+                                    {item.originalItem?.taxTypeName || 'Guia Tributária'}
                                   </span>
                                 )}
                                 {item.kind === 'manual' && isValeTransaction(item.originalItem || item) && (
@@ -5350,9 +5827,27 @@ export const AccountsPayableTab: React.FC<AccountsPayableTabProps> = ({
 
                         {/* 8. Tríade de Conformidade Documental: NF = [OK] Boleto = [OK] Comprovad pag */}
                         <td className="py-3 px-4 text-center whitespace-nowrap">
-                          <div className="flex items-center justify-center gap-1.5 flex-wrap max-w-[260px] mx-auto">
-                            {/* Chip 1: NF ou CT-e */}
-                            {item.documentUrl ? (
+                          <div className="flex items-center justify-center gap-1.5 flex-wrap max-w-[280px] mx-auto">
+                            {/* Chip 1: NF, CT-e ou Guia Tributária */}
+                            {item.kind === 'tax' ? (
+                              item.documentUrl ? (
+                                <button
+                                  type="button"
+                                  onClick={() => openDocumentInNewTab(item.documentUrl!, item.docNumber)}
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-purple-100 hover:bg-purple-200 text-purple-800 dark:bg-purple-900/60 dark:text-purple-300 border border-purple-200 dark:border-purple-800 transition-colors cursor-pointer"
+                                  title="Visualizar Guia de Imposto (PDF)"
+                                >
+                                  <Landmark className="w-3 h-3 text-purple-600 dark:text-purple-400" />
+                                  <span>Guia: OK</span>
+                                  <ExternalLink className="w-2.5 h-2.5 opacity-60" />
+                                </button>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500 border border-slate-200 dark:border-slate-700" title="Guia não anexada">
+                                  <Landmark className="w-3 h-3 opacity-40" />
+                                  <span>Guia: -</span>
+                                </span>
+                              )
+                            ) : item.documentUrl ? (
                               <button
                                 type="button"
                                 onClick={() => openDocumentInNewTab(item.documentUrl!, item.docNumber)}
@@ -5370,8 +5865,28 @@ export const AccountsPayableTab: React.FC<AccountsPayableTabProps> = ({
                               </span>
                             )}
 
-                            {/* Chip 2: Boleto ou Contrato de Frete */}
-                            {item.kind === 'cte' ? (
+                            {/* Chip 2: Boleto, Contrato de Frete ou Código de Barras */}
+                            {item.kind === 'tax' ? (
+                              item.pixKey ? (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(item.pixKey!.replace(/[\s.-]/g, ''));
+                                    showToast('Código de barras copiado para a área de transferência!', 'success');
+                                  }}
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-slate-200 border border-slate-300 dark:border-slate-600 transition-colors cursor-pointer"
+                                  title={`Copiar código de barras da guia: ${item.pixKey}`}
+                                >
+                                  <Barcode className="w-3 h-3 text-slate-600 dark:text-slate-400" />
+                                  <span>Barra: OK</span>
+                                  <Copy className="w-2.5 h-2.5 opacity-60" />
+                                </button>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500 border border-slate-200 dark:border-slate-700">
+                                  <span>Barra: -</span>
+                                </span>
+                              )
+                            ) : item.kind === 'cte' ? (
                               item.contractUrl ? (
                                 <button
                                   type="button"
@@ -5407,18 +5922,35 @@ export const AccountsPayableTab: React.FC<AccountsPayableTabProps> = ({
                               </span>
                             )}
 
-                            {/* Chip 3: Comprovante de Pagamento */}
+                            {/* Chip 3: Comprovante de Pagamento (Com Baixa Automática para Impostos) */}
                             {item.receiptUrl ? (
                               <button
                                 type="button"
                                 onClick={() => openDocumentInNewTab(item.receiptUrl!, `Comprovante_${item.docNumber}`)}
-                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-purple-100 hover:bg-purple-200 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300 border border-purple-300 dark:border-purple-800 transition-colors cursor-pointer shadow-xs"
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 hover:bg-emerald-200 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 transition-colors cursor-pointer shadow-xs"
                                 title="Visualizar Comprovante de Quitação"
                               >
-                                <FileCheck className="w-3 h-3 text-purple-600 dark:text-purple-400" />
+                                <FileCheck className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
                                 <span>Comprov: OK</span>
                                 <ExternalLink className="w-2.5 h-2.5 opacity-60" />
                               </button>
+                            ) : item.kind === 'tax' ? (
+                              <label
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 hover:bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-300 dark:border-amber-700/80 transition-colors cursor-pointer"
+                                title="Anexe o comprovante Sicredi/Banco: o sistema lerá e mudará para PAGO automaticamente!"
+                              >
+                                <Paperclip className="w-3 h-3 text-amber-500" />
+                                <span>Anexar Comprovante (Baixa Auto)</span>
+                                <input
+                                  type="file"
+                                  accept="application/pdf,image/*"
+                                  className="hidden"
+                                  onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) handleAttachReceiptToTax(item.originalItem.id, item.payableAmount, file);
+                                  }}
+                                />
+                              </label>
                             ) : (
                               <button
                                 type="button"
@@ -7192,6 +7724,13 @@ export const AccountsPayableTab: React.FC<AccountsPayableTabProps> = ({
           </div>
         </div>
       )}
+
+      {/* 10. MODAL DE IMPORTAÇÃO E LEITURA AUTOMÁTICA DE GUIAS DE IMPOSTOS */}
+      <TaxInvoiceImportModal
+        isOpen={isTaxImportModalOpen}
+        onClose={() => setIsTaxImportModalOpen(false)}
+        onImportSuccess={handleImportTaxes}
+      />
     </div>
   );
 };

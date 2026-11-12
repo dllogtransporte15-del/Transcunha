@@ -958,6 +958,8 @@ export interface BankAccount {
   createdAt: string;
 }
 
+export type TaxType = 'PIS_COFINS' | 'ICMS' | 'CSLL' | 'IRPJ' | 'FGTS' | 'INSS' | 'OUTROS';
+
 export interface FinancialTransaction {
   id: string;
   type: FinancialTransactionType;
@@ -1004,6 +1006,15 @@ export interface FinancialTransaction {
   discountAmount?: number;
   paidAmount?: number;
   bankAccount?: string;
+
+  // Metadados de Impostos e Tributos
+  taxType?: TaxType;
+  taxCode?: string;          // ex: '111-9', '6912', '5856', '2484', '5993', '1138'
+  taxPeriod?: string;        // ex: '02/2026', '30/06/2026', 'setembro/2026'
+  taxPrincipalAmount?: number;
+  taxFineAmount?: number;
+  taxInterestAmount?: number;
+  barcode?: string;          // Linha digitável ou código de barras da guia
   
   createdAt: string;
   createdById?: string;
