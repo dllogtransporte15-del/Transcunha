@@ -27,6 +27,35 @@ export interface SystemRelease {
  */
 export const SYSTEM_RELEASES: SystemRelease[] = [
   {
+    id: 'rel_2026_11_11_v2_116_10',
+    version: 'v2.116.10',
+    date: '11/11/2026',
+    title: 'Painel de Gestão do Gateway WhatsApp, Diagnóstico em Tempo Real e Resiliência do Mensageiro',
+    summary: 'Implementado painel completo de configuração do Gateway WhatsApp (Evolution API) no Mensageiro Transcunha, teste de conexão em tempo real com diagnóstico de latência e versão, eliminação de pareamentos fictícios e guia passo a passo de deploy e webhook.',
+    items: [
+      {
+        category: 'feature',
+        title: 'Painel de Configuração do Gateway WhatsApp no Mensageiro',
+        description: 'Adicionado modal integrado para definir URL do servidor Evolution API, Chave de API e Nome da Instância, com teste de conexão em tempo real e persistência local imediata.'
+      },
+      {
+        category: 'improvement',
+        title: 'Monitor de Saúde e Status em Tempo Real do Gateway',
+        description: 'Indicador visual animado no topo do Mensageiro informando o estado da Evolution API (Online ou Inacessível) e alerta proativo na aba de Conexão com link de configuração rápida.'
+      },
+      {
+        category: 'fix',
+        title: 'Eliminação de Códigos de Pareamento Falsos',
+        description: 'Corrigido o mecanismo de solicitação de Pairing Code para emitir estritamente códigos oficiais do Baileys/WhatsApp, prevenindo erros de "código inválido" no aplicativo do celular quando o servidor estiver offline.'
+      },
+      {
+        category: 'improvement',
+        title: 'Guia de Instalação e Configuração de Webhook de Entrada',
+        description: 'Inclusão de aba explicativa com a URL do webhook do Transcunha e instruções para receber mensagens, áudios e canhotos enviados pelos motoristas.'
+      }
+    ]
+  },
+  {
     id: 'rel_2026_11_11_v2_116_9',
     version: 'v2.116.9',
     date: '11/11/2026',

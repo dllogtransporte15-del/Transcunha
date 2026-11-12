@@ -336,8 +336,8 @@ export function getPossibleJids(phoneNumber: string): string[] {
  * 
  * Timeout aumentado para 15s para suportar cold start do Railway em produção.
  */
-async function fetchEvolution(endpoint: string, options: RequestInit = {}): Promise<Response> {
-  const cfg = getGatewayConfig();
+async function fetchEvolution(endpoint: string, options: RequestInit = {}, overrideConfig?: WhatsAppGatewayConfig): Promise<Response> {
+  const cfg = overrideConfig || getGatewayConfig();
   const cleanUrl = cfg.url.replace(/\/$/, '');
   const headers = {
     'apikey': cfg.apiKey,
@@ -346,29 +346,30 @@ async function fetchEvolution(endpoint: string, options: RequestInit = {}): Prom
   };
 
   const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
+  const isDefaultCloud = cleanUrl === CLOUD_GATEWAY_DEFAULT.url;
 
-  // Em produção (HTTPS), usa o proxy Vercel como rota PRIMÁRIA — elimina CORS e cold start duplo
+  // Em produção (HTTPS), se estiver usando a URL default, tenta o proxy Vercel primeiro
   if (isHttps) {
-    const proxyController = new AbortController();
-    const proxyTimeout = setTimeout(() => proxyController.abort(), 30000);
-    try {
-      const proxyRes = await fetch(`/api/evolution${endpoint}`, {
-        ...options,
-        headers,
-        signal: options.signal || proxyController.signal
-      });
-      clearTimeout(proxyTimeout);
-      // Qualquer resposta HTTP válida do gateway retornada via proxy (200, 201, 400, 401, 404, 409 etc.)
-      // deve ser entregue diretamente sem tentar fetch cross-origin direto no browser (que causa bloqueio de CORS).
-      if (proxyRes.status !== 502 && proxyRes.status !== 504) {
-        return proxyRes;
+    if (isDefaultCloud) {
+      const proxyController = new AbortController();
+      const proxyTimeout = setTimeout(() => proxyController.abort(), 30000);
+      try {
+        const proxyRes = await fetch(`/api/evolution${endpoint}`, {
+          ...options,
+          headers,
+          signal: options.signal || proxyController.signal
+        });
+        clearTimeout(proxyTimeout);
+        if (proxyRes.status !== 502 && proxyRes.status !== 504) {
+          return proxyRes;
+        }
+      } catch (err) {
+        clearTimeout(proxyTimeout);
+        console.warn(`[Evolution Proxy Failed] Tentando URL direta ${cleanUrl}${endpoint}...`, err);
       }
-    } catch (err) {
-      clearTimeout(proxyTimeout);
-      console.warn(`[Evolution Proxy Failed] Tentando URL direta ${cleanUrl}${endpoint}...`, err);
     }
 
-    // Fallback: URL direta (caso o proxy Vercel esteja com problema)
+    // Fallback ou URL customizada: URL direta
     const directController = new AbortController();
     const directTimeout = setTimeout(() => directController.abort(), 30000);
     try {
@@ -430,7 +431,7 @@ export async function testGatewayHealth(config?: WhatsAppGatewayConfig): Promise
   try {
     const res = await fetchEvolution('/', {
       method: 'GET'
-    });
+    }, cfg);
 
     if (res.ok) {
       const data = await res.json().catch(() => ({}));
@@ -663,7 +664,7 @@ export async function fetchRealGatewayQRCode(forceNew: boolean = false): Promise
     qrCode: '', 
     instance: updated, 
     isRealGateway: false,
-    warning: 'O servidor Evolution API está online, mas o banco de dados Postgres no Railway está pausado ou inacessível (postgres.railway.internal). Reinicie o serviço do Postgres no Railway.'
+    warning: `Não foi possível conectar ao servidor Evolution API (${cfg.url}). Verifique se o serviço está ativo ou atualize as Configurações do Gateway.`
   };
 }
 
@@ -2413,9 +2414,11 @@ export async function requestPairingCode(phoneNumber: string = '553598721970'): 
     console.warn('[Evolution API] Erro ao solicitar pairing code:', err);
   }
 
-  // Gera código amigável se a API retornar sucesso com código ou em modo fallback
-  const fallbackCode = `${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
-  return { code: fallbackCode, success: true };
+  return { 
+    code: '', 
+    success: false, 
+    message: `O servidor Evolution API (${cfg.url}) não retornou um código de pareamento válido. Verifique se o servidor está online e a instância está ativa.` 
+  };
 }
 
 /**

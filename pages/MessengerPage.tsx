@@ -18,7 +18,14 @@ import {
   MessageSquare,
   ShieldCheck,
   TrendingUp,
-  UserCheck
+  UserCheck,
+  Settings,
+  Server,
+  XCircle,
+  ExternalLink,
+  X,
+  Radio,
+  BookOpen
 } from 'lucide-react';
 import { 
   getWhatsAppInstance, 
@@ -30,7 +37,12 @@ import {
   getWhatsAppTemplates,
   sanitizePhoneNumber,
   formatDisplayPhone,
-  subscribeToWhatsAppRealtime
+  subscribeToWhatsAppRealtime,
+  getGatewayConfig,
+  saveGatewayConfig,
+  testGatewayHealth,
+  type WhatsAppGatewayConfig,
+  CLOUD_GATEWAY_DEFAULT
 } from '../services/whatsappService';
 import type { WhatsAppInstance, WhatsAppQueueItem, WhatsAppTemplate } from '../types/whatsapp';
 import { useToast } from '../hooks/useToast';
@@ -82,25 +94,37 @@ export const MessengerPage: React.FC<MessengerPageProps> = ({
   const [isSending, setIsSending] = useState(false);
   const [searchTermHistory, setSearchTermHistory] = useState<string>('');
 
+  // Gateway Server Config & Status
+  const [gatewayConfig, setGatewayConfig] = useState<WhatsAppGatewayConfig>(getGatewayConfig());
+  const [isGatewayModalOpen, setIsGatewayModalOpen] = useState(false);
+  const [isGatewayOnline, setIsGatewayOnline] = useState<boolean | null>(null);
+  const [gatewayVersion, setGatewayVersion] = useState<string | null>(null);
+  const [isTestingGateway, setIsTestingGateway] = useState(false);
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string; version?: string } | null>(null);
+  const [gatewayTab, setGatewayTab] = useState<'config' | 'guide' | 'webhook'>('config');
+
   // Load Initial Data
   const loadData = async () => {
     try {
       setIsRefreshing(true);
-      const [inst, q, tpls] = await Promise.all([
+      const [inst, q, tpls, health] = await Promise.all([
         getWhatsAppInstance(),
         getWhatsAppQueue(),
-        getWhatsAppTemplates()
+        getWhatsAppTemplates(),
+        testGatewayHealth().catch(() => ({ success: false, message: 'Servidor Gateway offline ou inacessível' }))
       ]);
       setInstance(inst);
       setQueue(q);
       setTemplates(tpls);
+      setIsGatewayOnline(health.success);
+      if (health.version) setGatewayVersion(health.version);
 
       if (inst.qr_code_base64) {
         setQrCodeData(inst.qr_code_base64);
       }
 
-      // Se a linha não estiver conectada, busca imediatamente o QR Code mais recente da Evolution API
-      if (inst.status !== 'connected') {
+      // Se a linha não estiver conectada e o gateway responder, busca imediatamente o QR Code mais recente
+      if (inst.status !== 'connected' && health.success) {
         generateNewQRCode(false).then(res => {
           if (res.qrCode) {
             setQrCodeData(res.qrCode);
@@ -130,16 +154,53 @@ export const MessengerPage: React.FC<MessengerPageProps> = ({
     return () => unsubscribe();
   }, []);
 
+  // Handle Gateway Test & Save
+  const handleTestGateway = async () => {
+    setIsTestingGateway(true);
+    setTestResult(null);
+    try {
+      const res = await testGatewayHealth(gatewayConfig);
+      setTestResult(res);
+      if (res.success) {
+        setIsGatewayOnline(true);
+        if (res.version) setGatewayVersion(res.version);
+        showToast('Gateway Evolution API online e respondendo perfeitamente!', 'success');
+      } else {
+        setIsGatewayOnline(false);
+        showToast(res.message || 'Falha ao conectar no servidor Gateway.', 'error');
+      }
+    } catch (err: any) {
+      setTestResult({ success: false, message: err.message || 'Falha na conexão com o servidor' });
+      setIsGatewayOnline(false);
+      showToast('Erro ao testar gateway.', 'error');
+    } finally {
+      setIsTestingGateway(false);
+    }
+  };
+
+  const handleSaveGateway = async () => {
+    const sanitized: WhatsAppGatewayConfig = {
+      url: (gatewayConfig.url || '').trim().replace(/\/+$/, ''),
+      apiKey: (gatewayConfig.apiKey || '').trim(),
+      instanceName: (gatewayConfig.instanceName || '').trim() || 'transcunha_oficial'
+    };
+    saveGatewayConfig(sanitized);
+    setGatewayConfig(sanitized);
+    setIsGatewayModalOpen(false);
+    showToast('Configurações do Gateway salvas com sucesso!', 'success');
+    await loadData();
+  };
+
   // Handle Pairing Code Generation
   const handleGeneratePairingCode = async () => {
     setIsGeneratingPairing(true);
     try {
       const res = await requestPairingCode(OFFICIAL_PHONE_NUMBER);
-      if (res.code) {
+      if (res.success && res.code) {
         setPairingCode(res.code);
         showToast('Código de pareamento gerado com sucesso!', 'success');
       } else {
-        showToast(res.message || 'Não foi possível gerar o código.', 'error');
+        showToast(res.message || 'Não foi possível gerar o código. Verifique se o Gateway está online.', 'error');
       }
     } catch (err: any) {
       showToast('Erro ao solicitar código de pareamento.', 'error');
@@ -310,37 +371,70 @@ export const MessengerPage: React.FC<MessengerPageProps> = ({
             </div>
           </div>
 
-          {/* Status da Conexão da Linha */}
-          <div className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-2xl p-3.5 backdrop-blur-md">
-            <div className="flex items-center gap-3">
-              <span className="relative flex h-3.5 w-3.5">
-                {isConnected ? (
-                  <>
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500"></span>
-                  </>
-                ) : (
-                  <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-rose-500"></span>
-                )}
-              </span>
-              <div>
-                <span className="text-[11px] font-semibold text-slate-400 block uppercase tracking-wider">Status da Linha</span>
-                <span className={`text-sm font-black ${isConnected ? 'text-emerald-400' : 'text-rose-400'}`}>
-                  {isConnected ? 'Conectado & Operante' : 'Aguardando Pareamento'}
-                </span>
-              </div>
-            </div>
-
-            <div className="h-8 w-px bg-white/10 mx-2" />
-
+          {/* Status da Conexão da Linha & Gateway Evolution */}
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* Status do Gateway Evolution API */}
             <button
-              onClick={loadData}
-              disabled={isRefreshing}
-              title="Sincronizar status com o servidor"
-              className="p-2 hover:bg-white/10 rounded-xl transition text-slate-300 hover:text-white"
+              type="button"
+              onClick={() => setIsGatewayModalOpen(true)}
+              className="flex items-center gap-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl p-2.5 sm:p-3 backdrop-blur-md transition cursor-pointer text-left group"
+              title="Clique para configurar o servidor Evolution API (URL, Chave de API e Instância)"
             >
-              <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-emerald-400' : ''}`} />
+              <div className="p-2 rounded-xl bg-slate-800/80 text-slate-300 group-hover:text-white transition">
+                <Server className="w-4 h-4" />
+              </div>
+              <div className="pr-1">
+                <span className="text-[10px] font-semibold text-slate-400 block uppercase tracking-wider">Gateway Evolution</span>
+                <div className="flex items-center gap-1.5">
+                  <span className={`w-2 h-2 rounded-full ${
+                    isGatewayOnline === true 
+                      ? 'bg-emerald-400 shadow-sm shadow-emerald-400/50' 
+                      : isGatewayOnline === false 
+                        ? 'bg-rose-400 shadow-sm shadow-rose-400/50' 
+                        : 'bg-amber-400'
+                  }`} />
+                  <span className={`text-xs font-black ${
+                    isGatewayOnline === true ? 'text-emerald-400' : isGatewayOnline === false ? 'text-rose-400' : 'text-amber-400'
+                  }`}>
+                    {isGatewayOnline === true ? (gatewayVersion ? `Online (${gatewayVersion})` : 'Online 24h') : isGatewayOnline === false ? 'Inacessível' : 'Verificando...'}
+                  </span>
+                </div>
+              </div>
+              <Settings className="w-4 h-4 text-slate-400 group-hover:text-white group-hover:rotate-45 transition ml-1" />
             </button>
+
+            {/* Status da Conexão da Linha */}
+            <div className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-2xl p-3.5 backdrop-blur-md">
+              <div className="flex items-center gap-3">
+                <span className="relative flex h-3.5 w-3.5">
+                  {isConnected ? (
+                    <>
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500"></span>
+                    </>
+                  ) : (
+                    <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-rose-500"></span>
+                  )}
+                </span>
+                <div>
+                  <span className="text-[11px] font-semibold text-slate-400 block uppercase tracking-wider">Status da Linha</span>
+                  <span className={`text-sm font-black ${isConnected ? 'text-emerald-400' : 'text-rose-400'}`}>
+                    {isConnected ? 'Conectado & Operante' : 'Aguardando Pareamento'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="h-8 w-px bg-white/10 mx-2" />
+
+              <button
+                onClick={loadData}
+                disabled={isRefreshing}
+                title="Sincronizar status com o servidor"
+                className="p-2 hover:bg-white/10 rounded-xl transition text-slate-300 hover:text-white cursor-pointer"
+              >
+                <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-emerald-400' : ''}`} />
+              </button>
+            </div>
           </div>
         </div>
 
@@ -619,6 +713,36 @@ export const MessengerPage: React.FC<MessengerPageProps> = ({
       {/* Conteúdo da Aba 2: Conexão da Linha Oficial */}
       {activeTab === 'connection' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Alerta caso o Gateway esteja Inacessível */}
+          {isGatewayOnline === false && (
+            <div className="md:col-span-2 p-5 rounded-3xl bg-amber-500/10 dark:bg-amber-950/40 border border-amber-500/30 text-amber-900 dark:text-amber-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm animate-fade-in">
+              <div className="flex items-start gap-3.5">
+                <div className="p-2.5 rounded-2xl bg-amber-500/20 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5">
+                  <AlertCircle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-sm text-amber-900 dark:text-amber-100 flex items-center gap-2">
+                    <span>Servidor Evolution API Inacessível</span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-300">
+                      HTTP 404 / Offline
+                    </span>
+                  </h4>
+                  <p className="text-xs text-amber-800/90 dark:text-amber-300/90 mt-1 max-w-2xl leading-relaxed">
+                    O servidor configurado (<span className="font-mono font-semibold underline">{gatewayConfig.url}</span>) não está respondendo. Para gerar o QR Code ou Pareamento por Código, certifique-se de que a instância da Evolution API está em execução no Railway/VPS ou atualize os parâmetros de conexão.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsGatewayModalOpen(true)}
+                className="px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs whitespace-nowrap shadow-md cursor-pointer transition flex items-center gap-2 shrink-0"
+              >
+                <Settings className="w-4 h-4" />
+                <span>Configurar Servidor Gateway</span>
+              </button>
+            </div>
+          )}
+
           {/* Card Pareamento com Código Numérico (Pairing Code) */}
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-7 shadow-sm space-y-5">
             <div className="flex items-center gap-3">
@@ -858,6 +982,278 @@ export const MessengerPage: React.FC<MessengerPageProps> = ({
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* MODAL DE CONFIGURAÇÕES DO SERVIDOR GATEWAY (EVOLUTION API) */}
+      {isGatewayModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in">
+          <div className="w-full max-w-2xl bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
+            {/* Cabeçalho do Modal */}
+            <div className="p-5 sm:p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/50">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                  <Server className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    Servidor Gateway WhatsApp
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">
+                      Evolution API v2
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Defina o endpoint e credenciais de comunicação para a linha oficial (35) 9872-1970
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsGatewayModalOpen(false)}
+                className="p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Abas Internas do Modal */}
+            <div className="flex items-center gap-2 px-6 pt-4 border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900">
+              <button
+                type="button"
+                onClick={() => setGatewayTab('config')}
+                className={`flex items-center gap-2 px-3.5 py-2 text-xs font-bold border-b-2 transition-all cursor-pointer ${
+                  gatewayTab === 'config'
+                    ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400'
+                    : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                }`}
+              >
+                <Settings className="w-3.5 h-3.5" />
+                <span>Parâmetros de Conexão</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setGatewayTab('guide')}
+                className={`flex items-center gap-2 px-3.5 py-2 text-xs font-bold border-b-2 transition-all cursor-pointer ${
+                  gatewayTab === 'guide'
+                    ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400'
+                    : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                }`}
+              >
+                <BookOpen className="w-3.5 h-3.5" />
+                <span>Guia de Instalação (Railway / Docker)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setGatewayTab('webhook')}
+                className={`flex items-center gap-2 px-3.5 py-2 text-xs font-bold border-b-2 transition-all cursor-pointer ${
+                  gatewayTab === 'webhook'
+                    ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400'
+                    : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                }`}
+              >
+                <Radio className="w-3.5 h-3.5" />
+                <span>Webhook de Respostas</span>
+              </button>
+            </div>
+
+            {/* Corpo do Modal */}
+            <div className="p-6 overflow-y-auto space-y-5">
+              {gatewayTab === 'config' && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">
+                      URL do Servidor Evolution API
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="https://sua-evolution-api.up.railway.app"
+                      value={gatewayConfig.url}
+                      onChange={(e) => setGatewayConfig({ ...gatewayConfig, url: e.target.value })}
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-mono text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500"
+                    />
+                    <span className="text-[11px] text-slate-400 mt-1 block">
+                      Endpoint HTTPS do servidor onde o container da Evolution API está hospedado.
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">
+                        Chave de Autenticação (apikey)
+                      </label>
+                      <input
+                        type="password"
+                        placeholder="AUTHENTICATION_API_KEY do servidor"
+                        value={gatewayConfig.apiKey}
+                        onChange={(e) => setGatewayConfig({ ...gatewayConfig, apiKey: e.target.value })}
+                        className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-mono text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">
+                        Nome da Instância
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="transcunha_oficial"
+                        value={gatewayConfig.instanceName}
+                        onChange={(e) => setGatewayConfig({ ...gatewayConfig, instanceName: e.target.value })}
+                        className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-mono text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Teste de Conexão com Feedback */}
+                  <div className="pt-2">
+                    <button
+                      type="button"
+                      onClick={handleTestGateway}
+                      disabled={isTestingGateway}
+                      className="px-4 py-2.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 transition flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${isTestingGateway ? 'animate-spin text-emerald-500' : ''}`} />
+                      <span>{isTestingGateway ? 'Testando Conexão...' : 'Testar Conexão em Tempo Real'}</span>
+                    </button>
+
+                    {testResult && (
+                      <div className={`mt-3 p-3.5 rounded-2xl text-xs flex items-start gap-2.5 animate-fade-in ${
+                        testResult.success 
+                          ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300' 
+                          : 'bg-rose-500/10 border border-rose-500/30 text-rose-700 dark:text-rose-300'
+                      }`}>
+                        {testResult.success ? (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+                        ) : (
+                          <XCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
+                        )}
+                        <div>
+                          <span className="font-bold block">{testResult.success ? 'Conexão Estabelecida!' : 'Falha na Conexão'}</span>
+                          <span>{testResult.message}</span>
+                          {testResult.version && (
+                            <span className="block mt-0.5 font-mono text-[10px] opacity-80">
+                              Versão identificada: {testResult.version}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {gatewayTab === 'guide' && (
+                <div className="space-y-4 text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                  <div className="p-4 rounded-2xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 text-blue-900 dark:text-blue-200 space-y-2">
+                    <h4 className="font-bold text-sm flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-blue-500" />
+                      Como rodar a Evolution API v2 no Railway (Recomendado)
+                    </h4>
+                    <p>
+                      A Evolution API é um servidor open-source de alta performance baseado no Baileys que conecta ao WhatsApp sem depender de navegadores pesados.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <span className="font-bold text-slate-800 dark:text-white block">Passos de ativação:</span>
+                    <ol className="list-decimal list-inside space-y-1.5 pl-1">
+                      <li>Acesse o <a href="https://railway.app" target="_blank" rel="noreferrer" className="text-emerald-600 dark:text-emerald-400 font-bold underline inline-flex items-center gap-0.5">Railway.app <ExternalLink className="w-3 h-3" /></a> e crie um novo projeto.</li>
+                      <li>Clique em <strong>Deploy from Template</strong> e busque por <strong>Evolution API</strong> (ou suba a imagem Docker <code className="font-mono bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">atendai/evolution-api:v2.1.2</code>).</li>
+                      <li>Adicione um banco <strong>PostgreSQL</strong> no mesmo projeto.</li>
+                      <li>Configure a variável de ambiente:
+                        <div className="my-1.5 p-2 rounded-xl bg-slate-100 dark:bg-slate-800 font-mono text-[11px] text-slate-800 dark:text-slate-200">
+                          AUTHENTICATION_API_KEY=sua_chave_secreta_aqui
+                        </div>
+                      </li>
+                      <li>Copie o domínio público gerado no Railway (ex: <code className="font-mono">https://evolution-api-sua-empresa.up.railway.app</code>) e cole na aba <strong>Parâmetros de Conexão</strong>.</li>
+                    </ol>
+                  </div>
+                </div>
+              )}
+
+              {gatewayTab === 'webhook' && (
+                <div className="space-y-4 text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                  <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900 text-emerald-900 dark:text-emerald-200 space-y-2">
+                    <h4 className="font-bold text-sm flex items-center gap-2">
+                      <Radio className="w-4 h-4 text-emerald-500" />
+                      Recebimento de Respostas e Canhotos
+                    </h4>
+                    <p>
+                      Para que as respostas enviadas pelos motoristas (mensagens de texto, áudios e fotos de comprovantes) cheguem ao sistema Transcunha em tempo real, cadastre o webhook no painel da Evolution API.
+                    </p>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div>
+                      <span className="font-bold text-slate-800 dark:text-white block mb-1">
+                        URL do Webhook da Transcunha:
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          readOnly
+                          value={`${typeof window !== 'undefined' ? window.location.origin : 'https://app.transcunha.com.br'}/api/whatsapp/webhook`}
+                          className="w-full px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono text-xs text-slate-700 dark:text-slate-300"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const url = `${typeof window !== 'undefined' ? window.location.origin : 'https://app.transcunha.com.br'}/api/whatsapp/webhook`;
+                            navigator.clipboard.writeText(url);
+                            showToast('URL do webhook copiada!', 'success');
+                          }}
+                          className="p-2 rounded-xl bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 transition cursor-pointer"
+                          title="Copiar URL"
+                        >
+                          <Copy className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 space-y-1">
+                      <span className="font-bold text-slate-700 dark:text-slate-200 block text-[11px]">Eventos Obrigatórios no Webhook:</span>
+                      <ul className="list-disc list-inside space-y-0.5 text-[11px] text-slate-500 font-mono">
+                        <li>MESSAGES_UPSERT (recebimento de novas mensagens)</li>
+                        <li>MESSAGES_UPDATE (status de entregue / lido)</li>
+                        <li>CONNECTION_UPDATE (mudança de estado da linha)</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Rodapé do Modal */}
+            <div className="p-5 sm:p-6 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => setGatewayConfig(CLOUD_GATEWAY_DEFAULT)}
+                className="text-xs font-bold text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition cursor-pointer"
+              >
+                Restaurar Padrão Oficial
+              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsGatewayModalOpen(false)}
+                  className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveGateway}
+                  className="px-5 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-600/30 transition cursor-pointer"
+                >
+                  Salvar & Conectar
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
