@@ -89,6 +89,8 @@ import { InvoicesManagementTab } from './InvoicesManagementTab';
 import { calculateBoletoLateFees } from '../../utils/invoiceExtractionService';
 import { parseHoleriteFile, type ParsedHoleriteData } from '../../utils/holeriteParser';
 import { TaxInvoiceImportModal, type TaxImportItem } from './TaxInvoiceImportModal';
+import { TaxManualModal } from './TaxManualModal';
+import { taxTransactionService } from '../../services/taxTransactionService';
 import { parseReceiptFile } from '../../utils/sicrediReceiptParser';
 
 export const formatMonthKeyToLabel = (monthKey: string): string => {
@@ -474,6 +476,12 @@ export const AccountsPayableTab: React.FC<AccountsPayableTabProps> = ({
   const [selectedLeaderFilter, setSelectedLeaderFilter] = useState<string>('all');
   const [selectedTaxTypeFilter, setSelectedTaxTypeFilter] = useState<'all' | TaxType>('all');
   const [isTaxImportModalOpen, setIsTaxImportModalOpen] = useState(false);
+  const [isTaxManualModalOpen, setIsTaxManualModalOpen] = useState(false);
+  const [editingTaxTransaction, setEditingTaxTransaction] = useState<FinancialTransaction | null>(null);
+  const [isTaxDeleteModalOpen, setIsTaxDeleteModalOpen] = useState(false);
+  const [taxToDelete, setTaxToDelete] = useState<any | null>(null);
+  const [isDeletingTax, setIsDeletingTax] = useState(false);
+  const [isSyncingTaxes, setIsSyncingTaxes] = useState(false);
   const [isTaxTypeDropdownOpen, setIsTaxTypeDropdownOpen] = useState(false);
   const taxTypeDropdownRef = useRef<HTMLDivElement>(null);
 
@@ -3432,6 +3440,8 @@ export const AccountsPayableTab: React.FC<AccountsPayableTabProps> = ({
     try {
       showToast(`Processando ${importedItems.length} guia(s) tributária(s)...`, 'info');
 
+      const newTxs: Array<Omit<FinancialTransaction, 'id' | 'createdAt'>> = [];
+
       for (const item of importedItems) {
         let uploadedUrl = '';
         try {
@@ -3468,13 +3478,112 @@ export const AccountsPayableTab: React.FC<AccountsPayableTabProps> = ({
           notes: `[Imposto] ${item.taxTypeName}${item.taxCode ? ` | Cód: ${item.taxCode}` : ''}${item.period ? ` | PA: ${item.period}` : ''}${item.notes ? ` | ${item.notes}` : ''}`,
         };
 
-        onAddTransaction(newTx);
+        newTxs.push(newTx);
       }
 
-      showToast(`${importedItems.length} guia(s) lançada(s) com sucesso na aba de Impostos!`, 'success');
+      // Salva lote completo atomicamente na nuvem Supabase e dispara broadcast em tempo real para todos os operadores
+      const savedItems = await taxTransactionService.saveTaxTransactionsBatch(newTxs, currentUser);
+
+      // Atualiza também via callback pai se fornecido
+      if (onAddTransaction) {
+        savedItems.forEach(saved => {
+          onAddTransaction(saved);
+        });
+      }
+
+      showToast(`${savedItems.length} guia(s) lançada(s) e sincronizada(s) com sucesso na nuvem!`, 'success');
     } catch (err: any) {
       console.error('[handleImportTaxes] Erro ao salvar guias:', err);
       showToast(`Erro ao importar guias: ${err?.message || 'Tente novamente.'}`, 'error');
+    }
+  };
+
+  // Abertura do Modal de Cadastro / Edição Manual de Guia Tributária
+  const handleOpenTaxManualModal = (taxItem?: any) => {
+    if (taxItem) {
+      const orig = taxItem.originalItem || taxItem;
+      setEditingTaxTransaction(orig);
+    } else {
+      setEditingTaxTransaction(null);
+    }
+    setIsTaxManualModalOpen(true);
+  };
+
+  // Salvar Guia Tributária (Criação ou Edição) com persistência na nuvem e Realtime
+  const handleSaveTaxManual = async (taxData: Partial<FinancialTransaction>, file?: File) => {
+    try {
+      if (editingTaxTransaction && editingTaxTransaction.id) {
+        // Edição
+        showToast('Atualizando guia tributária na nuvem...', 'info');
+        await taxTransactionService.updateTaxTransaction(editingTaxTransaction.id, taxData);
+        if (onUpdateTransaction) {
+          onUpdateTransaction(editingTaxTransaction.id, taxData);
+        }
+        showToast('Guia de imposto atualizada com sucesso para todos os usuários!', 'success');
+      } else {
+        // Criação
+        showToast('Salvando nova guia tributária na nuvem...', 'info');
+        const saved = await taxTransactionService.saveTaxTransaction(taxData as any, currentUser);
+        if (onAddTransaction) {
+          onAddTransaction(saved);
+        }
+        showToast('Guia de imposto lançada com sucesso com sincronização em tempo real!', 'success');
+      }
+    } catch (err: any) {
+      console.error('[handleSaveTaxManual] Erro:', err);
+      showToast(`Erro ao salvar guia: ${err?.message || 'Tente novamente.'}`, 'error');
+      throw err;
+    }
+  };
+
+  // Abertura do Modal de Confirmação de Exclusão
+  const handleOpenDeleteTaxModal = (item: any) => {
+    const isRec = Boolean(item.isReconciled || item.originalItem?.isReconciled);
+    if (isRec) {
+      showToast('🔒 Esta guia já foi auditada e conciliada com o extrato bancário. Desconcilie primeiro antes de excluir.', 'error');
+      return;
+    }
+    setTaxToDelete(item);
+    setIsTaxDeleteModalOpen(true);
+  };
+
+  // Confirmação de Exclusão com sincronização em tempo real
+  const handleConfirmDeleteTax = async () => {
+    if (!taxToDelete) return;
+    const targetId = taxToDelete.originalItem?.id || taxToDelete.id;
+    setIsDeletingTax(true);
+    try {
+      showToast('Removendo guia de imposto da nuvem...', 'info');
+      await taxTransactionService.deleteTaxTransaction(targetId);
+      if (onDeleteTransaction) {
+        onDeleteTransaction(targetId);
+      }
+      showToast('Guia de imposto excluída com sucesso para todos os usuários!', 'success');
+      setIsTaxDeleteModalOpen(false);
+      setTaxToDelete(null);
+    } catch (err: any) {
+      console.error('[handleConfirmDeleteTax] Erro:', err);
+      showToast(`Erro ao excluir guia: ${err?.message || 'Tente novamente.'}`, 'error');
+    } finally {
+      setIsDeletingTax(false);
+    }
+  };
+
+  // Forçar Sincronização Manual de Tributos
+  const handleSyncTaxesNow = async () => {
+    setIsSyncingTaxes(true);
+    try {
+      const res = await taxTransactionService.fetchRemoteTaxTransactions();
+      if (res.success && Array.isArray(res.transactions)) {
+        res.transactions.forEach(t => {
+          if (onUpdateTransaction) onUpdateTransaction(t.id, t);
+        });
+        showToast('Sincronização com a nuvem concluída!', 'success');
+      }
+    } catch (err) {
+      console.warn('Erro ao sincronizar tributos manualmente:', err);
+    } finally {
+      setIsSyncingTaxes(false);
     }
   };
 
@@ -3667,16 +3776,29 @@ export const AccountsPayableTab: React.FC<AccountsPayableTabProps> = ({
             </button>
           )}
 
-          {/* Botão de Importar Guia de Imposto (apenas na aba de Impostos) */}
+          {/* Botões de Ação na aba de Impostos */}
           {activeSection === 'taxes' && (
-            <button
-              onClick={() => setIsTaxImportModalOpen(true)}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-linear-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-xl text-xs font-bold shadow-md shadow-purple-600/25 transition-all cursor-pointer active:scale-95 whitespace-nowrap"
-              title="Ler e cadastrar guias de impostos automaticamente via OCR / IA"
-            >
-              <Upload className="w-3.5 h-3.5" />
-              <span>+ Ler Guia Automática (OCR)</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => handleOpenTaxManualModal()}
+                className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-md shadow-emerald-600/25 transition-all cursor-pointer active:scale-95 whitespace-nowrap"
+                title="Cadastrar guia de imposto ou tributo manualmente sem OCR"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>+ Nova Guia Manual</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsTaxImportModalOpen(true)}
+                className="flex items-center gap-1.5 px-3.5 py-2 bg-linear-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-xl text-xs font-bold shadow-md shadow-purple-600/25 transition-all cursor-pointer active:scale-95 whitespace-nowrap"
+                title="Ler e cadastrar guias de impostos automaticamente via OCR / IA"
+              >
+                <Upload className="w-3.5 h-3.5" />
+                <span>+ Ler Guia Automática (OCR)</span>
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -3824,6 +3946,37 @@ export const AccountsPayableTab: React.FC<AccountsPayableTabProps> = ({
       ) : activeSection === 'taxes' ? (
         /* KPIs Especializados para Impostos & Tributos */
         <div className="space-y-4">
+          {/* Barra de Status da Sincronização em Tempo Real */}
+          <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 rounded-2xl bg-purple-950/20 dark:bg-slate-800/80 border border-purple-200 dark:border-purple-900/50 text-xs shadow-xs">
+            <div className="flex items-center gap-2.5">
+              <span className="flex h-2.5 w-2.5 relative">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+              </span>
+              <span className="font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                Sincronização em Tempo Real Ativa
+                <span className="text-[10px] font-normal px-1.5 py-0.2 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 font-mono">
+                  SUPABASE 890
+                </span>
+              </span>
+              <span className="text-[11px] text-slate-500 dark:text-slate-400 hidden md:inline">
+                • Lançamentos, edições e exclusões aparecem instantaneamente para todos os usuários com acesso
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleSyncTaxesNow}
+                disabled={isSyncingTaxes}
+                className="flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-semibold bg-white dark:bg-slate-700 hover:bg-slate-100 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-600 transition-colors cursor-pointer disabled:opacity-50"
+                title="Forçar atualização da nuvem"
+              >
+                <RefreshCw className={`w-3 h-3 ${isSyncingTaxes ? 'animate-spin text-purple-600' : ''}`} />
+                <span>{isSyncingTaxes ? 'Sincronizando...' : 'Atualizar Nuvem'}</span>
+              </button>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* 1. Total Impostos A Pagar */}
             <div
@@ -4483,17 +4636,29 @@ export const AccountsPayableTab: React.FC<AccountsPayableTabProps> = ({
               </button>
             )}
 
-            {/* Botão de Importar Guia (exclusivo para a aba de Impostos & Tributos) */}
+            {/* Botões de Impostos (exclusivo para a aba de Impostos & Tributos) */}
             {activeSection === 'taxes' && (
-              <button
-                type="button"
-                onClick={() => setIsTaxImportModalOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-xl text-xs font-bold shadow-md shadow-purple-600/30 transition-all cursor-pointer whitespace-nowrap"
-                title="Ler guias automaticamente via OCR e importar para o sistema"
-              >
-                <Upload className="w-3.5 h-3.5" />
-                <span>+ Ler Guia Automática (OCR)</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleOpenTaxManualModal()}
+                  className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-md shadow-emerald-600/30 transition-all cursor-pointer whitespace-nowrap active:scale-95"
+                  title="Cadastrar guia de imposto manualmente sem OCR"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>+ Nova Guia Manual</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsTaxImportModalOpen(true)}
+                  className="flex items-center gap-1.5 px-3 py-2 bg-linear-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-xl text-xs font-bold shadow-md shadow-purple-600/30 transition-all cursor-pointer whitespace-nowrap active:scale-95"
+                  title="Ler guias automaticamente via OCR e importar para o sistema"
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>+ Ler Guia Automática (OCR)</span>
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -6206,6 +6371,41 @@ export const AccountsPayableTab: React.FC<AccountsPayableTabProps> = ({
                                 <span>Dar Baixa</span>
                               </button>
                             )}
+
+                            {/* Botão de Editar Guia de Imposto */}
+                            {item.kind === 'tax' && (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenTaxManualModal(item)}
+                                className="p-1.5 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 dark:bg-purple-950/40 dark:hover:bg-purple-900/60 dark:text-purple-300 transition-colors cursor-pointer border border-purple-200 dark:border-purple-800"
+                                title="Editar dados da Guia de Imposto"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+
+                            {/* Botão de Excluir Lançamento (Impostos ou Avulsos) */}
+                            {item.kind === 'tax' && (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenDeleteTaxModal(item)}
+                                className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 dark:text-rose-400 transition-colors cursor-pointer border border-rose-200 dark:border-rose-800"
+                                title="Excluir Lançamento da Guia Tributária"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+
+                            {item.kind === 'manual' && !item.isReconciled && (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenDeleteTaxModal(item)}
+                                className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 dark:text-rose-400 transition-colors cursor-pointer border border-rose-200 dark:border-rose-800"
+                                title="Excluir Lançamento Avulso"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -7912,6 +8112,86 @@ export const AccountsPayableTab: React.FC<AccountsPayableTabProps> = ({
         onClose={() => setIsTaxImportModalOpen(false)}
         onImportSuccess={handleImportTaxes}
       />
+
+      {/* 11. MODAL DE CADASTRO E EDIÇÃO MANUAL DE GUIAS DE IMPOSTOS */}
+      <TaxManualModal
+        isOpen={isTaxManualModalOpen}
+        onClose={() => {
+          setIsTaxManualModalOpen(false);
+          setEditingTaxTransaction(null);
+        }}
+        onSave={handleSaveTaxManual}
+        initialData={editingTaxTransaction}
+        currentUser={currentUser}
+      />
+
+      {/* 12. MODAL DE CONFIRMAÇÃO DE EXCLUSÃO DE GUIA OU LANÇAMENTO */}
+      {isTaxDeleteModalOpen && taxToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl w-full max-w-md p-6 overflow-hidden">
+            <div className="flex items-start gap-4">
+              <div className="p-3 bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 rounded-2xl shrink-0">
+                <Trash2 className="w-6 h-6" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                  Excluir Lançamento
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                  Tem certeza que deseja excluir este lançamento? Esta ação removerá a guia da nuvem para todos os usuários com acesso.
+                </p>
+
+                <div className="mt-4 p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 space-y-1.5 text-xs">
+                  <div className="font-bold text-slate-900 dark:text-white truncate">
+                    {taxToDelete.title || taxToDelete.originalItem?.description}
+                  </div>
+                  <div className="text-slate-500 dark:text-slate-400">
+                    Favorecido: <span className="font-medium text-slate-700 dark:text-slate-300">{taxToDelete.entityName || taxToDelete.originalItem?.supplierOrClientName}</span>
+                  </div>
+                  <div className="flex items-center justify-between pt-1 border-t border-slate-200 dark:border-slate-700 text-xs">
+                    <span className="text-slate-500">Valor a Pagar:</span>
+                    <strong className="text-purple-600 dark:text-purple-400 font-mono font-bold">
+                      {formatBrl(taxToDelete.payableAmount || taxToDelete.totalAmount)}
+                    </strong>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-3 mt-6">
+                  <button
+                    type="button"
+                    disabled={isDeletingTax}
+                    onClick={() => {
+                      setIsTaxDeleteModalOpen(false);
+                      setTaxToDelete(null);
+                    }}
+                    className="px-4 py-2 rounded-xl text-xs font-bold border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer disabled:opacity-50"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isDeletingTax}
+                    onClick={handleConfirmDeleteTax}
+                    className="flex items-center gap-1.5 px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shadow-md shadow-rose-600/30 cursor-pointer disabled:opacity-50 active:scale-95"
+                  >
+                    {isDeletingTax ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>Excluindo...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Sim, Excluir</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

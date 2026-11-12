@@ -33,6 +33,7 @@ import {
   buildShipmentControlSheet 
 } from '../utils/financialCalculations';
 import { isShipmentFaturado } from '../utils';
+import { taxTransactionService } from '../services/taxTransactionService';
 
 interface FinancialPageProps {
   shipments: Shipment[];
@@ -255,27 +256,80 @@ export const FinancialPage: React.FC<FinancialPageProps> = ({
     }
   }, [transactions]);
 
+  // Carrega transações compartilhadas na nuvem (Supabase row 890) e escuta em Tempo Real
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadRemoteTransactions = async () => {
+      try {
+        const res = await taxTransactionService.fetchRemoteTaxTransactions();
+        if (isMounted && res.success && Array.isArray(res.transactions)) {
+          setTransactions(prev => {
+            const remoteMap = new Map<string, FinancialTransaction>();
+            res.transactions.forEach(t => remoteMap.set(t.id, t));
+
+            // Transações na nuvem são prioritárias; mantém transações locais que ainda não estejam na nuvem
+            const merged = [...res.transactions];
+            prev.forEach(p => {
+              if (!remoteMap.has(p.id)) {
+                merged.push(p);
+              }
+            });
+            return merged;
+          });
+        }
+      } catch (err) {
+        console.warn('[FinancialPage] Erro ao sincronizar tributos remotos:', err);
+      }
+    };
+
+    loadRemoteTransactions();
+
+    // Sincronização em tempo real instantânea (WebSocket Broadcast + Postgres Changes)
+    const unsubscribe = taxTransactionService.subscribeToTaxTransactions(() => {
+      loadRemoteTransactions();
+    });
+
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
+  }, []);
+
   // Financial Handlers
   const handleAddTransaction = (t: Omit<FinancialTransaction, 'id' | 'createdAt'>) => {
+    const isTax = (t as any).taxType || (t.category && t.category.toLowerCase().includes('imposto'));
+    const prefix = isTax ? 'tax' : 'tx';
     const newTx: FinancialTransaction = {
       ...t,
-      id: `tx_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      id: `${prefix}_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       createdAt: new Date().toISOString()
     };
     setTransactions(prev => [newTx, ...prev]);
+
+    // Persiste imediatamente na nuvem Supabase e notifica outros usuários via Realtime
+    taxTransactionService.saveTaxTransaction(newTx, _currentUser).catch(err => {
+      console.warn('[FinancialPage] Erro ao persistir transação na nuvem:', err);
+    });
   };
 
   const handleUpdateStatus = (id: string, status: FinancialTransactionStatus) => {
+    const paymentDate = status === FinancialTransactionStatus.Pago ? new Date().toISOString().split('T')[0] : undefined;
     setTransactions(prev => prev.map(t => {
       if (t.id === id) {
         return {
           ...t,
           status,
-          paymentDate: status === FinancialTransactionStatus.Pago ? new Date().toISOString().split('T')[0] : undefined
+          paymentDate
         };
       }
       return t;
     }));
+
+    // Sincroniza atualização de status na nuvem e em tempo real
+    taxTransactionService.updateTaxTransaction(id, { status, paymentDate }).catch(err => {
+      console.warn('[FinancialPage] Erro ao atualizar status na nuvem:', err);
+    });
   };
 
   const handleUpdateTransaction = (id: string, updates: Partial<FinancialTransaction>) => {
@@ -288,10 +342,20 @@ export const FinancialPage: React.FC<FinancialPageProps> = ({
       }
       return t;
     }));
+
+    // Sincroniza campos atualizados na nuvem e em tempo real
+    taxTransactionService.updateTaxTransaction(id, updates).catch(err => {
+      console.warn('[FinancialPage] Erro ao atualizar transação na nuvem:', err);
+    });
   };
 
   const handleDeleteTransaction = (id: string) => {
     setTransactions(prev => prev.filter(t => t.id !== id));
+
+    // Exclui na nuvem Supabase e propaga para todos os usuários
+    taxTransactionService.deleteTaxTransaction(id).catch(err => {
+      console.warn('[FinancialPage] Erro ao excluir transação na nuvem:', err);
+    });
   };
 
   const handleAddBankAccount = (acc: Omit<BankAccount, 'id' | 'createdAt'>) => {

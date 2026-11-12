@@ -27,6 +27,40 @@ export interface SystemRelease {
  */
 export const SYSTEM_RELEASES: SystemRelease[] = [
   {
+    id: 'rel_2026_11_12_v2_116_13',
+    version: 'v2.116.13',
+    date: '12/11/2026',
+    title: 'Sincronização em Tempo Real na Nuvem e Gestão Completa (Edição/Exclusão) de Impostos & Tributos',
+    summary: 'Reestruturação completa da camada de persistência das guias tributárias no Supabase com canal Realtime Broadcast e Postgres Changes (row 890), garantindo que novos lançamentos e leituras OCR apareçam instantaneamente para todos os operadores com acesso, além de novo formulário para cadastro manual e botões de edição e exclusão em cada lançamento.',
+    items: [
+      {
+        category: 'fix',
+        title: 'Persistência Centralizada de Impostos na Nuvem (Supabase)',
+        description: 'As guias tributárias agora são salvas de forma definitiva e compartilhada no Supabase (row 890), eliminando a retenção isolada no navegador local e permitindo acesso unificado para toda a equipe financeira.'
+      },
+      {
+        category: 'feature',
+        title: 'Sincronização em Tempo Real entre Usuários Conectados',
+        description: 'Implementado canal Supabase Realtime Broadcast e Postgres Changes com atualização instantânea das tabelas e KPIs assim que qualquer operador cadastrar, alterar ou liquidar uma guia.'
+      },
+      {
+        category: 'feature',
+        title: 'Lançamento Manual de Guias Tributárias',
+        description: 'Adicionado botão e modal "+ Nova Guia Manual" com seleção de tipo de tributo (PIS/COFINS, ICMS, CSLL, IRPJ, FGTS, INSS), auto-sugestão de favorecidos, códigos de receita, cálculo automático de juros/multa e anexo de documento.'
+      },
+      {
+        category: 'feature',
+        title: 'Ações de Editar e Excluir em Cada Lançamento',
+        description: 'Cada lançamento tributário agora conta com botões dedicados para editar qualquer informação da guia ou excluí-la de forma definitiva da nuvem (com modal de confirmação e salvaguarda de conciliação bancária).'
+      },
+      {
+        category: 'improvement',
+        title: 'Importação em Lote OCR com Salvamento Atômico',
+        description: 'A importação de múltiplas guias via leitor OCR agora processa os anexos e grava todas as guias em um único lote sincronizado na nuvem, emitindo notificação em tempo real a todos os operadores.'
+      }
+    ]
+  },
+  {
     id: 'rel_2026_11_12_v2_116_12',
     version: 'v2.116.12',
     date: '12/11/2026',
