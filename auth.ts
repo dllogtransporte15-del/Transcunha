@@ -128,12 +128,22 @@ export const canUnreconcileTransaction = (user: User | null | undefined): boolea
 
 export const filterVisibleUsers = (users: User[], viewer: User | null | undefined): User[] => {
   if (isDeveloperUser(viewer)) return users;
-  return users.filter(u => !isDeveloperUser(u) && !isDemoUser(u));
+  const isAdmin = isAdminUser(viewer);
+  return users.filter(u => {
+    if (isDeveloperUser(u)) return false;
+    if (isDemoUser(u) && !isAdmin) return false;
+    return true;
+  });
 };
 
 export const filterVisibleProfiles = (profiles: UserProfile[], viewer: User | null | undefined): UserProfile[] => {
-  if (isDeveloperUser(viewer)) return profiles;
-  return profiles.filter(p => p !== UserProfile.Desenvolvedor);
+  const isDev = isDeveloperUser(viewer);
+  const isAdmin = isAdminUser(viewer);
+  return profiles.filter(p => {
+    if (p === UserProfile.Desenvolvedor) return isDev;
+    if (p === UserProfile.Demonstracao) return isDev || isAdmin;
+    return true;
+  });
 };
 
 export const can = (

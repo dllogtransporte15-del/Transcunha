@@ -41,6 +41,7 @@ import {
   TrendingUp,
   CreditCard,
   Copy,
+  Barcode,
   ChevronDown,
   ChevronUp,
   Building2,
@@ -155,6 +156,89 @@ export const calculateInstallments = (
     });
   }
   return result;
+};
+
+export const TAX_TYPE_CONFIG: Record<TaxType | 'all', {
+  label: string;
+  shortLabel: string;
+  category: string;
+  badge: string;
+  iconBg: string;
+  iconColor: string;
+  dotColor: string;
+}> = {
+  all: {
+    label: 'Todos os Tributos',
+    shortLabel: 'Todos',
+    category: 'Todas as guias',
+    badge: 'bg-purple-100 text-purple-900 dark:bg-purple-950/80 dark:text-purple-200 border-purple-300 dark:border-purple-700',
+    iconBg: 'bg-purple-100 dark:bg-purple-950/60',
+    iconColor: 'text-purple-600 dark:text-purple-400',
+    dotColor: 'bg-purple-500'
+  },
+  PIS_COFINS: {
+    label: 'PIS / COFINS (Sicalc)',
+    shortLabel: 'PIS / COFINS',
+    category: 'Federal • Sicalc',
+    badge: 'bg-blue-100 text-blue-900 dark:bg-blue-950/80 dark:text-blue-200 border-blue-300 dark:border-blue-700',
+    iconBg: 'bg-blue-100 dark:bg-blue-950/60',
+    iconColor: 'text-blue-600 dark:text-blue-400',
+    dotColor: 'bg-blue-500'
+  },
+  ICMS: {
+    label: 'ICMS Transporte (DARE/GNRE)',
+    shortLabel: 'ICMS Transporte',
+    category: 'Estadual • SEFAZ',
+    badge: 'bg-purple-100 text-purple-900 dark:bg-purple-950/80 dark:text-purple-200 border-purple-300 dark:border-purple-700',
+    iconBg: 'bg-purple-100 dark:bg-purple-950/60',
+    iconColor: 'text-purple-600 dark:text-purple-400',
+    dotColor: 'bg-purple-500'
+  },
+  CSLL: {
+    label: 'CSLL Estimativa Mensal',
+    shortLabel: 'CSLL Estimativa',
+    category: 'Federal • Contribuição Social',
+    badge: 'bg-emerald-100 text-emerald-900 dark:bg-emerald-950/80 dark:text-emerald-200 border-emerald-300 dark:border-emerald-700',
+    iconBg: 'bg-emerald-100 dark:bg-emerald-950/60',
+    iconColor: 'text-emerald-600 dark:text-emerald-400',
+    dotColor: 'bg-emerald-500'
+  },
+  IRPJ: {
+    label: 'IRPJ Estimativa Mensal',
+    shortLabel: 'IRPJ Estimativa',
+    category: 'Federal • Imposto de Renda PJ',
+    badge: 'bg-amber-100 text-amber-900 dark:bg-amber-950/80 dark:text-amber-200 border-amber-300 dark:border-amber-700',
+    iconBg: 'bg-amber-100 dark:bg-amber-950/60',
+    iconColor: 'text-amber-600 dark:text-amber-400',
+    dotColor: 'bg-amber-500'
+  },
+  FGTS: {
+    label: 'Guias de FGTS',
+    shortLabel: 'FGTS Digital',
+    category: 'Trabalhista • Caixa Econômica',
+    badge: 'bg-teal-100 text-teal-900 dark:bg-teal-950/80 dark:text-teal-200 border-teal-300 dark:border-teal-700',
+    iconBg: 'bg-teal-100 dark:bg-teal-950/60',
+    iconColor: 'text-teal-600 dark:text-teal-400',
+    dotColor: 'bg-teal-500'
+  },
+  INSS: {
+    label: 'Guia de INSS (DCTFWeb)',
+    shortLabel: 'INSS DCTFWeb',
+    category: 'Previdenciário • DCTFWeb / RFB',
+    badge: 'bg-indigo-100 text-indigo-900 dark:bg-indigo-950/80 dark:text-indigo-200 border-indigo-300 dark:border-indigo-700',
+    iconBg: 'bg-indigo-100 dark:bg-indigo-950/60',
+    iconColor: 'text-indigo-600 dark:text-indigo-400',
+    dotColor: 'bg-indigo-500'
+  },
+  OUTROS: {
+    label: 'Outros Tributos',
+    shortLabel: 'Outros',
+    category: 'Taxas e Contribuições Diversas',
+    badge: 'bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-slate-200 border-slate-300 dark:border-slate-600',
+    iconBg: 'bg-slate-100 dark:bg-slate-800',
+    iconColor: 'text-slate-600 dark:text-slate-400',
+    dotColor: 'bg-slate-500'
+  }
 };
 
 // ==========================================================
@@ -390,6 +474,22 @@ export const AccountsPayableTab: React.FC<AccountsPayableTabProps> = ({
   const [selectedLeaderFilter, setSelectedLeaderFilter] = useState<string>('all');
   const [selectedTaxTypeFilter, setSelectedTaxTypeFilter] = useState<'all' | TaxType>('all');
   const [isTaxImportModalOpen, setIsTaxImportModalOpen] = useState(false);
+  const [isTaxTypeDropdownOpen, setIsTaxTypeDropdownOpen] = useState(false);
+  const taxTypeDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (taxTypeDropdownRef.current && !taxTypeDropdownRef.current.contains(event.target as Node)) {
+        setIsTaxTypeDropdownOpen(false);
+      }
+    };
+    if (isTaxTypeDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isTaxTypeDropdownOpen]);
 
   // Filtro de Período (Presets OPZ rápidos)
   const [periodPreset, setPeriodPreset] = useState<'all' | 'today_onwards' | 'today' | 'next_7_days' | 'current_month' | 'last_month' | 'custom'>('all');
@@ -3430,12 +3530,12 @@ export const AccountsPayableTab: React.FC<AccountsPayableTabProps> = ({
   return (
     <div className="space-y-6">
       {/* 1. SELETOR DE VISÃO (SUB-ABAS) */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white dark:bg-slate-800 p-2 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
-        <div className="flex items-center gap-1.5 overflow-x-auto p-1">
+      <div className="flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-3 bg-white dark:bg-slate-800 p-2.5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 p-0.5 flex-1 min-w-0">
           {/* Aba 1: Todas as Contas a Pagar */}
           <button
             onClick={() => setActiveSection('all')}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap cursor-pointer ${activeSection === 'all'
+            className={`flex items-center gap-2 px-3 sm:px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap cursor-pointer shrink-0 ${activeSection === 'all'
                 ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
                 : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700/60'
               }`}
@@ -3451,7 +3551,7 @@ export const AccountsPayableTab: React.FC<AccountsPayableTabProps> = ({
           {/* Aba 2: Notas Fiscais / Faturas a Pagar */}
           <button
             onClick={() => setActiveSection('invoices')}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap cursor-pointer ${activeSection === 'invoices'
+            className={`flex items-center gap-2 px-3 sm:px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap cursor-pointer shrink-0 ${activeSection === 'invoices'
                 ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
                 : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700/60'
               }`}
@@ -3466,7 +3566,7 @@ export const AccountsPayableTab: React.FC<AccountsPayableTabProps> = ({
           {/* Aba 3: Fretes / Doc CT-e */}
           <button
             onClick={() => setActiveSection('cte')}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap cursor-pointer ${activeSection === 'cte'
+            className={`flex items-center gap-2 px-3 sm:px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap cursor-pointer shrink-0 ${activeSection === 'cte'
                 ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30 ring-2 ring-indigo-400/30'
                 : 'text-slate-600 dark:text-slate-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 hover:text-indigo-700 dark:hover:text-indigo-300'
               }`}
@@ -3485,7 +3585,7 @@ export const AccountsPayableTab: React.FC<AccountsPayableTabProps> = ({
           {/* Aba 4: Lançamentos Avulsos */}
           <button
             onClick={() => setActiveSection('manual')}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap cursor-pointer ${activeSection === 'manual'
+            className={`flex items-center gap-2 px-3 sm:px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap cursor-pointer shrink-0 ${activeSection === 'manual'
                 ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
                 : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700/60'
               }`}
@@ -3500,7 +3600,7 @@ export const AccountsPayableTab: React.FC<AccountsPayableTabProps> = ({
           {/* Aba 5: Folha de Pagamento */}
           <button
             onClick={() => setActiveSection('leaders')}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap cursor-pointer ${activeSection === 'leaders'
+            className={`flex items-center gap-2 px-3 sm:px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap cursor-pointer shrink-0 ${activeSection === 'leaders'
                 ? 'bg-amber-600 text-white shadow-md shadow-amber-600/30 ring-2 ring-amber-400/30'
                 : 'text-slate-600 dark:text-slate-400 hover:bg-amber-50 dark:hover:bg-amber-950/30 hover:text-amber-700 dark:hover:text-amber-300'
               }`}
@@ -3519,7 +3619,7 @@ export const AccountsPayableTab: React.FC<AccountsPayableTabProps> = ({
           {/* Aba 6: Impostos & Tributos */}
           <button
             onClick={() => setActiveSection('taxes')}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap cursor-pointer ${activeSection === 'taxes'
+            className={`flex items-center gap-2 px-3 sm:px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap cursor-pointer shrink-0 ${activeSection === 'taxes'
                 ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30 ring-2 ring-purple-400/30'
                 : 'text-slate-600 dark:text-slate-400 hover:bg-purple-50 dark:hover:bg-purple-950/30 hover:text-purple-700 dark:hover:text-purple-300'
               }`}
@@ -3537,7 +3637,7 @@ export const AccountsPayableTab: React.FC<AccountsPayableTabProps> = ({
         </div>
 
         {/* Botões de Ação no Cabeçalho */}
-        <div className="flex items-center gap-2 px-2 pb-1 sm:pb-0 flex-wrap">
+        <div className="flex items-center gap-2 px-1 pb-1 sm:pb-0 flex-wrap shrink-0">
           {/* Botão de Alternar Resumo Bancário */}
           <button
             type="button"
@@ -3807,7 +3907,7 @@ export const AccountsPayableTab: React.FC<AccountsPayableTabProps> = ({
             </div>
 
             {/* 4. Subdivisão por Tipo de Imposto */}
-            <div className="bg-white dark:bg-slate-800 p-4.5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col justify-between">
+            <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col justify-between">
               <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700/60 pb-1.5">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                   Resumo Tributário
@@ -3816,22 +3916,34 @@ export const AccountsPayableTab: React.FC<AccountsPayableTabProps> = ({
                   {formatBrl(filteredTaxes.reduce((acc, t) => acc + t.payableAmount, 0))}
                 </span>
               </div>
-              <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-[11px] pt-1.5">
+              <div className="grid grid-cols-2 gap-x-2 gap-y-1.5 text-[11px] pt-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-500">PIS/COFINS:</span>
-                  <strong className="text-blue-600 font-mono">{formatBrl(filteredTaxes.filter(t => t.taxType === 'PIS_COFINS').reduce((acc, t) => acc + t.payableAmount, 0))}</strong>
+                  <span className="text-slate-600 dark:text-slate-400 flex items-center gap-1 font-medium">
+                    <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
+                    PIS/COFINS:
+                  </span>
+                  <strong className="text-blue-600 dark:text-blue-400 font-mono font-bold">{formatBrl(filteredTaxes.filter(t => t.taxType === 'PIS_COFINS').reduce((acc, t) => acc + t.payableAmount, 0))}</strong>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-500">ICMS:</span>
-                  <strong className="text-purple-600 font-mono">{formatBrl(filteredTaxes.filter(t => t.taxType === 'ICMS').reduce((acc, t) => acc + t.payableAmount, 0))}</strong>
+                  <span className="text-slate-600 dark:text-slate-400 flex items-center gap-1 font-medium">
+                    <span className="w-2 h-2 rounded-full bg-purple-500 shrink-0" />
+                    ICMS:
+                  </span>
+                  <strong className="text-purple-600 dark:text-purple-400 font-mono font-bold">{formatBrl(filteredTaxes.filter(t => t.taxType === 'ICMS').reduce((acc, t) => acc + t.payableAmount, 0))}</strong>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-500">CSLL/IRPJ:</span>
-                  <strong className="text-amber-600 font-mono">{formatBrl(filteredTaxes.filter(t => t.taxType === 'CSLL' || t.taxType === 'IRPJ').reduce((acc, t) => acc + t.payableAmount, 0))}</strong>
+                  <span className="text-slate-600 dark:text-slate-400 flex items-center gap-1 font-medium">
+                    <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
+                    CSLL/IRPJ:
+                  </span>
+                  <strong className="text-amber-600 dark:text-amber-400 font-mono font-bold">{formatBrl(filteredTaxes.filter(t => t.taxType === 'CSLL' || t.taxType === 'IRPJ').reduce((acc, t) => acc + t.payableAmount, 0))}</strong>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-500">INSS/FGTS:</span>
-                  <strong className="text-rose-600 font-mono">{formatBrl(filteredTaxes.filter(t => t.taxType === 'INSS' || t.taxType === 'FGTS').reduce((acc, t) => acc + t.payableAmount, 0))}</strong>
+                  <span className="text-slate-600 dark:text-slate-400 flex items-center gap-1 font-medium">
+                    <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" />
+                    INSS/FGTS:
+                  </span>
+                  <strong className="text-rose-600 dark:text-rose-400 font-mono font-bold">{formatBrl(filteredTaxes.filter(t => t.taxType === 'INSS' || t.taxType === 'FGTS').reduce((acc, t) => acc + t.payableAmount, 0))}</strong>
                 </div>
               </div>
             </div>
@@ -4213,23 +4325,92 @@ export const AccountsPayableTab: React.FC<AccountsPayableTabProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {/* Filtro por Tipo de Tributo (na aba de Impostos & Tributos) */}
+            {/* Filtro por Tipo de Tributo (na aba de Impostos & Tributos) com paleta rica de cores e alto contraste */}
             {activeSection === 'taxes' && (
-              <div className="relative">
-                <select
-                  value={selectedTaxTypeFilter}
-                  onChange={(e) => setSelectedTaxTypeFilter(e.target.value as any)}
-                  className="px-3 py-2 rounded-xl text-xs font-semibold border border-purple-300 dark:border-purple-700/80 bg-purple-50/50 dark:bg-purple-950/30 text-purple-900 dark:text-purple-200 outline-none cursor-pointer"
+              <div className="relative" ref={taxTypeDropdownRef}>
+                <button
+                  type="button"
+                  onClick={() => setIsTaxTypeDropdownOpen(prev => !prev)}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-all border cursor-pointer shadow-xs ${
+                    selectedTaxTypeFilter === 'all'
+                      ? 'bg-purple-50 hover:bg-purple-100 text-purple-900 dark:bg-purple-950/40 dark:hover:bg-purple-900/60 dark:text-purple-200 border-purple-300 dark:border-purple-700'
+                      : TAX_TYPE_CONFIG[selectedTaxTypeFilter]?.badge || 'bg-slate-100 text-slate-800 border-slate-300'
+                  }`}
+                  title="Filtrar por tipo de tributo"
                 >
-                  <option value="all">🏛️ Todos os Tributos</option>
-                  <option value="PIS_COFINS">PIS / COFINS (Sicalc)</option>
-                  <option value="ICMS">ICMS Transporte (DARE/GNRE)</option>
-                  <option value="CSLL">CSLL Estimativa Mensal</option>
-                  <option value="IRPJ">IRPJ Estimativa Mensal</option>
-                  <option value="FGTS">Guias de FGTS</option>
-                  <option value="INSS">Guia de INSS (DCTFWeb)</option>
-                  <option value="OUTROS">Outros Tributos</option>
-                </select>
+                  <span className={`w-2.5 h-2.5 rounded-full ${TAX_TYPE_CONFIG[selectedTaxTypeFilter]?.dotColor || 'bg-purple-500'} shrink-0`} />
+                  <span className="font-bold">
+                    {TAX_TYPE_CONFIG[selectedTaxTypeFilter]?.label || 'Todos os Tributos'}
+                  </span>
+                  <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-black/10 dark:bg-white/20 font-mono">
+                    {selectedTaxTypeFilter === 'all'
+                      ? filteredTaxes.length
+                      : filteredTaxes.filter(t => t.taxType === selectedTaxTypeFilter).length}
+                  </span>
+                  <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${isTaxTypeDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {isTaxTypeDropdownOpen && (
+                  <div className="absolute left-0 mt-1.5 w-72 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-2xl p-1.5 z-50 animate-in fade-in zoom-in-95 duration-100">
+                    <div className="px-3 py-2 border-b border-slate-100 dark:border-slate-800 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                      Selecione a Categoria de Tributo
+                    </div>
+                    <div className="space-y-0.5 mt-1 max-h-72 overflow-y-auto">
+                      {(['all', 'PIS_COFINS', 'ICMS', 'CSLL', 'IRPJ', 'FGTS', 'INSS', 'OUTROS'] as (TaxType | 'all')[]).map((type) => {
+                        const config = TAX_TYPE_CONFIG[type];
+                        const isSelected = selectedTaxTypeFilter === type;
+                        const count = type === 'all'
+                          ? taxPayables.length
+                          : taxPayables.filter(t => t.taxType === type).length;
+                        const totalAmount = type === 'all'
+                          ? taxPayables.reduce((acc, t) => acc + (t.payableAmount || 0), 0)
+                          : taxPayables.filter(t => t.taxType === type).reduce((acc, t) => acc + (t.payableAmount || 0), 0);
+
+                        return (
+                          <button
+                            key={type}
+                            type="button"
+                            onClick={() => {
+                              setSelectedTaxTypeFilter(type);
+                              setIsTaxTypeDropdownOpen(false);
+                            }}
+                            className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-left transition-colors cursor-pointer group ${
+                              isSelected
+                                ? 'bg-purple-100 dark:bg-purple-950/60 text-purple-900 dark:text-purple-100 font-bold ring-1 ring-purple-400/40'
+                                : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <span className={`w-3 h-3 rounded-full ${config.dotColor} shrink-0 ring-2 ring-white dark:ring-slate-900`} />
+                              <div className="min-w-0">
+                                <div className="text-xs font-bold truncate">
+                                  {config.label}
+                                </div>
+                                <div className="text-[10px] text-slate-400 truncate">
+                                  {config.category}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="text-right shrink-0 ml-2">
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-mono font-bold ${
+                                isSelected
+                                  ? 'bg-purple-200 dark:bg-purple-900 text-purple-900 dark:text-purple-200'
+                                  : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
+                              }`}>
+                                {count} {count === 1 ? 'guia' : 'guias'}
+                              </span>
+                              {totalAmount > 0 && (
+                                <div className="text-[9px] font-mono text-slate-400 mt-0.5">
+                                  {formatBrl(totalAmount)}
+                                </div>
+                              )}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -5611,8 +5792,8 @@ export const AccountsPayableTab: React.FC<AccountsPayableTabProps> = ({
                                 <Award className="w-4 h-4" />
                               </div>
                             ) : item.kind === 'tax' ? (
-                              <div className="p-2 bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 rounded-xl shrink-0 border border-purple-200 dark:border-purple-800" title="Guia de Imposto / Tributo">
-                                <Landmark className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                              <div className={`p-2 rounded-xl shrink-0 border ${TAX_TYPE_CONFIG[item.originalItem?.taxType as TaxType]?.iconBg || 'bg-purple-100 dark:bg-purple-950/60'} border-purple-200 dark:border-purple-800`} title="Guia de Imposto / Tributo">
+                                <Landmark className={`w-4 h-4 ${TAX_TYPE_CONFIG[item.originalItem?.taxType as TaxType]?.iconColor || 'text-purple-600 dark:text-purple-400'}`} />
                               </div>
                             ) : (
                               isValeTransaction(item.originalItem || item) ? (
@@ -5651,8 +5832,8 @@ export const AccountsPayableTab: React.FC<AccountsPayableTabProps> = ({
                                   </span>
                                 )}
                                 {item.kind === 'tax' && (
-                                  <span className="text-[10px] px-1.5 py-0.5 rounded font-bold border bg-purple-100 text-purple-800 dark:bg-purple-950/80 dark:text-purple-300 border-purple-200 dark:border-purple-800 shrink-0">
-                                    {item.originalItem?.taxTypeName || 'Guia Tributária'}
+                                  <span className={`text-[10px] px-2 py-0.5 rounded font-bold border shrink-0 ${TAX_TYPE_CONFIG[item.originalItem?.taxType as TaxType]?.badge || 'bg-purple-100 text-purple-800 dark:bg-purple-950/80 dark:text-purple-300 border-purple-200 dark:border-purple-800'}`}>
+                                    {item.originalItem?.taxTypeName || TAX_TYPE_CONFIG[item.originalItem?.taxType as TaxType]?.label || 'Guia Tributária'}
                                   </span>
                                 )}
                                 {item.kind === 'manual' && isValeTransaction(item.originalItem || item) && (
@@ -5834,10 +6015,10 @@ export const AccountsPayableTab: React.FC<AccountsPayableTabProps> = ({
                                 <button
                                   type="button"
                                   onClick={() => openDocumentInNewTab(item.documentUrl!, item.docNumber)}
-                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-purple-100 hover:bg-purple-200 text-purple-800 dark:bg-purple-900/60 dark:text-purple-300 border border-purple-200 dark:border-purple-800 transition-colors cursor-pointer"
+                                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold border transition-colors cursor-pointer ${TAX_TYPE_CONFIG[item.originalItem?.taxType as TaxType]?.badge || 'bg-purple-100 text-purple-800 dark:bg-purple-900/60 dark:text-purple-300 border-purple-200 dark:border-purple-800'}`}
                                   title="Visualizar Guia de Imposto (PDF)"
                                 >
-                                  <Landmark className="w-3 h-3 text-purple-600 dark:text-purple-400" />
+                                  <Landmark className="w-3 h-3" />
                                   <span>Guia: OK</span>
                                   <ExternalLink className="w-2.5 h-2.5 opacity-60" />
                                 </button>
@@ -5874,10 +6055,10 @@ export const AccountsPayableTab: React.FC<AccountsPayableTabProps> = ({
                                     navigator.clipboard.writeText(item.pixKey!.replace(/[\s.-]/g, ''));
                                     showToast('Código de barras copiado para a área de transferência!', 'success');
                                   }}
-                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-slate-200 border border-slate-300 dark:border-slate-600 transition-colors cursor-pointer"
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/80 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 transition-colors cursor-pointer"
                                   title={`Copiar código de barras da guia: ${item.pixKey}`}
                                 >
-                                  <Barcode className="w-3 h-3 text-slate-600 dark:text-slate-400" />
+                                  <Barcode className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
                                   <span>Barra: OK</span>
                                   <Copy className="w-2.5 h-2.5 opacity-60" />
                                 </button>
@@ -5936,10 +6117,10 @@ export const AccountsPayableTab: React.FC<AccountsPayableTabProps> = ({
                               </button>
                             ) : item.kind === 'tax' ? (
                               <label
-                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 hover:bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-300 dark:border-amber-700/80 transition-colors cursor-pointer"
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-amber-500 hover:bg-amber-600 text-white dark:bg-amber-600 dark:hover:bg-amber-500 border border-amber-600 transition-all cursor-pointer shadow-xs active:scale-95"
                                 title="Anexe o comprovante Sicredi/Banco: o sistema lerá e mudará para PAGO automaticamente!"
                               >
-                                <Paperclip className="w-3 h-3 text-amber-500" />
+                                <Upload className="w-3 h-3 text-white" />
                                 <span>Anexar Comprovante (Baixa Auto)</span>
                                 <input
                                   type="file"

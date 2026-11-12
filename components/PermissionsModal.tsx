@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { ProfilePermissions, Page, CrudPermissions, User } from '../types';
 import { UserProfile } from '../types';
-import { isDemoUser, isDeveloperUser, filterVisibleUsers } from '../auth';
+import { isDemoUser, isDeveloperUser, isAdminUser, filterVisibleUsers } from '../auth';
 import { Copy, RotateCcw } from 'lucide-react';
 
 interface PermissionsModalProps {
@@ -90,7 +90,7 @@ const PermissionsModal: React.FC<PermissionsModalProps> = ({
   useEffect(() => {
     if (isOpen) {
       setEditableProfilePermissions(JSON.parse(JSON.stringify(permissions)));
-      const firstNonAdminUser = filterVisibleUsers(users, currentUser).find(u => u.profile !== UserProfile.Admin && !isDeveloperUser(u) && !isDemoUser(u));
+      const firstNonAdminUser = filterVisibleUsers(users, currentUser).find(u => u.profile !== UserProfile.Admin && !isDeveloperUser(u) && (isAdminUser(currentUser) || !isDemoUser(u)));
       if (firstNonAdminUser) setSelectedUserId(firstNonAdminUser.id);
     }
   }, [permissions, isOpen, users]);
@@ -219,8 +219,9 @@ const PermissionsModal: React.FC<PermissionsModalProps> = ({
   if (!isOpen) return null;
 
   const isDev = isDeveloperUser(currentUser);
-  const availableProfiles = Object.values(UserProfile).filter(p => p !== UserProfile.Admin && (isDev || p !== UserProfile.Desenvolvedor));
-  const availableUsers = filterVisibleUsers(users, currentUser).filter(u => u.profile !== UserProfile.Admin && !isDeveloperUser(u) && !isDemoUser(u));
+  const isAdmin = isAdminUser(currentUser);
+  const availableProfiles = Object.values(UserProfile).filter(p => p !== UserProfile.Admin && (isDev || p !== UserProfile.Desenvolvedor) && (isDev || isAdmin || p !== UserProfile.Demonstracao));
+  const availableUsers = filterVisibleUsers(users, currentUser).filter(u => u.profile !== UserProfile.Admin && !isDeveloperUser(u) && (isAdmin || !isDemoUser(u)));
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4">

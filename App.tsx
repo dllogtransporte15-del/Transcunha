@@ -8,7 +8,7 @@ import { CargoStatus, ShipmentStatus, UserProfile, TicketStatus, TicketPriority,
 import { formatId, isCteApplicableForStatus, getShipmentCte, getShipmentCteEmissionDate, findCargoById, findProductForCargo, checkRequiresRiskManagement } from './utils';
 import { extractFiscalDocNumbers, isCteDocType } from './utils/fiscalDocParser';
 import { calculateAdvanceAndBalance, ADVANCE_ELIGIBLE_STATUSES, isShipment100PercentAdvance, isShipment0PercentAdvance } from './utils/freightCalculation';
-import { INITIAL_PERMISSIONS, can, isDemoUser, isDeveloperUser, isAdminUser } from './auth';
+import { INITIAL_PERMISSIONS, can, isDemoUser, isDeveloperUser, isAdminUser, filterVisibleUsers } from './auth';
 import { useToast } from './hooks/useToast';
 import { getExpedidoresRecebedores, saveExpedidorRecebedor, deleteExpedidorRecebedor, syncLocationsFromCargos } from './utils/locationStorage';
 
@@ -1243,11 +1243,9 @@ const App: React.FC = () => {
     return shipments.filter(s => visibleCargoIds.has(s.cargoId));
   }, [currentUser, shipments, visibleLoads]);
   
-  const isDevUser = isDeveloperUser(currentUser);
   const visibleUsers = useMemo(() => {
-    if (isDevUser) return users;
-    return users.filter(u => !isDeveloperUser(u) && !isDemoUser(u));
-  }, [users, isDevUser]);
+    return filterVisibleUsers(users, currentUser);
+  }, [users, currentUser]);
 
   const visibleEmbarcadores = useMemo(() => {
     if (!currentUser) return [];
@@ -4379,7 +4377,11 @@ const App: React.FC = () => {
       }
       if ('id' in userData) {
         const targetExisting = users.find(u => u.id === userData.id);
-        if (targetExisting && (isDeveloperUser(targetExisting) || isDemoUser(targetExisting))) {
+        if (targetExisting && isDeveloperUser(targetExisting)) {
+          showToast('Você não tem permissão para alterar este usuário.', 'error');
+          return;
+        }
+        if (targetExisting && isDemoUser(targetExisting) && !isAdminUser(currentUser)) {
           showToast('Você não tem permissão para alterar este usuário.', 'error');
           return;
         }
@@ -4429,9 +4431,15 @@ const App: React.FC = () => {
         return;
     }
     const targetToDelete = users.find(u => u.id === userId);
-    if (!isDeveloperUser(currentUser) && targetToDelete && (isDeveloperUser(targetToDelete) || isDemoUser(targetToDelete))) {
+    if (!isDeveloperUser(currentUser) && targetToDelete) {
+      if (isDeveloperUser(targetToDelete)) {
         showToast("Você não tem permissão para excluir este usuário.", 'error');
         return;
+      }
+      if (isDemoUser(targetToDelete) && !isAdminUser(currentUser)) {
+        showToast("Você não tem permissão para excluir este usuário.", 'error');
+        return;
+      }
     }
     
     if (confirm('Tem certeza que deseja excluir este usuário?')) {

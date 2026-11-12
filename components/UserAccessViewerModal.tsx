@@ -5,7 +5,7 @@ import type {
   Vehicle, Product, Cargo, Shipment, Branch, FreightOffer, RiskQueryOption, Ticket
 } from '../types';
 import { UserProfile, CargoStatus, ShipmentStatus } from '../types';
-import { can, INITIAL_PERMISSIONS, isDeveloperUser, isDemoUser, filterVisibleUsers } from '../auth';
+import { can, INITIAL_PERMISSIONS, isDeveloperUser, isDemoUser, isAdminUser, filterVisibleUsers } from '../auth';
 import { 
   Eye, 
   Shield, 
@@ -1072,7 +1072,7 @@ const UserAccessViewerModal: React.FC<UserAccessViewerModalProps> = ({
                     >
                       <option value="" disabled>Selecione um usuário...</option>
                       {filterVisibleUsers(users, currentUser)
-                        .filter(u => u.id !== targetUser.id && !isDeveloperUser(u) && !isDemoUser(u))
+                        .filter(u => u.id !== targetUser.id && !isDeveloperUser(u) && (isAdminUser(currentUser) || !isDemoUser(u)))
                         .map(u => (
                           <option key={u.id} value={u.id}>
                             {u.name} ({u.profile})

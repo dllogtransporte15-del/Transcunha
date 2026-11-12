@@ -27,6 +27,44 @@ export interface SystemRelease {
  */
 export const SYSTEM_RELEASES: SystemRelease[] = [
   {
+    id: 'rel_2026_11_11_v2_116_9',
+    version: 'v2.116.9',
+    date: '11/11/2026',
+    title: 'Ajuste de Layout da Aba Impostos & Tributos e Nova Paleta de Cores de Tributos',
+    summary: 'Ajuste no cabeçalho de navegação de Contas a Pagar garantindo visualização integral sem cortes da aba "Impostos & Tributos" e criação de novo seletor com paleta de cores dedicada de alto contraste para cada tributo (PIS/COFINS, ICMS, CSLL, IRPJ, FGTS, INSS).',
+    items: [
+      {
+        category: 'fix',
+        title: 'Correção de Overflow na Aba Impostos & Tributos',
+        description: 'Eliminado o corte de texto na aba Impostos & Tributos no seletor de Contas a Pagar através de layout flexível responsivo (flex-wrap) e espaçamento otimizado.'
+      },
+      {
+        category: 'improvement',
+        title: 'Nova Paleta de Cores e Dropdown de Tributos com Alto Contraste',
+        description: 'Substituição do dropdown nativo por menu customizado com identificadores visuais em cores vivas por tributo (azul para PIS/COFINS, roxo para ICMS, verde para CSLL, âmbar para IRPJ, teal para FGTS e índigo para INSS), contagem de guias em tempo real e total financeiro consolidado.'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_11_v2_116_8',
+    version: 'v2.116.8',
+    date: '11/11/2026',
+    title: 'Visibilidade e Gestão do Perfil de Demonstração para Administradores do Sistema',
+    summary: 'Liberação do perfil e de contas de Demonstração para o perfil Administrador do Sistema, permitindo visualização em listagens e filtros, seleção do perfil em formulários de cadastro e gerenciamento de permissões.',
+    items: [
+      {
+        category: 'improvement',
+        title: 'Perfil de Demonstração Disponível para Administradores',
+        description: 'Usuários com o perfil "Administrador do Sistema" agora visualizam e podem selecionar o perfil "Demonstração" em filtros, formulários de criação/edição e telas de gerenciamento de permissões.'
+      },
+      {
+        category: 'security',
+        title: 'Preservação do Isolamento do Perfil Desenvolvedor',
+        description: 'O perfil e usuários do tipo "Desenvolvedor" permanecem estritamente restritos e invisíveis para usuários sem credencial técnica de desenvolvedor.'
+      }
+    ]
+  },
+  {
     id: 'rel_2026_11_11_v2_116_7',
     version: 'v2.116.7',
     date: '11/11/2026',
