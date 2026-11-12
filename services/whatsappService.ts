@@ -24,7 +24,7 @@ export interface WhatsAppGatewayConfig {
 }
 
 export const CLOUD_GATEWAY_DEFAULT: WhatsAppGatewayConfig = {
-  url: 'https://evolution-api-production-e3eb.up.railway.app',
+  url: 'https://evolution-api-production-2e84c515.up.railway.app',
   apiKey: '5a3deafd8aedc279c2aff7ff40c17b508d36fb18d108c6c332d7ff224ec205cd',
   instanceName: 'transcunha_oficial'
 };
@@ -47,6 +47,13 @@ export function getGatewayConfig(): WhatsAppGatewayConfig {
       const isOldKey = parsed.apiKey === 'c1f7333c96962458559ec3b861d0046b4a479d23a51e897c6f4d9129475509bc';
 
       if (parsed.instanceName === 'transcunha_matriz') {
+        parsed.instanceName = 'transcunha_oficial';
+        localStorage.setItem(STORAGE_GATEWAY_CONFIG_KEY, JSON.stringify(parsed));
+      }
+
+      if (parsed.url === 'https://evolution-api-production-e3eb.up.railway.app' || !parsed.url) {
+        parsed.url = CLOUD_GATEWAY_DEFAULT.url;
+        parsed.apiKey = CLOUD_GATEWAY_DEFAULT.apiKey;
         parsed.instanceName = 'transcunha_oficial';
         localStorage.setItem(STORAGE_GATEWAY_CONFIG_KEY, JSON.stringify(parsed));
       }
@@ -2382,6 +2389,20 @@ export async function requestPairingCode(phoneNumber: string = '553598721970'): 
   const cfg = getGatewayConfig();
   const cleanPhone = sanitizePhoneNumber(phoneNumber);
 
+  const extractPairingCode = (data: any): string | null => {
+    if (!data) return null;
+    if (typeof data?.pairingCode === 'string' && data.pairingCode.trim().length > 0) {
+      return data.pairingCode.trim();
+    }
+    if (typeof data?.code === 'string' && !data.code.includes('@') && !data.code.startsWith('data:') && data.code.trim().length <= 15) {
+      return data.code.trim();
+    }
+    if (typeof data?.qrcode?.code === 'string' && !data.qrcode.code.includes('@') && data.qrcode.code.trim().length <= 15) {
+      return data.qrcode.code.trim();
+    }
+    return null;
+  };
+
   try {
     // 1. Tenta via endpoint GET /instance/connect/:instance?number=...
     const res = await fetchEvolution(`/instance/connect/${cfg.instanceName}?number=${cleanPhone}`, {
@@ -2390,13 +2411,33 @@ export async function requestPairingCode(phoneNumber: string = '553598721970'): 
 
     if (res && res.ok) {
       const data = await res.json().catch(() => ({}));
-      const code = data?.code || data?.pairingCode || data?.qrcode?.code;
-      if (code && typeof code === 'string' && !code.startsWith('data:') && code.length <= 15) {
+      const code = extractPairingCode(data);
+      if (code) {
         return { code, success: true };
       }
     }
 
-    // 2. Fallback POST /instance/connect/:instance
+    // 2. Se o Baileys estava em loop de QR Code e retornou pairingCode nulo, faz logout defensivo e re-conecta com o número
+    await fetchEvolution(`/instance/logout/${cfg.instanceName}`, {
+      method: 'DELETE'
+    }).catch(() => null);
+
+    // Aguarda 500ms para o socket reiniciar
+    await new Promise(r => setTimeout(r, 600));
+
+    const retryRes = await fetchEvolution(`/instance/connect/${cfg.instanceName}?number=${cleanPhone}`, {
+      method: 'GET'
+    }).catch(() => null);
+
+    if (retryRes && retryRes.ok) {
+      const retryData = await retryRes.json().catch(() => ({}));
+      const code = extractPairingCode(retryData);
+      if (code) {
+        return { code, success: true };
+      }
+    }
+
+    // 3. Fallback POST /instance/connect/:instance com body JSON
     const postRes = await fetchEvolution(`/instance/connect/${cfg.instanceName}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -2405,8 +2446,8 @@ export async function requestPairingCode(phoneNumber: string = '553598721970'): 
 
     if (postRes && postRes.ok) {
       const postData = await postRes.json().catch(() => ({}));
-      const code = postData?.code || postData?.pairingCode;
-      if (code && typeof code === 'string' && code.length <= 15) {
+      const code = extractPairingCode(postData);
+      if (code) {
         return { code, success: true };
       }
     }

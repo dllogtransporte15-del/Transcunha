@@ -709,7 +709,7 @@ export const WhatsAppConnectionCard: React.FC<WhatsAppConnectionCardProps> = ({
                     type="button"
                     onClick={() => {
                       const cloudDefault = {
-                        url: 'https://evolution-api-production-e3eb.up.railway.app',
+                        url: 'https://evolution-api-production-2e84c515.up.railway.app',
                         apiKey: '5a3deafd8aedc279c2aff7ff40c17b508d36fb18d108c6c332d7ff224ec205cd',
                         instanceName: 'transcunha_oficial'
                       };

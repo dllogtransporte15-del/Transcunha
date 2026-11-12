@@ -25,7 +25,8 @@ import {
   ExternalLink,
   X,
   Radio,
-  BookOpen
+  BookOpen,
+  RotateCcw
 } from 'lucide-react';
 import { 
   getWhatsAppInstance, 
@@ -111,13 +112,13 @@ export const MessengerPage: React.FC<MessengerPageProps> = ({
         getWhatsAppInstance(),
         getWhatsAppQueue(),
         getWhatsAppTemplates(),
-        testGatewayHealth().catch(() => ({ success: false, message: 'Servidor Gateway offline ou inacessível' }))
+        testGatewayHealth().catch(() => ({ success: false, message: 'Servidor Gateway offline ou inacessível', version: undefined }))
       ]);
       setInstance(inst);
       setQueue(q);
       setTemplates(tpls);
       setIsGatewayOnline(health.success);
-      if (health.version) setGatewayVersion(health.version);
+      if ('version' in health && health.version) setGatewayVersion(health.version);
 
       if (inst.qr_code_base64) {
         setQrCodeData(inst.qr_code_base64);
@@ -1064,9 +1065,23 @@ export const MessengerPage: React.FC<MessengerPageProps> = ({
               {gatewayTab === 'config' && (
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">
-                      URL do Servidor Evolution API
-                    </label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase">
+                        URL do Servidor Evolution API
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setGatewayConfig({ ...CLOUD_GATEWAY_DEFAULT });
+                          setTestResult(null);
+                        }}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-blue-50 hover:bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:hover:bg-blue-900/80 dark:text-blue-300 border border-blue-200 dark:border-blue-800 transition cursor-pointer shadow-xs active:scale-95"
+                        title="Preencher com o endereço oficial ativo no Railway"
+                      >
+                        <Sparkles className="w-3.5 h-3.5 text-blue-500" />
+                        <span>Carregar Servidor Oficial (Railway)</span>
+                      </button>
+                    </div>
                     <input
                       type="text"
                       placeholder="https://sua-evolution-api.up.railway.app"
@@ -1227,13 +1242,17 @@ export const MessengerPage: React.FC<MessengerPageProps> = ({
             </div>
 
             {/* Rodapé do Modal */}
-            <div className="p-5 sm:p-6 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50 flex items-center justify-between">
+            <div className="p-5 sm:p-6 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50 flex items-center justify-between flex-wrap gap-3">
               <button
                 type="button"
-                onClick={() => setGatewayConfig(CLOUD_GATEWAY_DEFAULT)}
-                className="text-xs font-bold text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition cursor-pointer"
+                onClick={() => {
+                  setGatewayConfig({ ...CLOUD_GATEWAY_DEFAULT });
+                  setTestResult(null);
+                }}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-white transition cursor-pointer shadow-xs active:scale-95"
               >
-                Restaurar Padrão Oficial
+                <RotateCcw className="w-3.5 h-3.5 text-slate-500 dark:text-slate-300" />
+                <span>Restaurar Padrão Oficial</span>
               </button>
 
               <div className="flex items-center gap-2">

@@ -27,6 +27,44 @@ export interface SystemRelease {
  */
 export const SYSTEM_RELEASES: SystemRelease[] = [
   {
+    id: 'rel_2026_11_12_v2_116_12',
+    version: 'v2.116.12',
+    date: '12/11/2026',
+    title: 'Correção do Pareamento Numérico (Pairing Code) do WhatsApp Oficial',
+    summary: 'Ajuste no parser da Evolution API v2 para extrair corretamente o pairingCode numérico (8 dígitos) em vez da string bruta do QR Code, além de logout defensivo para renovação instantânea do token de pareamento.',
+    items: [
+      {
+        category: 'fix',
+        title: 'Extração Prioritária do pairingCode da Evolution API v2',
+        description: 'Corrigida a prioridade de leitura da resposta da API para ler a propriedade pairingCode dedicada, evitando conflito com a string longa de QR Code.'
+      },
+      {
+        category: 'improvement',
+        title: 'Reinicialização e Geração Instantânea de Código',
+        description: 'Implementado reset automático de sessão quando o servidor estiver retendo estado de QR code tradicional, permitindo gerar o código de pareamento numérico em 1 clique.'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_12_v2_116_11',
+    version: 'v2.116.11',
+    date: '12/11/2026',
+    title: 'Ativação e Implantação Automatizada do Servidor WhatsApp Gateway 24h no Railway',
+    summary: 'Implantação completa via agente do projeto transcunha-whatsapp no Railway com a stack oficial de alta disponibilidade (Evolution API v2, PostgreSQL e Redis), resolução do erro HTTP 404 e conexão automática com o novo domínio público ativo.',
+    items: [
+      {
+        category: 'fix',
+        title: 'Resolução Definitiva do Erro HTTP 404 (Application Not Found)',
+        description: 'Provisionado um novo ambiente de produção com container ativo da Evolution API v2 no Railway, substituindo o endpoint antigo desativado pelo novo domínio oficial funcional.'
+      },
+      {
+        category: 'feature',
+        title: 'Stack 24h Provisionada (Evolution API + PostgreSQL + Redis)',
+        description: 'Serviços conectados e em execução com persistência total de sessões, CORS liberado e instância "transcunha_oficial" inicializada e pronta para pareamento via QR Code.'
+      }
+    ]
+  },
+  {
     id: 'rel_2026_11_11_v2_116_10',
     version: 'v2.116.10',
     date: '11/11/2026',

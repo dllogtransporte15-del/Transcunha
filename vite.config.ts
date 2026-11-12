@@ -9,7 +9,7 @@ export default defineConfig({
     host: '0.0.0.0',
     proxy: {
       '/api/evolution': {
-        target: 'https://evolution-api-production-e3eb.up.railway.app',
+        target: 'https://evolution-api-production-2e84c515.up.railway.app',
         changeOrigin: true,
         rewrite: (p) => p.replace(/^\/api\/evolution/, '')
       }
