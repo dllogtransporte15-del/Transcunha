@@ -75,6 +75,8 @@ export const RealProfitReport: React.FC<RealProfitReportProps> = ({
   const [selectedClients, setSelectedClients] = useState<string[]>([]);
   const isAgenciador = currentUser?.profile === UserProfile.Agenciador || (currentUser?.profile as string) === 'Agenciador';
   const [selectedDrivers, setSelectedDrivers] = useState<string[]>([]);
+  const [selectedOrigins, setSelectedOrigins] = useState<string[]>([]);
+  const [selectedDestinations, setSelectedDestinations] = useState<string[]>([]);
   const [selectedBranches, setSelectedBranches] = useState<string[]>([]);
   const [selectedRequesters, setSelectedRequesters] = useState<string[]>([]);
   const [selectedExport, setSelectedExport] = useState<string[]>([]);
@@ -145,6 +147,32 @@ export const RealProfitReport: React.FC<RealProfitReportProps> = ({
     names.add('Matriz');
     return Array.from(names).filter(Boolean).sort();
   }, [branches]);
+
+  const originOptions = useMemo(() => {
+    const set = new Set<string>();
+    shipments.forEach(s => {
+      const cargo = cargoMap.get(s.cargoId);
+      const origin = ((s as any).origin || cargo?.origin || '').trim();
+      if (origin) set.add(origin);
+    });
+    cargos.forEach(c => {
+      if (c.origin && c.origin.trim()) set.add(c.origin.trim());
+    });
+    return Array.from(set).filter(Boolean).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  }, [shipments, cargos, cargoMap]);
+
+  const destinationOptions = useMemo(() => {
+    const set = new Set<string>();
+    shipments.forEach(s => {
+      const cargo = cargoMap.get(s.cargoId);
+      const dest = ((s as any).destination || cargo?.destination || '').trim();
+      if (dest) set.add(dest);
+    });
+    cargos.forEach(c => {
+      if (c.destination && c.destination.trim()) set.add(c.destination.trim());
+    });
+    return Array.from(set).filter(Boolean).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  }, [shipments, cargos, cargoMap]);
 
   // Filtragem dos embarques
   const filteredData = useMemo(() => {
@@ -245,6 +273,30 @@ export const RealProfitReport: React.FC<RealProfitReportProps> = ({
         return false;
       }
 
+      // Filtro de Origem
+      if (selectedOrigins.length > 0) {
+        const originVal = ((s as any).origin || cargo?.origin || '').trim().toLowerCase();
+        const matchesOrigin = selectedOrigins.some(selected => {
+          const sel = selected.trim().toLowerCase();
+          return originVal === sel || originVal.includes(sel) || sel.includes(originVal);
+        });
+        if (!matchesOrigin) {
+          return false;
+        }
+      }
+
+      // Filtro de Destino
+      if (selectedDestinations.length > 0) {
+        const destVal = ((s as any).destination || cargo?.destination || '').trim().toLowerCase();
+        const matchesDest = selectedDestinations.some(selected => {
+          const sel = selected.trim().toLowerCase();
+          return destVal === sel || destVal.includes(sel) || sel.includes(destVal);
+        });
+        if (!matchesDest) {
+          return false;
+        }
+      }
+
       // Filtro de Solicitante
       if (selectedRequesters.length > 0) {
         const requesterUser = userMap.get(s.embarcadorId) || userMap.get(s.createdById) || (cargo?.createdById ? userMap.get(cargo.createdById) : undefined);
@@ -284,7 +336,7 @@ export const RealProfitReport: React.FC<RealProfitReportProps> = ({
 
       return true;
     });
-  }, [shipments, cargoMap, clientMap, userMap, branches, userBranchMap, searchTerm, startDate, endDate, selectedStatus, selectedExport, selectedDriverRegimes, selectedClients, selectedDrivers, selectedRequesters, selectedBranches, onlyWithOcr]);
+  }, [shipments, cargoMap, clientMap, userMap, branches, userBranchMap, searchTerm, startDate, endDate, selectedStatus, selectedOrigins, selectedDestinations, selectedExport, selectedDriverRegimes, selectedClients, selectedDrivers, selectedRequesters, selectedBranches, onlyWithOcr]);
 
   const canViewFinalNetProfit = useMemo(() => {
     if (!currentUser) return false;
@@ -924,6 +976,8 @@ export const RealProfitReport: React.FC<RealProfitReportProps> = ({
     selectedStatus.length > 0 ||
     selectedClients.length > 0 ||
     selectedDrivers.length > 0 ||
+    selectedOrigins.length > 0 ||
+    selectedDestinations.length > 0 ||
     selectedBranches.length > 0 ||
     selectedExport.length > 0 ||
     selectedDriverRegimes.length > 0 ||
@@ -1151,7 +1205,7 @@ export const RealProfitReport: React.FC<RealProfitReportProps> = ({
       {/* PAINEL DE FILTROS */}
       {showFilters && (
         <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-4 animate-in fade-in duration-200 w-full">
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-10 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
             {/* Busca textual */}
             <div>
               <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
@@ -1239,6 +1293,32 @@ export const RealProfitReport: React.FC<RealProfitReportProps> = ({
               />
             </div>
 
+            {/* Filtro Origem */}
+            <div>
+              <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
+                Origem
+              </label>
+              <MultiSelectDropdown
+                options={originOptions}
+                selectedValues={selectedOrigins}
+                onChange={setSelectedOrigins}
+                placeholder="Todas as origens"
+              />
+            </div>
+
+            {/* Filtro Destino */}
+            <div>
+              <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
+                Destino
+              </label>
+              <MultiSelectDropdown
+                options={destinationOptions}
+                selectedValues={selectedDestinations}
+                onChange={setSelectedDestinations}
+                placeholder="Todos os destinos"
+              />
+            </div>
+
             {/* Filtro Cliente */}
             <div>
               <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
@@ -1312,6 +1392,8 @@ export const RealProfitReport: React.FC<RealProfitReportProps> = ({
                 setSelectedExport([]);
                 setSelectedDriverRegimes([]);
                 setSelectedStatus([]);
+                setSelectedOrigins([]);
+                setSelectedDestinations([]);
                 setSelectedClients([]);
                 setSelectedDrivers([]);
                 setSelectedRequesters([]);

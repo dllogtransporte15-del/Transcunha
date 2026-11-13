@@ -137,6 +137,13 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
       freightOffers.forEach(offer => {
         if (offer.status !== FreightOfferStatus.Pendente || !offer.driverId) return;
 
+        const reqTime = new Date(offer.requestTimestamp || (offer as any).createdAt || Date.now()).getTime();
+        const now = Date.now();
+        const elapsedMs = now - reqTime;
+
+        // Se já passaram 10 minutos sem aceite ou recusa, a solicitação expirou
+        if (elapsedMs >= 10 * 60 * 1000) return;
+
         const cargo = offer.cargoId ? cargoMap.get(offer.cargoId) : undefined;
         const driver = driverMap.get(offer.driverId || '');
 
@@ -150,14 +157,15 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
 
         const driverName = driver?.name || 'Motorista';
         const cargoSeq = cargo ? cargo.sequenceId : (offer.cargoId || 'N/A');
+        const remainingMinutes = Math.max(1, Math.ceil((10 * 60 * 1000 - elapsedMs) / 60000));
 
         alerts.push({
           id: `order_${offer.id}`,
           type: 'order_request',
           title: 'Solicitação de Ordem de Carregamento',
-          message: `${driverName} solicitou ordem de carregamento para a Carga #${cargoSeq}.`,
+          message: `${driverName} solicitou ordem de carregamento para a Carga #${cargoSeq}. (Expira em ~${remainingMinutes} min)`,
           timestamp: offer.requestTimestamp || (offer as any).createdAt || new Date().toISOString(),
-          urgency: 'warning',
+          urgency: remainingMinutes <= 3 ? 'critical' : 'warning',
           targetPage: 'operational-loads',
           relatedId: offer.id
         });
@@ -185,11 +193,14 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
           });
         } else if (offer.status === FreightOfferStatus.Recusada) {
           const lastLog = offer.history?.[offer.history.length - 1];
+          const isExpired = lastLog?.description?.includes('Solicitação exp.') || lastLog?.description?.includes('expirada');
           alerts.push({
             id: `driver_refused_${offer.id}`,
             type: 'order_request',
-            title: 'Ordem de Carregamento Recusada',
-            message: `Sua solicitação de ordem para a Carga #${cargoSeq} foi recusada.${lastLog?.description ? ` (${lastLog.description})` : ''}`,
+            title: isExpired ? 'Solicitação de Ordem Expirada' : 'Ordem de Carregamento Recusada',
+            message: isExpired
+              ? `Sua solicitação de ordem para a Carga #${cargoSeq} expirou por falta de resposta em 10 minutos (Motivo: Solicitação exp.).`
+              : `Sua solicitação de ordem para a Carga #${cargoSeq} foi recusada.${lastLog?.description ? ` (${lastLog.description})` : ''}`,
             timestamp: lastLog?.timestamp || offer.requestTimestamp || offer.createdAt,
             urgency: 'warning',
             targetPage: 'dashboard',
@@ -446,6 +457,12 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
       const offerId = alert.relatedId || alert.id.replace('order_', '');
       const matchedOffer = freightOffers.find(o => o.id === offerId);
       if (matchedOffer && user.profile !== UserProfile.Motorista) {
+        const reqTime = new Date(matchedOffer.requestTimestamp || (matchedOffer as any).createdAt || Date.now()).getTime();
+        if (Date.now() - reqTime >= 10 * 60 * 1000) {
+          onRefuseOrderRequest?.(matchedOffer, 'Solicitação exp.');
+          setIsOpen(false);
+          return;
+        }
         setIsOpen(false);
         setDecisionOffer(matchedOffer);
         return;
@@ -465,6 +482,12 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
     if (isDemo) return;
     const matchedOffer = freightOffers.find(o => o.id === offerId);
     if (matchedOffer) {
+      const reqTime = new Date(matchedOffer.requestTimestamp || (matchedOffer as any).createdAt || Date.now()).getTime();
+      if (Date.now() - reqTime >= 10 * 60 * 1000) {
+        onRefuseOrderRequest?.(matchedOffer, 'Solicitação exp.');
+        setIsOpen(false);
+        return;
+      }
       setIsOpen(false);
       setDecisionOffer(matchedOffer);
     }

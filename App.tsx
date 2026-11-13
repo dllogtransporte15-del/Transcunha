@@ -1380,8 +1380,13 @@ const App: React.FC = () => {
       return;
     }
     
-    // Check if the user already has a pending offer for this cargo
-    const existingOffer = freightOffers.find(o => o.cargoId === cargo.id && o.driverId === currentUser.id && o.status === FreightOfferStatus.Pendente);
+    // Check if the user already has an active pending offer for this cargo (that hasn't expired yet)
+    const existingOffer = freightOffers.find(o => 
+      o.cargoId === cargo.id && 
+      o.driverId === currentUser.id && 
+      o.status === FreightOfferStatus.Pendente &&
+      (Date.now() - new Date(o.requestTimestamp || (o as any).createdAt || Date.now()).getTime() < 10 * 60 * 1000)
+    );
     if (existingOffer) {
        showToast('Você já possui uma solicitação pendente para esta carga!', 'warning');
        return;
@@ -1486,9 +1491,133 @@ const App: React.FC = () => {
         });
       }
 
-      showToast('Solicitação de ordem de carregamento recusada e registrada no histórico de cancelados.', 'success');
+      showToast(refusalReason === 'Solicitação exp.' ? 'Solicitação de ordem expirada e registrada no histórico de cancelados (Solicitação exp.).' : 'Solicitação de ordem de carregamento recusada e registrada no histórico de cancelados.', 'success');
     }
   };
+
+  // --- EXPIRAÇÃO AUTOMÁTICA DE SOLICITAÇÕES DE ORDEM DE CARREGAMENTO (10 MINUTOS) ---
+  const expiringOffersRef = useRef<Set<string>>(new Set());
+
+  const handleExpireOrderRequest = useCallback(async (offer: FreightOffer) => {
+    if (!offer.id || expiringOffersRef.current.has(offer.id)) return;
+    expiringOffersRef.current.add(offer.id);
+
+    try {
+      const refusalReason = 'Solicitação exp.';
+      const nowIso = new Date().toISOString();
+
+      // 1. Atualizar histórico da FreightOffer e marcar status como Recusada
+      const history = [...(offer.history || []), {
+        id: `log_${Date.now()}_expired`,
+        userId: 'system',
+        timestamp: nowIso,
+        description: `Solicitação de ordem expirada após 10 minutos sem aceite ou recusa. Motivo: ${refusalReason}`
+      }];
+
+      const updatedOffer: FreightOffer = {
+        ...offer,
+        status: FreightOfferStatus.Recusada,
+        history
+      };
+
+      setFreightOffers(prev => prev.map(o => o.id === offer.id ? updatedOffer : o));
+      await upsertFreightOffer(updatedOffer);
+
+      // 2. Registrar no histórico de embarques cancelados se houver carga vinculada
+      if (offer.cargoId) {
+        const driverUser = users.find(u => u.id === offer.driverId);
+        const driverInDb = drivers.find(d => d.id === offer.driverId || (driverUser?.email && d.cpf.replace(/\D/g, '') === driverUser.email.replace(/\D/g, '')));
+        const dName = driverInDb?.name || driverUser?.name || (offer as any).driverName || 'Motorista';
+        const dCpf = driverInDb?.cpf || (driverUser?.email && driverUser.email.replace(/\D/g, '').length === 11 ? driverUser.email : '') || (offer as any).driverCpf || '';
+        const dContact = driverInDb?.phone || driverUser?.phone || (offer as any).driverContact || '';
+
+        // Previne duplicidade caso outro cliente já tenha registrado o cancelamento
+        const alreadyCancelled = shipments.some(s => 
+          s.cargoId === offer.cargoId && 
+          (s.driverCpf?.replace(/\D/g, '') === dCpf.replace(/\D/g, '') || s.driverName?.trim().toLowerCase() === dName.trim().toLowerCase()) &&
+          s.status === ShipmentStatus.Cancelado &&
+          s.cancellationReason === refusalReason &&
+          (Date.now() - new Date(s.createdAt || s.scheduledDate || '').getTime() < 3600000)
+        );
+
+        if (!alreadyCancelled) {
+          const cargo = cargos.find(c => c.id === offer.cargoId);
+          const ton = offer.totalTonnage || (cargo ? Math.max(0, cargo.scheduledVolume - cargo.loadedVolume) : 0) || 0;
+          const driverFreightRate = offer.freightValuePerTon || cargo?.driverFreightValuePerTon || 0;
+
+          const currentShipmentNum = nextIds.shipment || 100;
+          const newShipmentId = formatId(currentShipmentNum, 'EXP');
+          setNextIds((prev: any) => ({ ...prev, shipment: (prev.shipment || currentShipmentNum) + 1 }));
+
+          const newCanceledShipment: Shipment = {
+            id: newShipmentId,
+            orderId: `ord_${newShipmentId}`,
+            cargoId: offer.cargoId,
+            driverName: dName,
+            driverContact: dContact,
+            driverCpf: dCpf,
+            embarcadorId: offer.requestedEmbarcadorId || currentUser?.id || cargo?.createdById || 'system',
+            horsePlate: '-',
+            shipmentTonnage: ton,
+            driverFreightValue: driverFreightRate * ton,
+            driverFreightRateSnapshot: driverFreightRate,
+            companyFreightRateSnapshot: cargo?.companyFreightValuePerTon,
+            driverFreightType: 'PJ',
+            status: ShipmentStatus.Cancelado,
+            cancellationReason: refusalReason,
+            scheduledDate: nowIso.split('T')[0],
+            history: [{
+              id: `log_${Date.now()}_expired_shipment`,
+              userId: currentUser?.id || 'system',
+              timestamp: nowIso,
+              description: `Solicitação de ordem do motorista ${dName} expirada aos 10 minutos sem aceite ou recusa. Motivo: ${refusalReason}`
+            }],
+            statusHistory: [{
+              status: ShipmentStatus.Cancelado,
+              timestamp: nowIso,
+              userId: currentUser?.id || 'system',
+            }],
+            createdAt: nowIso,
+            createdById: currentUser?.id || 'system',
+          };
+
+          setShipments(prev => [newCanceledShipment, ...prev]);
+          await upsertShipment(newCanceledShipment);
+        }
+      }
+
+      if (currentUser) {
+        if (currentUser.id === offer.driverId) {
+          showToast(`Sua solicitação de ordem de carregamento expirou após 10 minutos (Motivo: ${refusalReason}).`, 'info');
+        } else if (currentUser.id === offer.requestedEmbarcadorId) {
+          showToast(`Uma solicitação de ordem de carregamento expirou (10 min sem resposta) e foi enviada para o histórico de cancelados.`, 'info');
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao expirar solicitação de ordem:', err);
+      expiringOffersRef.current.delete(offer.id);
+    }
+  }, [cargos, currentUser, drivers, nextIds.shipment, shipments, users]);
+
+  // Efeito temporizador para expirar automaticamente solicitações de ordem após 10 minutos
+  useEffect(() => {
+    const checkExpiredRequests = () => {
+      const TEN_MINUTES_MS = 10 * 60 * 1000;
+      const now = Date.now();
+
+      freightOffers.forEach(offer => {
+        if (offer.status !== FreightOfferStatus.Pendente || !offer.driverId || !offer.cargoId) return;
+        const reqTime = new Date(offer.requestTimestamp || (offer as any).createdAt || now).getTime();
+        if (now - reqTime >= TEN_MINUTES_MS) {
+          handleExpireOrderRequest(offer);
+        }
+      });
+    };
+
+    checkExpiredRequests();
+    const interval = setInterval(checkExpiredRequests, 10000);
+    return () => clearInterval(interval);
+  }, [freightOffers, handleExpireOrderRequest]);
 
   const handleDeleteFreightOffer = async (offer: FreightOffer) => {
     if (isDemoUser(currentUser)) {
@@ -1758,7 +1887,7 @@ const App: React.FC = () => {
     }
 
     const processVehicle = (plate: string, isHorse: boolean, trailerIndex: number = 0) => {
-      if (!plate || !plate.trim()) return;
+      if (!plate || !plate.trim() || plate.trim() === '-') return;
       const cleanPlate = plate.trim().toUpperCase();
       let vehicle = newVehicles.find(v => v.plate.trim().toUpperCase() === cleanPlate);
       
@@ -2270,6 +2399,14 @@ const App: React.FC = () => {
     if (originalShipment.status === ShipmentStatus.AguardandoCarregamento && (!loadedTonnage || loadedTonnage <= 0)) {
         showToast('O peso carregado é obrigatório para avançar para a próxima etapa.', 'warning');
         throw new Error('O peso carregado é obrigatório para avançar para a próxima etapa.');
+    }
+
+    if (unloadedTonnage !== undefined && Number(unloadedTonnage) > 0) {
+      const baseLoaded = Number(originalShipment.shipmentTonnage) || Number(originalShipment.loadedTonnage) || Number(loadedTonnage) || 0;
+      if (baseLoaded > 0 && Number(unloadedTonnage) > baseLoaded) {
+        showToast(`O peso de descarga (${Number(unloadedTonnage).toLocaleString('pt-BR')} ton) não pode ser maior do que o peso de carregamento (${baseLoaded.toLocaleString('pt-BR')} ton).`, 'error');
+        throw new Error(`O peso de descarga não pode ser maior do que o peso de carregamento.`);
+      }
     }
 
     const relatedCargoForTransition = findCargoById(cargos, originalShipment.cargoId);
@@ -3041,6 +3178,16 @@ const App: React.FC = () => {
     }
     const shipmentToUpdate = shipments.find(s => s.id === shipmentId);
     if (!shipmentToUpdate) return;
+
+    if (data.unloadedTonnage !== undefined && Number(data.unloadedTonnage) > 0) {
+      const baseLoaded = Number(data.shipmentTonnage) || Number(shipmentToUpdate.shipmentTonnage) || Number(shipmentToUpdate.loadedTonnage) || 0;
+      if (baseLoaded > 0 && Number(data.unloadedTonnage) > baseLoaded) {
+        if (!options?.silent) {
+          showToast(`O peso de descarga (${Number(data.unloadedTonnage).toLocaleString('pt-BR')} ton) não pode ser maior do que o peso de carregamento (${baseLoaded.toLocaleString('pt-BR')} ton).`, 'error');
+        }
+        return;
+      }
+    }
 
     const changes: string[] = [];
     const fieldsToTrack: (keyof Shipment)[] = [

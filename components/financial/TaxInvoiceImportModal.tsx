@@ -294,6 +294,12 @@ export const TaxInvoiceImportModal: React.FC<TaxInvoiceImportModalProps> = ({
                               Cód: {item.taxCode}
                             </span>
                           )}
+                          {item.period && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                              <Calendar className="w-3 h-3 text-indigo-500" />
+                              <span>Comp: {item.period}</span>
+                            </span>
+                          )}
                         </div>
 
                         <div className="flex items-center gap-2">
@@ -365,17 +371,17 @@ export const TaxInvoiceImportModal: React.FC<TaxInvoiceImportModalProps> = ({
                           />
                         </div>
 
-                        {/* Período de Apuração (PA) */}
+                        {/* Mês de Competência / Período de Apuração (PA) */}
                         <div>
                           <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
-                            Período Apuração (PA)
+                            Mês de Competência (PA)
                           </label>
                           <input
                             type="text"
                             value={item.period || ''}
                             onChange={e => handleUpdateItem(item.id, { period: e.target.value })}
-                            className="w-full text-xs font-medium px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white"
-                            placeholder="MM/AAAA"
+                            className="w-full text-xs font-medium px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white font-mono"
+                            placeholder="MM/AAAA (ex: 03/2026)"
                           />
                         </div>
 

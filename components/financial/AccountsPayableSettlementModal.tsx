@@ -57,6 +57,7 @@ export interface SettlingAccountItem {
   paidAmount?: number;
   bankAccount?: string;
   notes?: string;
+  taxPeriod?: string;
   isReconciled?: boolean;
   reconciledAt?: string;
   ofxCheckNum?: string;
@@ -395,6 +396,12 @@ export const AccountsPayableSettlementModal: React.FC<AccountsPayableSettlementM
                     <span className="text-[11px] px-2.5 py-0.5 rounded-md font-bold bg-slate-200/80 dark:bg-slate-700/80 text-slate-700 dark:text-slate-200">
                       {item.categoryOrCenter}
                     </span>
+                    {item.taxPeriod && (
+                      <span className="inline-flex items-center gap-1 text-[11px] px-2.5 py-0.5 rounded-md font-bold bg-indigo-100 text-indigo-800 dark:bg-indigo-950/80 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 font-mono">
+                        <Calendar className="w-3 h-3 text-indigo-500" />
+                        <span>Competência: {item.taxPeriod}</span>
+                      </span>
+                    )}
                   </div>
                   <h4 className="font-black text-base sm:text-lg text-slate-900 dark:text-white truncate" title={item.entityName}>
                     {item.entityName}

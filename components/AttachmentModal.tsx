@@ -949,6 +949,9 @@ const AttachmentModal: React.FC<AttachmentModalProps> = ({
     if (!raw && (shipment.documents as any)?.loaded_tonnage) {
       raw = Number((shipment.documents as any).loaded_tonnage);
     }
+    if (!raw && (shipment as any).loadedTonnage) {
+      raw = Number((shipment as any).loadedTonnage);
+    }
     if (!raw && loadedTonnage !== '' && Number(loadedTonnage) > 0) {
       raw = Number(loadedTonnage);
     }
@@ -958,7 +961,7 @@ const AttachmentModal: React.FC<AttachmentModalProps> = ({
     if (!raw) return 0;
     const num = Number(raw);
     return num > 500 ? num / 1000 : num; // Normaliza para Toneladas
-  }, [shipment.shipmentTonnage, shipment.documents, loadedTonnage, cargo?.totalVolume]);
+  }, [shipment.shipmentTonnage, shipment.documents, (shipment as any).loadedTonnage, loadedTonnage, cargo?.totalVolume]);
 
   const cteWeightTon = React.useMemo(() => {
     if (!cteExtractedWeightKg || cteExtractedWeightKg <= 0) return 0;
@@ -2590,6 +2593,11 @@ const AttachmentModal: React.FC<AttachmentModalProps> = ({
         showToast('O peso descarregado é obrigatório para informar a entrega.', 'warning');
         return;
       }
+
+      if (ticketLoadedWeightTon > 0 && unloadedTonnage !== '' && Number(unloadedTonnage) > ticketLoadedWeightTon) {
+        showToast(`O peso de descarga (${Number(unloadedTonnage).toLocaleString('pt-BR')} ton) não pode ser maior do que o peso de carregamento (${ticketLoadedWeightTon.toLocaleString('pt-BR')} ton).`, 'error');
+        return;
+      }
     }
 
     if (shipment.status === ShipmentStatus.ValidacaoTicket) {
@@ -2603,6 +2611,10 @@ const AttachmentModal: React.FC<AttachmentModalProps> = ({
       }
       if (!unloadedTonnage || Number(unloadedTonnage) <= 0) {
         showToast('O peso descarregado precisa ser informado para validar a descarga.', 'warning');
+        return;
+      }
+      if (ticketLoadedWeightTon > 0 && Number(unloadedTonnage) > ticketLoadedWeightTon) {
+        showToast(`O peso de descarga (${Number(unloadedTonnage).toLocaleString('pt-BR')} ton) não pode ser maior do que o peso de carregamento (${ticketLoadedWeightTon.toLocaleString('pt-BR')} ton).`, 'error');
         return;
       }
     }
@@ -4709,15 +4721,32 @@ const AttachmentModal: React.FC<AttachmentModalProps> = ({
                   bypassDuplicateCheck={true}
                 />
                 <div>
-                  <label className="block text-sm font-medium mb-1">Peso Descarregado (Ton)</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-sm font-medium">Peso Descarregado (Ton) *</label>
+                    {ticketLoadedWeightTon > 0 && (
+                      <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">
+                        Carregado: {ticketLoadedWeightTon.toLocaleString('pt-BR')} ton
+                      </span>
+                    )}
+                  </div>
                   <input
                     type="number"
-                    step="0.01"
+                    step="0.001"
+                    max={ticketLoadedWeightTon > 0 ? ticketLoadedWeightTon : undefined}
                     value={unloadedTonnage}
                     onChange={(e) => setUnloadedTonnage(e.target.value === '' ? '' : Number(e.target.value))}
-                    className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
+                    className={`w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 ${
+                      unloadedTonnage !== '' && ticketLoadedWeightTon > 0 && Number(unloadedTonnage) > ticketLoadedWeightTon
+                        ? 'border-red-500 bg-red-50 dark:bg-red-950/20 text-red-900 dark:text-red-200 ring-1 ring-red-500'
+                        : ''
+                    }`}
                     placeholder="Informe o peso conforme ticket"
                   />
+                  {unloadedTonnage !== '' && ticketLoadedWeightTon > 0 && Number(unloadedTonnage) > ticketLoadedWeightTon && (
+                    <p className="mt-1 text-xs font-bold text-red-600 dark:text-red-400 flex items-center gap-1">
+                      ⚠️ O peso de descarga ({Number(unloadedTonnage).toLocaleString('pt-BR')} ton) não pode ser maior do que o peso carregado ({ticketLoadedWeightTon.toLocaleString('pt-BR')} ton).
+                    </p>
+                  )}
                 </div>
               </div>
             ) : shipment.status === ShipmentStatus.ValidacaoTicket ? (
@@ -4805,9 +4834,9 @@ const AttachmentModal: React.FC<AttachmentModalProps> = ({
                   <div className="p-3.5 bg-gray-50 dark:bg-gray-900/40 rounded-xl border dark:border-gray-700">
                     <span className="text-[10px] font-bold text-gray-500 uppercase block mb-1">Peso Carregado (Origem)</span>
                     <span className="font-mono font-bold text-base text-gray-900 dark:text-white block">
-                      {(Number(shipment.shipmentTonnage) || 0).toLocaleString('pt-BR')} ton
+                      {(ticketLoadedWeightTon || Number(shipment.shipmentTonnage) || 0).toLocaleString('pt-BR')} ton
                     </span>
-                    <span className="text-[11px] text-gray-400">Peso constante na NF-e</span>
+                    <span className="text-[11px] text-gray-400">Peso constante no Ticket / NF-e</span>
                   </div>
 
                   <div className="p-3.5 bg-white dark:bg-gray-800 rounded-xl border-2 border-primary/40 dark:border-primary/50 shadow-xs">
@@ -4816,32 +4845,57 @@ const AttachmentModal: React.FC<AttachmentModalProps> = ({
                     </label>
                     <input
                       type="number"
-                      step="0.01"
+                      step="0.001"
+                      max={ticketLoadedWeightTon > 0 ? ticketLoadedWeightTon : undefined}
                       value={unloadedTonnage}
                       onChange={(e) => {
                         setUnloadedTonnage(e.target.value === '' ? '' : Number(e.target.value));
                         setIsTicketValidated(false);
                       }}
-                      className="w-full p-2 border rounded-lg font-mono font-bold text-base text-gray-900 dark:text-white dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary"
+                      className={`w-full p-2 border rounded-lg font-mono font-bold text-base text-gray-900 dark:text-white dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-primary ${
+                        unloadedTonnage !== '' && ticketLoadedWeightTon > 0 && Number(unloadedTonnage) > ticketLoadedWeightTon
+                          ? 'border-red-500 bg-red-50 dark:bg-red-950/20 text-red-900 dark:text-red-200 ring-1 ring-red-500'
+                          : ''
+                      }`}
                       placeholder="Ex: 45.20"
                     />
-                    <span className="text-[11px] text-gray-400 mt-1 block">Ajuste conforme ticket de balança</span>
+                    {unloadedTonnage !== '' && ticketLoadedWeightTon > 0 && Number(unloadedTonnage) > ticketLoadedWeightTon ? (
+                      <span className="text-[11px] font-bold text-red-600 dark:text-red-400 mt-1 block">
+                        ⚠️ Inválido: Maior que o carregado ({ticketLoadedWeightTon.toLocaleString('pt-BR')} ton)
+                      </span>
+                    ) : (
+                      <span className="text-[11px] text-gray-400 mt-1 block">Ajuste conforme ticket de balança</span>
+                    )}
                   </div>
 
                   <div className="p-3.5 bg-gray-50 dark:bg-gray-900/40 rounded-xl border dark:border-gray-700">
                     <span className="text-[10px] font-bold text-gray-500 uppercase block mb-1">Diferença de Balança (Destino - Origem)</span>
-                    {unloadedTonnage !== '' && shipment.shipmentTonnage ? (
+                    {unloadedTonnage !== '' && (ticketLoadedWeightTon > 0 || shipment.shipmentTonnage) ? (
                       (() => {
-                        const diffTon = Number(unloadedTonnage) - shipment.shipmentTonnage;
+                        const baseLoaded = ticketLoadedWeightTon || Number(shipment.shipmentTonnage) || 0;
+                        const diffTon = Number(unloadedTonnage) - baseLoaded;
                         const diffKg = diffTon * 1000;
+                        const isExcess = diffTon > 0.0001;
                         const isQuebra = diffTon < -0.001;
+                        if (isExcess) {
+                          return (
+                            <div>
+                              <span className="font-mono font-black text-base block text-red-600 dark:text-red-400">
+                                +{diffTon.toFixed(3)} ton (+{diffKg.toFixed(0)} kg)
+                              </span>
+                              <span className="text-[11px] font-bold text-red-600 dark:text-red-400">
+                                Bloqueado: Descarga maior que carregamento
+                              </span>
+                            </div>
+                          );
+                        }
                         return (
                           <div>
                             <span className={`font-mono font-black text-base block ${isQuebra ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                              {diffTon > 0 ? `+${diffTon.toFixed(3)}` : diffTon.toFixed(3)} ton ({diffKg > 0 ? `+${diffKg.toFixed(0)}` : diffKg.toFixed(0)} kg)
+                              {diffTon.toFixed(3)} ton ({diffKg.toFixed(0)} kg)
                             </span>
                             <span className={`text-[11px] font-bold ${isQuebra ? 'text-red-500' : 'text-emerald-600'}`}>
-                              {isQuebra ? 'Quebra de carga apurada' : 'Sem quebra / Sobra'}
+                              {isQuebra ? 'Quebra de carga apurada' : 'Sem quebra (100% entregue)'}
                             </span>
                           </div>
                         );
@@ -4899,6 +4953,11 @@ const AttachmentModal: React.FC<AttachmentModalProps> = ({
                         onClick={() => {
                           if (!unloadedTonnage || Number(unloadedTonnage) <= 0) {
                             showToast('Informe o peso descarregado antes de validar.', 'warning');
+                            return;
+                          }
+                          const baseLoaded = ticketLoadedWeightTon || Number(shipment.shipmentTonnage) || 0;
+                          if (baseLoaded > 0 && Number(unloadedTonnage) > baseLoaded) {
+                            showToast(`Não é permitido validar peso de descarga (${Number(unloadedTonnage).toLocaleString('pt-BR')} ton) maior que o peso de carregamento (${baseLoaded.toLocaleString('pt-BR')} ton).`, 'error');
                             return;
                           }
                           const nextVal = !isTicketValidated;

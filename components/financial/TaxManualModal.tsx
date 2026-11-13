@@ -125,7 +125,12 @@ export const TaxManualModal: React.FC<TaxManualModalProps> = ({
         setBeneficiary(initialData.supplierOrClientName || '');
         setDocumentNumber(initialData.documentNumber || '');
         setTaxCode(initialData.taxCode || '');
-        setTaxPeriod(initialData.taxPeriod || '');
+        const resolvedInitialPeriod = initialData.taxPeriod || 
+          initialData.description?.match(/Ref:?\s*(\d{2}\/\d{4})/i)?.[1] ||
+          initialData.notes?.match(/PA:?\s*(\d{2}\/\d{4})/i)?.[1] ||
+          initialData.notes?.match(/Ref:?\s*(\d{2}\/\d{4})/i)?.[1] ||
+          '';
+        setTaxPeriod(resolvedInitialPeriod);
         setDueDate(initialData.dueDate || new Date().toISOString().split('T')[0]);
         setPrincipalAmount(initialData.taxPrincipalAmount ? String(initialData.taxPrincipalAmount) : '');
         setFineAmount(initialData.taxFineAmount ? String(initialData.taxFineAmount) : '');
@@ -418,14 +423,14 @@ export const TaxManualModal: React.FC<TaxManualModalProps> = ({
 
             <div>
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                Período Apuração (PA)
+                Mês de Competência (PA)
               </label>
               <input
                 type="text"
                 value={taxPeriod}
                 onChange={(e) => setTaxPeriod(e.target.value)}
-                placeholder="Ex: 02/2026"
-                className="w-full px-3 py-2 rounded-xl text-xs border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-purple-500"
+                placeholder="Ex: 03/2026"
+                className="w-full px-3 py-2 rounded-xl text-xs border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-purple-500 font-mono"
               />
             </div>
 

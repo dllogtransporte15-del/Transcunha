@@ -1168,12 +1168,11 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
     const pendingRequests = freightOffers?.filter(o => {
        if (o.status !== FreightOfferStatus.Pendente) return false;
        if (!o.driverId) return false;
+       const reqTime = o.requestTimestamp ? new Date(o.requestTimestamp).getTime() : new Date(o.createdAt).getTime();
+       const now = Date.now();
+       if ((now - reqTime) >= 10 * 60 * 1000) return false; // Expirada aos 10 minutos
        if (o.requestedEmbarcadorId === currentUser.id) return true;
-       if (o.requestTimestamp) {
-         const requestTime = new Date(o.requestTimestamp).getTime();
-         const now = Date.now();
-         if ((now - requestTime) > 5 * 60 * 1000) return true;
-       }
+       if ((now - reqTime) > 5 * 60 * 1000) return true;
        return false;
     }) || [];
 
@@ -1999,9 +1998,15 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
     return true;
   });
 
-  const driverOffers = freightOffers.filter(o => 
-    o.driverId === currentUser?.id && o.status === FreightOfferStatus.Pendente
-  );
+  const driverOffers = freightOffers.filter(o => {
+    if (o.driverId !== currentUser?.id) return false;
+    if (o.status === FreightOfferStatus.Pendente) return true;
+    if (o.status === FreightOfferStatus.Recusada) {
+      const age = Date.now() - new Date(o.requestTimestamp || o.createdAt).getTime();
+      return age < 24 * 60 * 60 * 1000; // Mantém exibição recente por 24h para acompanhamento do motorista
+    }
+    return false;
+  });
 
   const canViewOffers = currentUser && [UserProfile.Desenvolvedor, UserProfile.Admin, UserProfile.GerenciadoraDeRisco, UserProfile.Comercial, UserProfile.Supervisor, UserProfile.Diretor, UserProfile.Demonstracao].includes(currentUser.profile);
   const isMotorista = currentUser?.profile === UserProfile.Motorista;

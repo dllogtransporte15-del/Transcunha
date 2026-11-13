@@ -475,6 +475,7 @@ export const AccountsPayableTab: React.FC<AccountsPayableTabProps> = ({
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedLeaderFilter, setSelectedLeaderFilter] = useState<string>('all');
   const [selectedTaxTypeFilter, setSelectedTaxTypeFilter] = useState<'all' | TaxType>('all');
+  const [selectedCompetenceFilter, setSelectedCompetenceFilter] = useState<string>('all');
   const [isTaxImportModalOpen, setIsTaxImportModalOpen] = useState(false);
   const [isTaxManualModalOpen, setIsTaxManualModalOpen] = useState(false);
   const [editingTaxTransaction, setEditingTaxTransaction] = useState<FinancialTransaction | null>(null);
@@ -1583,6 +1584,17 @@ export const AccountsPayableTab: React.FC<AccountsPayableTabProps> = ({
           }
         }
 
+        let resolvedTaxPeriod = (t.taxPeriod || '').trim();
+        if (!resolvedTaxPeriod) {
+          const matchRef = (t.description || '').match(/Ref:?\s*(\d{2}\/\d{4})/i) ||
+                           (t.notes || '').match(/PA:?\s*(\d{2}\/\d{4})/i) ||
+                           (t.notes || '').match(/Ref:?\s*(\d{2}\/\d{4})/i) ||
+                           (t.description || '').match(/(\d{2}\/\d{4})/);
+          if (matchRef) {
+            resolvedTaxPeriod = matchRef[1];
+          }
+        }
+
         return {
           id: t.id,
           description: t.description,
@@ -1599,7 +1611,7 @@ export const AccountsPayableTab: React.FC<AccountsPayableTabProps> = ({
           taxType: detectedTaxType,
           taxTypeName: detectedTaxTypeName,
           taxCode: t.taxCode,
-          taxPeriod: t.taxPeriod,
+          taxPeriod: resolvedTaxPeriod,
           taxPrincipalAmount: t.taxPrincipalAmount,
           taxFineAmount: t.taxFineAmount,
           taxInterestAmount: t.taxInterestAmount,
@@ -1709,6 +1721,7 @@ export const AccountsPayableTab: React.FC<AccountsPayableTabProps> = ({
       paidAmount: orig.paidAmount || (orig.payableAmount || orig.amount || orig.totalAmount),
       bankAccount: orig.bankAccount || 'Sicredi',
       notes: orig.notes,
+      taxPeriod: (item as any).taxPeriod || orig.taxPeriod,
       originalItem: orig,
     });
     setIsSettlementModalOpen(true);
@@ -2048,10 +2061,30 @@ export const AccountsPayableTab: React.FC<AccountsPayableTabProps> = ({
     });
   }, [leaderPayables, selectedLeaderFilter, searchTerm, statusFilter, periodPreset, customStartDate, customEndDate, currentMonthPrefix, lastMonthPrefix, leaderUsers]);
 
+  // Competências disponíveis para filtro em Guias de Impostos
+  const availableCompetencePeriods = useMemo(() => {
+    const set = new Set<string>();
+    taxPayables.forEach(t => {
+      const p = t.taxPeriod?.trim();
+      if (p) set.add(p);
+    });
+    return Array.from(set).sort((a, b) => {
+      const [mA, yA] = a.split('/').map(Number);
+      const [mB, yB] = b.split('/').map(Number);
+      if (yA && yB && yA !== yB) return yB - yA;
+      if (mA && mB) return mB - mA;
+      return b.localeCompare(a);
+    });
+  }, [taxPayables]);
+
   // Filtragem: Guias de Impostos e Tributos
   const filteredTaxes = useMemo(() => {
     return taxPayables.filter(item => {
       if (selectedTaxTypeFilter !== 'all' && item.taxType !== selectedTaxTypeFilter) {
+        return false;
+      }
+
+      if (selectedCompetenceFilter !== 'all' && (item.taxPeriod || '').trim() !== selectedCompetenceFilter) {
         return false;
       }
 
@@ -2079,7 +2112,7 @@ export const AccountsPayableTab: React.FC<AccountsPayableTabProps> = ({
 
       return true;
     });
-  }, [taxPayables, selectedTaxTypeFilter, searchTerm, statusFilter, periodPreset, customStartDate, customEndDate, currentMonthPrefix, lastMonthPrefix]);
+  }, [taxPayables, selectedTaxTypeFilter, selectedCompetenceFilter, searchTerm, statusFilter, periodPreset, customStartDate, customEndDate, currentMonthPrefix, lastMonthPrefix]);
 
   // Mapeamento de Cargas e Filiais para Apuração das Comissões
   const cargoMap = useMemo(() => {
@@ -2858,6 +2891,7 @@ export const AccountsPayableTab: React.FC<AccountsPayableTabProps> = ({
           details: tax.taxCode ? `Cód: ${tax.taxCode}${tax.taxPeriod ? ` • PA: ${tax.taxPeriod}` : ''}` : tax.notes,
           pixKey: tax.barcode,
           bankAccount: tax.bankAccount,
+          taxPeriod: tax.taxPeriod,
           isReconciled: Boolean(tax.originalItem?.isReconciled),
           reconciledAt: tax.originalItem?.reconciledAt,
           originalItem: tax.originalItem || tax,
@@ -4567,6 +4601,28 @@ export const AccountsPayableTab: React.FC<AccountsPayableTabProps> = ({
               </div>
             )}
 
+            {/* Filtro por Mês de Competência (na aba de Impostos & Tributos) */}
+            {activeSection === 'taxes' && availableCompetencePeriods.length > 0 && (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-purple-200 dark:border-purple-800 bg-purple-50/60 dark:bg-purple-950/30 text-purple-900 dark:text-purple-200 shadow-xs">
+                <Calendar className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
+                <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 shrink-0">Competência:</span>
+                <select
+                  value={selectedCompetenceFilter}
+                  onChange={(e) => setSelectedCompetenceFilter(e.target.value)}
+                  className="text-xs font-bold bg-transparent text-purple-950 dark:text-purple-100 outline-none cursor-pointer"
+                >
+                  <option value="all" className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200">
+                    Todas as Competências ({taxPayables.length})
+                  </option>
+                  {availableCompetencePeriods.map(comp => (
+                    <option key={comp} value={comp} className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200">
+                      {comp} ({taxPayables.filter(t => t.taxPeriod === comp).length})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             {/* Filtro por Líder Específico (na aba de Agenciadores Líder) */}
             {activeSection === 'leaders' && (
               <div className="relative">
@@ -5906,20 +5962,23 @@ export const AccountsPayableTab: React.FC<AccountsPayableTabProps> = ({
               <thead className="bg-slate-50 dark:bg-slate-900/60 text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider border-b border-slate-200 dark:border-slate-700">
                 <tr>
                   <th className="py-3.5 px-4">Tipo / Documento</th>
-                  <th className="py-3.5 px-4">Fornecedor / Favorecido</th>
+                  {activeSection === 'taxes' && (
+                    <th className="py-3.5 px-4 text-center whitespace-nowrap">Mês de Competência</th>
+                  )}
+                  <th className="py-3.5 px-4">{activeSection === 'taxes' ? 'Órgão Arrecadador / Favorecido' : 'Fornecedor / Favorecido'}</th>
                   <th className="py-3.5 px-4">Classificação / Centro de Custo</th>
                   <th className="py-3.5 px-4">Vencimento & Entrada</th>
                   <th className="py-3.5 px-4 text-right">Valor Original</th>
                   <th className="py-3.5 px-4 text-right">Valor a Pagar (Real)</th>
                   <th className="py-3.5 px-4 text-center">Status</th>
-                  <th className="py-3.5 px-4 text-center">Tríade Documental (NF • Boleto • Comprovante)</th>
+                  <th className="py-3.5 px-4 text-center">{activeSection === 'taxes' ? 'Documentos (Guia • Barra • Comprovante)' : 'Tríade Documental (NF • Boleto • Comprovante)'}</th>
                   <th className="py-3.5 px-4 text-right">Ação</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60">
                 {consolidatedList.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="py-12 text-center text-slate-400">
+                    <td colSpan={activeSection === 'taxes' ? 10 : 9} className="py-12 text-center text-slate-400">
                       <ArrowDownCircle className="w-10 h-10 mx-auto mb-2 opacity-30" />
                       <p className="font-semibold text-sm text-slate-600 dark:text-slate-300">Nenhuma conta a pagar encontrada</p>
                       <p className="text-xs text-slate-400 mt-1">Ajuste os filtros ou cadastre um novo lançamento.</p>
@@ -6001,6 +6060,12 @@ export const AccountsPayableTab: React.FC<AccountsPayableTabProps> = ({
                                     {item.originalItem?.taxTypeName || TAX_TYPE_CONFIG[item.originalItem?.taxType as TaxType]?.label || 'Guia Tributária'}
                                   </span>
                                 )}
+                                {(item.taxPeriod || item.originalItem?.taxPeriod) && (
+                                  <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded font-bold border bg-indigo-50 text-indigo-700 dark:bg-indigo-950/80 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800 shrink-0 font-mono" title={`Mês de Competência: ${item.taxPeriod || item.originalItem?.taxPeriod}`}>
+                                    <Calendar className="w-3 h-3 text-indigo-500" />
+                                    <span>Comp: {item.taxPeriod || item.originalItem?.taxPeriod}</span>
+                                  </span>
+                                )}
                                 {item.kind === 'manual' && isValeTransaction(item.originalItem || item) && (
                                   <span className="text-[10px] px-1.5 py-0.5 rounded font-bold border bg-orange-100 text-orange-800 dark:bg-orange-950/80 dark:text-orange-300 border-orange-200 dark:border-orange-800 shrink-0">
                                     Vale / Adiantamento Salarial
@@ -6021,6 +6086,20 @@ export const AccountsPayableTab: React.FC<AccountsPayableTabProps> = ({
                             </div>
                           </div>
                         </td>
+
+                        {/* 1.1 Mês de Competência (visível na aba de Impostos & Tributos) */}
+                        {activeSection === 'taxes' && (
+                          <td className="py-3 px-4 text-center whitespace-nowrap">
+                            {(item.taxPeriod || item.originalItem?.taxPeriod) ? (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 font-mono shadow-2xs">
+                                <Calendar className="w-3.5 h-3.5 text-indigo-500" />
+                                <span>{item.taxPeriod || item.originalItem?.taxPeriod}</span>
+                              </span>
+                            ) : (
+                              <span className="text-slate-400 text-xs font-mono">-</span>
+                            )}
+                          </td>
+                        )}
 
                         {/* 2. Fornecedor / Favorecido */}
                         <td className="py-3 px-4">

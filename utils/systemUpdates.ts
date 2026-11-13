@@ -27,6 +27,112 @@ export interface SystemRelease {
  */
 export const SYSTEM_RELEASES: SystemRelease[] = [
   {
+    id: 'rel_2026_11_12_v2_116_17',
+    version: 'v2.116.17',
+    date: '12/11/2026',
+    title: 'Bloqueio de Peso de Descarga Superior ao Peso de Carregamento',
+    summary: 'Implementação de validação rigorosa no fluxo de descarga e validação de tickets para impedir que o peso descarregado informado seja superior ao peso de carregamento do embarque, evitando inconsistências fiscais, operacionais e de quebra de carga.',
+    items: [
+      {
+        category: 'security',
+        title: 'Trava Operacional no Registro de Descarga',
+        description: 'Na etapa de Aguardando Descarga, o sistema valida em tempo real e bloqueia o salvamento caso o peso de descarga informado seja maior do que o peso carregado constante no embarque/NF-e.'
+      },
+      {
+        category: 'security',
+        title: 'Bloqueio na Validação de Ticket e Apuração de Balança',
+        description: 'Na etapa de Validação de Ticket, o botão de validação formal e o avanço para quitação de saldo são bloqueados caso o peso de descarga ultrapasse o peso carregado, sinalizando o erro em destaque.'
+      },
+      {
+        category: 'improvement',
+        title: 'Feedback Visual e Limite Máximo no Campo',
+        description: 'Os campos de digitação de peso de descarga agora exibem o peso carregado de referência, contam com validação visual imediata e impedem o avanço antes da correção.'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_12_v2_116_16',
+    version: 'v2.116.16',
+    date: '12/11/2026',
+    title: 'Novos Filtros de Origem e Destino no Relatório de Lucro Real',
+    summary: 'Implementação de filtros de múltipla seleção com busca integrada para cidades de Origem e Destino no Relatório de Lucro Real, permitindo segmentar operações por praças e rotas com atualização em tempo real dos indicadores, totais e exportações (CSV e PDF).',
+    items: [
+      {
+        category: 'feature',
+        title: 'Filtros Dinâmicos de Origem e Destino com Múltipla Escolha',
+        description: 'Disponibilizados seletores dropdown com busca rápida e seleção múltipla para cidades de Origem e Destino no painel de Filtros Avançados do Relatório de Lucro Real.'
+      },
+      {
+        category: 'improvement',
+        title: 'Recalculação de Indicadores e Exportações',
+        description: 'Os filtros de rota aplicam-se a todos os cartões de indicadores (KPIs), margens, totais por filial e aos relatórios exportados em CSV e PDF.'
+      },
+      {
+        category: 'improvement',
+        title: 'Integração com Limpar Filtros e Indicador Ativo',
+        description: 'O botão de limpar filtros e a sinalização de filtros ativos agora contemplam as seleções de Origem e Destino.'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_12_v2_116_15',
+    version: 'v2.116.15',
+    date: '12/11/2026',
+    title: 'Exibição e Filtro por Mês de Competência em Guias de Impostos & Tributos',
+    summary: 'Adição de campo e coluna dedicada para visualização imediata do Mês de Competência (PA) em todos os lançamentos de Guias de Impostos & Tributos no Contas a Pagar, no Leitor Automático OCR, no modal de cadastro/edição manual e no comprovante de baixa, com novo filtro dinâmico por competência.',
+    items: [
+      {
+        category: 'feature',
+        title: 'Coluna Dedicada "Mês de Competência" na Tabela de Impostos',
+        description: 'A tabela de Guias de Impostos & Tributos agora conta com coluna exclusiva e chip destacado com ícone de calendário exibindo o mês/ano de competência (ex: 03/2026) em cada lançamento.'
+      },
+      {
+        category: 'feature',
+        title: 'Filtro Dinâmico por Mês de Competência',
+        description: 'Novo seletor na barra de ferramentas permite filtrar instantaneamente todas as guias de um mês específico de apuração ou visualizar todas as competências.'
+      },
+      {
+        category: 'improvement',
+        title: 'Visualização da Competência no Leitor OCR e Cadastro Manual',
+        description: 'O Leitor Automático de Guias e o modal de cadastro/edição manual agora trazem o rótulo "Mês de Competência (PA)" e exibem o chip da competência diretamente no cabeçalho de cada guia identificada.'
+      },
+      {
+        category: 'improvement',
+        title: 'Destaque de Competência no Modal de Baixa e Liquidação',
+        description: 'Ao dar baixa ou anexar comprovante bancário em uma guia tributária, o card de liquidação exibe a competência vinculada para conferência fiscal antes da quitação.'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_12_v2_116_14',
+    version: 'v2.116.14',
+    date: '12/11/2026',
+    title: 'Expiração Automática de Solicitações de Ordem (10 min) e Envio ao Histórico de Cancelados',
+    summary: 'Implementado temporizador de 10 minutos para solicitações de ordem de carregamento emitidas por motoristas. Sem aceite ou recusa dentro desse período, a solicitação expira automaticamente e é arquivada no histórico de embarques cancelados com o motivo oficial "Solicitação exp.", contando com contagem regressiva em tempo real no sino de notificações e no modal de avaliação.',
+    items: [
+      {
+        category: 'feature',
+        title: 'Expiração Automática aos 10 Minutos',
+        description: 'Solicitações de ordem de carregamento sem resposta pelo embarcador após 10 minutos agora expiram automaticamente em segundo plano, sendo marcadas como recusadas/expiradas sem travar a navegação do operador.'
+      },
+      {
+        category: 'feature',
+        title: 'Registro no Histórico de Embarques Cancelados ("Solicitação exp.")',
+        description: 'Ao expirar ou ao registrar a expiração, um registro de embarque cancelado é criado automaticamente com o motivo "Solicitação exp.", vinculando motorista, carga e tonelagem para total rastreabilidade operacional.'
+      },
+      {
+        category: 'improvement',
+        title: 'Contagem Regressiva e Alerta de Urgência no Sino de Notificações',
+        description: 'O card de solicitação no sino agora exibe o tempo restante para resposta (ex: "Expira em ~X min") e intensifica a urgência para estado crítico quando restam menos de 3 minutos, removendo notificações expiradas automaticamente.'
+      },
+      {
+        category: 'improvement',
+        title: 'Cronômetro em Tempo Real no Modal de Decisão e Lista de Solicitações',
+        description: 'O modal "Avaliar Ordem" e a lista de solicitações agora exibem cronômetro ativo em minutos e segundos, alertando quando o prazo for ultrapassado e desabilitando o aceite de solicitações expiradas.'
+      }
+    ]
+  },
+  {
     id: 'rel_2026_11_12_v2_116_13',
     version: 'v2.116.13',
     date: '12/11/2026',

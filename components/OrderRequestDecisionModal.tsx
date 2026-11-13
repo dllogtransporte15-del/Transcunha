@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { FreightOffer, Cargo, Driver, User, Client, Product } from '../types';
 import { 
   X, 
@@ -13,7 +13,8 @@ import {
   XCircle, 
   DollarSign, 
   MessageSquare,
-  AlertTriangle
+  AlertTriangle,
+  Clock
 } from 'lucide-react';
 import { calculateCargoBalance } from '../utils/cargoBalance';
 
@@ -47,6 +48,14 @@ const OrderRequestDecisionModal: React.FC<OrderRequestDecisionModalProps> = ({
   const [isRefusing, setIsRefusing] = useState(false);
   const [refusalReason, setRefusalReason] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [currentTime, setCurrentTime] = useState(Date.now());
+
+  useEffect(() => {
+    if (!isOpen || !offer) return;
+    setCurrentTime(Date.now());
+    const timer = setInterval(() => setCurrentTime(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [isOpen, offer]);
 
   if (!isOpen || !offer) return null;
 
@@ -55,6 +64,15 @@ const OrderRequestDecisionModal: React.FC<OrderRequestDecisionModalProps> = ({
   const driverCpf = driver?.cpf || (driverUser?.email && driverUser.email.replace(/\D/g, '').length === 11 ? driverUser.email : '') || anyOffer.driverCpf || '-';
   const driverPhone = driver?.phone || driverUser?.phone || anyOffer.driverContact || '';
   const cargoSequence = cargo?.sequenceId ? `#${cargo.sequenceId}` : (offer.cargoId ? `#${offer.cargoId.slice(0, 8)}` : 'N/A');
+
+  const reqTime = offer.requestTimestamp 
+    ? new Date(offer.requestTimestamp).getTime() 
+    : (offer.createdAt ? new Date(offer.createdAt).getTime() : Date.now());
+  const elapsedMs = currentTime - reqTime;
+  const remainingMs = Math.max(0, 10 * 60 * 1000 - elapsedMs);
+  const remainingMinutes = Math.floor(remainingMs / 60000);
+  const remainingSeconds = Math.floor((remainingMs % 60000) / 1000);
+  const isExpired = remainingMs <= 0;
 
   const ratePerTon = offer.freightValuePerTon || cargo?.driverFreightValuePerTon || 0;
   const cargoBal = cargo ? calculateCargoBalance(cargo) : null;
@@ -135,6 +153,33 @@ const OrderRequestDecisionModal: React.FC<OrderRequestDecisionModalProps> = ({
 
         {/* Content Body */}
         <div className="p-6 space-y-5 overflow-y-auto flex-1 text-xs">
+          {/* Alerta de Tempo Limite (10 minutos) */}
+          <div className={`p-3.5 rounded-xl border flex items-center justify-between gap-3 ${
+            isExpired 
+              ? 'bg-rose-50 text-rose-800 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800' 
+              : remainingMinutes < 3 
+              ? 'bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800 animate-pulse'
+              : 'bg-blue-50 text-blue-800 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800'
+          }`}>
+            <div className="flex items-center gap-2">
+              <Clock className="w-4 h-4 shrink-0" />
+              <div>
+                <span className="font-bold">
+                  {isExpired 
+                    ? 'Prazo esgotado (10 minutos)' 
+                    : `Tempo limite de aceite/recusa: 10 min`}
+                </span>
+                <p className="text-[11px] opacity-90 mt-0.5">
+                  {isExpired
+                    ? 'Esta solicitação expirou e deve ser direcionada para o histórico de cancelados (Motivo: Solicitação exp.).'
+                    : 'A solicitação expirará automaticamente se não for aceita ou recusada.'}
+                </p>
+              </div>
+            </div>
+            <div className="shrink-0 font-mono font-black text-sm px-2.5 py-1 rounded-lg bg-white/80 dark:bg-black/30 border border-current">
+              {isExpired ? 'EXPIRADA' : `${String(remainingMinutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`}
+            </div>
+          </div>
           {/* Card Motorista */}
           <div className="bg-gray-50 dark:bg-gray-700/40 rounded-xl p-4 border border-gray-200/80 dark:border-gray-600">
             <div className="flex items-center justify-between mb-3 border-b border-gray-200 dark:border-gray-600 pb-2">
@@ -275,7 +320,41 @@ const OrderRequestDecisionModal: React.FC<OrderRequestDecisionModalProps> = ({
 
         {/* Footer Actions */}
         <div className="p-4 border-t border-gray-100 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-800/80 flex items-center justify-between gap-3">
-          {!isRefusing ? (
+          {isExpired ? (
+            <div className="w-full flex items-center justify-between gap-3">
+              <span className="text-xs text-rose-600 dark:text-rose-400 font-semibold flex items-center gap-1.5">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                Tempo limite atingido. Solicitação expirada.
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  disabled={isSubmitting}
+                  className="px-4 py-2 text-xs font-semibold text-gray-600 dark:text-gray-300 hover:bg-gray-200/60 dark:hover:bg-gray-700 rounded-xl transition cursor-pointer"
+                >
+                  Fechar
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setIsSubmitting(true);
+                    try {
+                      await onRefuse(offer, 'Solicitação exp.');
+                      onClose();
+                    } finally {
+                      setIsSubmitting(false);
+                    }
+                  }}
+                  disabled={isSubmitting}
+                  className="px-4 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl transition-all shadow-md flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  <Clock className="w-4 h-4" />
+                  {isSubmitting ? 'Registrando...' : 'Registrar Cancelamento (Solicitação exp.)'}
+                </button>
+              </div>
+            </div>
+          ) : !isRefusing ? (
             <>
               <button
                 type="button"
@@ -299,7 +378,7 @@ const OrderRequestDecisionModal: React.FC<OrderRequestDecisionModalProps> = ({
                 <button
                   type="button"
                   onClick={handleConfirmAccept}
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || isExpired}
                   className="px-5 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition-all shadow-md shadow-emerald-600/20 flex items-center gap-2 disabled:opacity-50 cursor-pointer"
                 >
                   <CheckCircle2 className="w-4 h-4" />

@@ -162,6 +162,12 @@ export const DriverOrderRequestsList: React.FC<DriverOrderRequestsListProps> = (
             const isAccepted = request.status === FreightOfferStatus.Aceita;
             const isRefused = request.status === FreightOfferStatus.Recusada;
 
+            const reqTime = new Date(request.requestTimestamp || request.createdAt || Date.now()).getTime();
+            const elapsedMs = Date.now() - reqTime;
+            const isExpired = elapsedMs >= 10 * 60 * 1000;
+            const remainingMin = Math.max(1, Math.ceil((10 * 60 * 1000 - elapsedMs) / 60000));
+            const isExpiredRefusal = isRefused && Boolean(request.history?.some(h => h.description?.includes('Solicitação exp.') || h.description?.includes('expirada')));
+
             return (
               <div 
                 key={request.id} 
@@ -246,6 +252,18 @@ export const DriverOrderRequestsList: React.FC<DriverOrderRequestsListProps> = (
                       <Clock className="w-3 h-3" />
                       Solicitado em {formatDateTime(request.requestTimestamp || request.createdAt)}
                     </div>
+                    {isPending && (
+                      <div className={`text-[11px] font-bold flex items-center gap-1 ${
+                        isExpired 
+                          ? 'text-rose-600 dark:text-rose-400' 
+                          : remainingMin <= 3 
+                          ? 'text-amber-600 dark:text-amber-400 animate-pulse' 
+                          : 'text-blue-600 dark:text-blue-400'
+                      }`}>
+                        <Clock className="w-3 h-3" />
+                        {isExpired ? 'Prazo esgotado (10 min)' : `Expira em ~${remainingMin} min`}
+                      </div>
+                    )}
                     {targetedEmbarcador && (
                       <div className="text-[11px] text-blue-600 dark:text-blue-400 font-medium truncate">
                         Direcionado para: {targetedEmbarcador.name}
@@ -269,22 +287,38 @@ export const DriverOrderRequestsList: React.FC<DriverOrderRequestsListProps> = (
                         </button>
                       )}
 
-                      <button
-                        type="button"
-                        onClick={() => setSelectedOfferForDecision(request)}
-                        disabled={isDemo}
-                        className="px-3 py-2 text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all shadow-xs flex items-center gap-1.5 disabled:opacity-50"
-                      >
-                        <CheckCircle2 className="w-4 h-4" />
-                        Avaliar Ordem
-                      </button>
+                      {isExpired ? (
+                        <button
+                          type="button"
+                          onClick={() => onRefuse(request, 'Solicitação exp.')}
+                          disabled={isDemo}
+                          className="px-3 py-2 text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white rounded-lg transition-all shadow-xs flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+                        >
+                          <Clock className="w-4 h-4" />
+                          Registrar Expiração (10 min)
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedOfferForDecision(request)}
+                          disabled={isDemo}
+                          className="px-3 py-2 text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all shadow-xs flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+                        >
+                          <CheckCircle2 className="w-4 h-4" />
+                          Avaliar Ordem
+                        </button>
+                      )}
                     </>
                   )}
 
                   {isPending && isDriverView && (
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 rounded-lg border border-amber-200 dark:border-amber-800">
-                      <Clock className="w-4 h-4 animate-spin" />
-                      Aguardando Aprovação do Embarcador
+                    <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg border ${
+                      isExpired
+                        ? 'bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300 border-rose-200 dark:border-rose-800'
+                        : 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border-amber-200 dark:border-amber-800'
+                    }`}>
+                      <Clock className="w-4 h-4" />
+                      {isExpired ? 'Expirando (10 min sem resposta)' : `Aguardando Aprovação (Expira em ~${remainingMin} min)`}
                     </span>
                   )}
 
@@ -296,9 +330,22 @@ export const DriverOrderRequestsList: React.FC<DriverOrderRequestsListProps> = (
                   )}
 
                   {isRefused && (
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300 rounded-lg border border-rose-200 dark:border-rose-800">
-                      <XCircle className="w-4 h-4" />
-                      Ordem Recusada
+                    <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg border ${
+                      isExpiredRefusal
+                        ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border-amber-200 dark:border-amber-800'
+                        : 'bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300 border-rose-200 dark:border-rose-800'
+                    }`}>
+                      {isExpiredRefusal ? (
+                        <>
+                          <Clock className="w-4 h-4" />
+                          Solicitação Expirada (10 min)
+                        </>
+                      ) : (
+                        <>
+                          <XCircle className="w-4 h-4" />
+                          Ordem Recusada
+                        </>
+                      )}
                     </span>
                   )}
                 </div>
