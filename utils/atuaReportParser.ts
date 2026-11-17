@@ -139,6 +139,56 @@ export const normalizePlate = (plate: string): string => {
 };
 
 /**
+ * Compara duas placas de forma inteligente com suporte a:
+ * - Placas Mercosul e Tradicionais (cinza)
+ * - Mapeamento da conversão oficial Mercosul do 5º dígito (0=A, 1=B, 2=C, 3=D, 4=E, 5=F, 6=G, 7=H, 8=I, 9=J)
+ * - Tolerância a erros clássicos de OCR / digitação manual (S <-> 5, O <-> 0, I <-> 1, Z <-> 2, B <-> 8)
+ */
+export const arePlatesMatching = (p1?: string | null, p2?: string | null): boolean => {
+  if (!p1 || !p2) return false;
+  const c1 = normalizePlate(p1);
+  const c2 = normalizePlate(p2);
+  if (!c1 || !c2) return false;
+  if (c1 === c2) return true;
+
+  if (c1.length === 7 && c2.length === 7) {
+    const fuzzy = (str: string) => str
+      .replace(/S/g, '5')
+      .replace(/O/g, '0')
+      .replace(/I/g, '1')
+      .replace(/Z/g, '2')
+      .replace(/B/g, '8');
+    if (fuzzy(c1) === fuzzy(c2)) return true;
+
+    const mercosulDigitToLetter: Record<string, string> = {
+      '0': 'A', '1': 'B', '2': 'C', '3': 'D', '4': 'E',
+      '5': 'F', '6': 'G', '7': 'H', '8': 'I', '9': 'J'
+    };
+    const mercosulLetterToDigit: Record<string, string> = {
+      'A': '0', 'B': '1', 'C': '2', 'D': '3', 'E': '4',
+      'F': '5', 'G': '6', 'H': '7', 'I': '8', 'J': '9'
+    };
+
+    const toMercosulLetter = (plate: string) => {
+      const arr = plate.split('');
+      if (mercosulDigitToLetter[arr[4]]) arr[4] = mercosulDigitToLetter[arr[4]];
+      return arr.join('');
+    };
+
+    const toTraditionalDigit = (plate: string) => {
+      const arr = plate.split('');
+      if (mercosulLetterToDigit[arr[4]]) arr[4] = mercosulLetterToDigit[arr[4]];
+      return arr.join('');
+    };
+
+    if (toMercosulLetter(c1) === toMercosulLetter(c2)) return true;
+    if (toTraditionalDigit(c1) === toTraditionalDigit(c2)) return true;
+  }
+
+  return false;
+};
+
+/**
  * Normaliza data DD/MM/YY ou DD/MM/YYYY para YYYY-MM-DD
  */
 export const normalizeDate = (dateStr: string): string => {
@@ -255,6 +305,12 @@ export const parseAtuaTextLine = (line: string): AtuaCteRecord | null => {
   }
 
   if (numbersFound.length < 2) {
+    return null;
+  }
+
+  // Uma linha de CT-e válida do Atua DEVE obrigatoriamente ter uma data de emissão ou placa.
+  // Linhas de totalizadores/resumo não possuem data nem placa e NÃO podem ser tratadas como CT-e.
+  if (!emissionDate && !plate) {
     return null;
   }
 
@@ -533,22 +589,26 @@ const extractAtuaFromCoordinates = (allPagesItems: any[][]): AtuaCteRecord[] => 
         continue;
       }
 
-      // Detecção flexível do número do CT-e e tipo (suporta números de 1 a 8 dígitos)
+      // Detecção precisa do número do CT-e e tipo
+      // NOTA: O número do CT-e fica obrigatoriamente na primeira coluna "Número" (X < 75)
       let cteNumber = '';
       let docType = 'CT';
 
-      // 1. Tenta identificar no início do texto consolidado da linha
-      const startTextMatch = lineText.match(/^(\d{1,8})\s*(?:C\s*([TE])|([A-Z]{1,2}))?\b/i);
-      if (startTextMatch && parseInt(startTextMatch[1], 10) > 0) {
-        cteNumber = startTextMatch[1];
-        docType = (startTextMatch[2] || startTextMatch[3] || 'CT').toUpperCase().includes('E') ? 'CE' : 'CT';
+      const cteItem = row.find(it => it.transform[4] < 75 && /^\d{1,8}$/.test(it.str.trim()) && parseInt(it.str.trim(), 10) > 0);
+      if (cteItem) {
+        cteNumber = cteItem.str.trim();
+        const typeItem = row.find(it => it.transform[4] >= cteItem.transform[4] && it.transform[4] <= 90 && /^[CT|CE]/i.test(it.str.trim()));
+        docType = (typeItem?.str || 'CT').toUpperCase().includes('E') ? 'CE' : 'CT';
       } else {
-        // 2. Tenta por itens no início da linha (X < 75)
-        const cteItem = row.find(it => it.transform[4] < 75 && /^\d{1,8}$/.test(it.str.trim()) && parseInt(it.str.trim(), 10) > 0);
-        if (cteItem) {
-          const typeItem = row.find(it => it.transform[4] >= cteItem.transform[4] && it.transform[4] <= 90 && /^[CT|CE]/i.test(it.str.trim()));
-          cteNumber = cteItem.str.trim();
-          docType = (typeItem?.str || 'CT').toUpperCase().includes('E') ? 'CE' : 'CT';
+        // Fallback: somente se houver data de emissão ou placa no texto (evita totalizadores como "152 6.203,570...")
+        const hasDateOrPlate = /\b\d{2}\/\d{2}(?:\/\d{2,4})?\b/.test(lineText) ||
+          /\b([A-Za-z]{3}[0-9][A-Za-z0-9][0-9]{2}|[A-Za-z]{3}-?[0-9]{4})\b/.test(lineText);
+        if (hasDateOrPlate) {
+          const startTextMatch = lineText.match(/^(\d{1,8})\s*(?:C\s*([TE])|([A-Z]{1,2}))?\b/i);
+          if (startTextMatch && parseInt(startTextMatch[1], 10) > 0) {
+            cteNumber = startTextMatch[1];
+            docType = (startTextMatch[2] || startTextMatch[3] || 'CT').toUpperCase().includes('E') ? 'CE' : 'CT';
+          }
         }
       }
 
@@ -583,6 +643,10 @@ const extractAtuaFromCoordinates = (allPagesItems: any[][]): AtuaCteRecord[] => 
         const anyDate = lineText.match(/\b(\d{2}\/\d{2}(?:\/\d{2,4})?)\b/);
         if (anyDate) emissionDate = normalizeDate(anyDate[1]);
       }
+
+      // Regra de Integridade Fiscal: Se a linha não tiver data de emissão nem placa de veículo,
+      // trata-se de totalizador de rodapé do relatório (ex: somatório e contagem de 152 CTRCs) e DEVE ser descartada!
+      if (!emissionDate && !plate) continue;
 
       // Verificação de Cancelado (X entre 45 e 70)
       const cancelItem = validItems.find(it => it.transform[4] >= 45 && it.transform[4] <= 70 && /\d{2}\/\d{2}/.test(it.str));

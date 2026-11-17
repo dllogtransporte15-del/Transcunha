@@ -27,6 +27,35 @@ export interface SystemRelease {
  */
 export const SYSTEM_RELEASES: SystemRelease[] = [
   {
+    id: 'rel_2026_11_17_v2_116_22',
+    version: 'v2.116.22',
+    date: '17/11/2026',
+    title: 'Resolução Definitiva dos Pendentes Atua: CT-es Cancelados/Substituídos, Placas Mercosul e Pareamento Resiliente',
+    summary: 'Identificada e solucionada a causa raiz dos 23 itens reportados como "Pendente Atua" na reconciliação fiscal. O sistema agora distingue reemissões fiscais (CT-es cancelados que foram substituídos na SEFAZ, como 36 substituído por 40) de bipartição real (bi-trem), não desmembrando cargas indevidamente nem criando registros fantasmas. Além disso, foi implementada equivalência inteligente para placas Mercosul/OCR (S vs 5) e pareamento heurístico resiliente para frotas gêmeas.',
+    items: [
+      {
+        category: 'fix',
+        title: 'Tratamento de CT-es Cancelados e Reemitidos na Reconciliação',
+        description: 'Embarques com histórico de cancelamento e substituição (ex: CT-e 36 cancelado substituído pelo CT-e 40 ativo na placa BWY6A52) agora operam estritamente sobre o CT-e ativo com 100% do peso e frete, eliminando a criação de linhas fantasmas pendentes para o CT-e antigo cancelado.'
+      },
+      {
+        category: 'improvement',
+        title: 'Equivalência Inteligente de Placas Mercosul e Tolerância OCR',
+        description: 'Adicionada a função arePlatesMatching com conversão bidirecional do padrão Mercosul e tolerância a confusões comuns de digitação ou OCR (ex: EKH1S15 no Transcunha vs EKH1515 no Atua TMS), assegurando pareamento perfeito.'
+      },
+      {
+        category: 'fix',
+        title: 'Pareamento Heurístico Resiliente para Frotas Gêmeas',
+        description: 'Embarques com discrepância cruzada de CT-e e veículo da mesma frota (ex: CT-e 2090/TCI2C17 no Atua vs 2091/TCI2C30 no Transcunha) são agora pareados com precisão por data, tarifa por tonelada, peso e pedágio idênticos, recebendo status Divergente com auditoria clara em vez de ficarem como falso Pendente Atua.'
+      },
+      {
+        category: 'fix',
+        title: 'Descarte Automático da Linha Totalizadora do Relatório Atua',
+        description: 'Corrigido o leitor do PDF CTRC do Atua para ignorar a linha de resumo/totalizador de rodapé (que exibia a contagem de 152 CTRCs emitidos e totais financeiros de R$ 995 mil), impedindo que o número 152 fosse incorretamente interpretado como um número de CT-e e gerasse um falso Órfão Atua.'
+      }
+    ]
+  },
+  {
     id: 'rel_2026_11_16_v2_116_21',
     version: 'v2.116.21',
     date: '16/11/2026',

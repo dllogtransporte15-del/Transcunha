@@ -47,6 +47,7 @@ import {
   type TranscunhaReportRecord,
   type AtuaReportParseResult,
   normalizePlate,
+  arePlatesMatching,
   normalizeDate 
 } from '../utils/atuaReportParser';
 
@@ -469,11 +470,22 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
   };
 
   // Função auxiliar para extração estrita de todos os números de CT-e do embarque
-  // NOTA CRÍTICA: Suporta múltiplos CT-es (ex: "2112/2111", "2112, 2111", bi-trem/múltiplas NFs)
-  // 'codigo_atua' é código interno/ordem e NÃO deve ser usado como número fiscal de CT-e.
-  const extractShipmentCteNumbers = (s: Shipment): { raw: string; list: string[] } => {
-    if (!s) return { raw: '', list: [] };
+  // NOTA CRÍTICA: Suporta múltiplos CT-es (ex: "2112/2111", bi-trem/múltiplas NFs)
+  // e trata com precisão substituições de cancelamento (ex: 36 cancelado substituído pelo ativo 40).
+  const extractShipmentCteNumbers = (s: Shipment): { raw: string; list: string[]; cancelledList: string[] } => {
+    if (!s) return { raw: '', list: [], cancelledList: [] };
     const numbersFound = new Set<string>();
+    const cancelledList: string[] = [];
+
+    // Extrai lista de CT-es cancelados, se houver
+    if (Array.isArray(s.documents?.cancelled_ctes)) {
+      for (const c of s.documents.cancelled_ctes) {
+        const cNum = String(c?.cteNumber || '').trim().replace(/[^0-9]/g, '');
+        if (cNum && !cancelledList.includes(cNum)) {
+          cancelledList.push(cNum);
+        }
+      }
+    }
 
     const addCandidatesFromText = (txt: string) => {
       if (!txt) return;
@@ -485,6 +497,19 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
         }
       }
     };
+
+    // Se houver active_cte_number explícito (caso de reemissão fiscal após cancelamento)
+    const activeDirect = s.documents?.active_cte_number || (s as any)?.activeCteNumber;
+    if (activeDirect && String(activeDirect).trim() !== '' && String(activeDirect).trim() !== '-') {
+      const cleanActive = String(activeDirect).trim().replace(/[^0-9]/g, '');
+      if (cleanActive) {
+        return {
+          raw: cleanActive,
+          list: [cleanActive],
+          cancelledList
+        };
+      }
+    }
 
     // 1. Número explícito de CT-e cadastrado no embarque
     const direct = s.cteNumber || s.documents?.cte_number || s.documents?.cteNumber;
@@ -504,14 +529,7 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
       addCandidatesFromText(helperVal);
     }
 
-    // 3. Extração de s.documents.cancelled_ctes se houver
-    if (Array.isArray(s.documents?.cancelled_ctes)) {
-      for (const c of s.documents.cancelled_ctes) {
-        if (c?.cteNumber) addCandidatesFromText(String(c.cteNumber));
-      }
-    }
-
-    // 4. Extração de nomes de arquivos anexos
+    // 3. Extração de nomes de arquivos anexos
     const cteDocs = s.documents?.['CT-e'] || s.documents?.['CT-E'] || s.documents?.['cte'] || s.documents?.['Cte'] || s.documents?.['DACTE'];
     if (Array.isArray(cteDocs)) {
       for (const item of cteDocs) {
@@ -535,10 +553,20 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
       }
     }
 
-    const list = Array.from(numbersFound);
+    // Se houver CT-es cancelados registrados, remove da lista de ativos para não desmembrar carga nem gerar órfão fantasma
+    let activeCandidates = Array.from(numbersFound);
+    if (cancelledList.length > 0) {
+      const nonCancelled = activeCandidates.filter(n => !cancelledList.includes(n));
+      if (nonCancelled.length > 0) {
+        activeCandidates = nonCancelled;
+        rawStr = nonCancelled.join('/');
+      }
+    }
+
     return {
-      raw: rawStr || list.join('/'),
-      list
+      raw: rawStr || activeCandidates.join('/'),
+      list: activeCandidates,
+      cancelledList
     };
   };
 
@@ -717,68 +745,41 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
         });
       } else {
         // Embarque com múltiplos CT-es (ex: 2112/2111 - carreta/bi-trem/múltiplas NFs)
-        cteInfo.list.forEach((cteNum, idx) => {
-          const atuaRecForCte = (atuaResult?.records || []).find(r => r.cteNumber.replace(/[^0-9]/g, '') === cteNum);
-          
-          let cteWeight = 0;
-          if (atuaRecForCte && atuaRecForCte.weight > 0) {
-            cteWeight = atuaRecForCte.weight;
-          } else if (weight > 0) {
-            cteWeight = Number((weight / cteInfo.list.length).toFixed(3));
-          }
+        // Inteligência: verifica no Atua quais CT-es realmente pertencem a este caminhão (placa).
+        // Se apenas 1 CT-e da lista pertencer a este caminhão no Atua (ex: 40 para BWY6A52, onde 36 pertencia a outro caminhão),
+        // NÃO desmembra a carga nem gera órfão fantasma!
+        const matchingCtesInAtua = atuaResult?.records
+          ? cteInfo.list.filter(cteNum => 
+              atuaResult.records.some(r => 
+                r.cteNumber.replace(/[^0-9]/g, '') === cteNum && 
+                arePlatesMatching(r.plate, s.horsePlate)
+              )
+            )
+          : [];
 
-          let cteCompanyFreight = 0;
-          if (companyRatePerTon > 0 && cteWeight > 0) {
-            cteCompanyFreight = Number((cteWeight * companyRatePerTon).toFixed(2));
-          } else if (weight > 0 && cteWeight > 0) {
-            cteCompanyFreight = Number((baseCompanyFreight * (cteWeight / weight)).toFixed(2));
-          } else {
-            cteCompanyFreight = Number((baseCompanyFreight / cteInfo.list.length).toFixed(2));
-          }
+        const hasExplicitSubCtes = Array.isArray(s.subCtes) && s.subCtes.length > 1;
 
-          let cteDriverFreight = 0;
-          if (driverRatePerTon > 0 && cteWeight > 0) {
-            cteDriverFreight = Number((cteWeight * driverRatePerTon).toFixed(2));
-          } else if (weight > 0 && cteWeight > 0) {
-            cteDriverFreight = Number((baseDriverFreight * (cteWeight / weight)).toFixed(2));
-          } else {
-            cteDriverFreight = Number((baseDriverFreight / cteInfo.list.length).toFixed(2));
-          }
-
-          const cteToll = (weight > 0 && cteWeight > 0)
-            ? Number((toll * (cteWeight / weight)).toFixed(2))
-            : Number((toll / cteInfo.list.length).toFixed(2));
-
-          const cteIcms = (weight > 0 && cteWeight > 0)
-            ? Number((icms * (cteWeight / weight)).toFixed(2))
-            : Number((icms / cteInfo.list.length).toFixed(2));
-
-          const cteFederalTax = (weight > 0 && cteWeight > 0)
-            ? Number((federalTax * (cteWeight / weight)).toFixed(2))
-            : Number((federalTax / cteInfo.list.length).toFixed(2));
-
-          const cteFreightDifference = cteCompanyFreight - cteDriverFreight;
-          const cteNetProfit = cteFreightDifference - cteToll - cteIcms - cteFederalTax;
-
+        if (!hasExplicitSubCtes && matchingCtesInAtua.length === 1) {
+          const singleCte = matchingCtesInAtua[0];
           items.push({
-            key: `${s.id}-cte-${cteNum}-${idx}`,
-            cteNumber: cteNum,
-            displayCte: cteInfo.raw,
-            allCteNumbers: cteInfo.list,
+            key: `${s.id}-base-${singleCte}`,
+            cteNumber: singleCte,
+            displayCte: cteInfo.raw || singleCte,
+            allCteNumbers: cteInfo.list.length > 0 ? cteInfo.list : [singleCte],
             shipment: s,
             cargo,
             isComplementary: false,
-            weight: cteWeight,
-            companyFreight: cteCompanyFreight,
+            weight,
+            companyFreight: baseCompanyFreight,
             companyRatePerTon,
-            driverFreight: cteDriverFreight,
+            driverFreight: baseDriverFreight,
             driverRatePerTon,
-            toll: cteToll,
-            freightDifference: cteFreightDifference,
-            icms: cteIcms,
-            federalTax: cteFederalTax,
-            totalExpenses: Number((calculatedExpenses.totalExpenses / cteInfo.list.length).toFixed(2)),
-            netProfit: cteNetProfit,
+            toll,
+            freightDifference: baseFreightDifference,
+            icms,
+            federalTax,
+            totalExpenses: calculatedExpenses.totalExpenses,
+            netProfit: baseNetProfit,
             plate: normalizePlate(s.horsePlate),
             date: shipmentEffectiveDate,
             clientName,
@@ -788,7 +789,84 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
             branchUf: branchUf || '',
             branchName: branchName || ''
           });
-        });
+        } else {
+          // Bipartição real (ex: FEL-818 com 2111 e 2112 para BAX6I08)
+          cteInfo.list.forEach((cteNum, idx) => {
+            const atuaRecForCte = (atuaResult?.records || []).find(r => 
+              r.cteNumber.replace(/[^0-9]/g, '') === cteNum &&
+              arePlatesMatching(r.plate, s.horsePlate)
+            ) || (atuaResult?.records || []).find(r => r.cteNumber.replace(/[^0-9]/g, '') === cteNum);
+          
+            let cteWeight = 0;
+            if (atuaRecForCte && atuaRecForCte.weight > 0) {
+              cteWeight = atuaRecForCte.weight;
+            } else if (weight > 0) {
+              cteWeight = Number((weight / cteInfo.list.length).toFixed(3));
+            }
+
+            let cteCompanyFreight = 0;
+            if (companyRatePerTon > 0 && cteWeight > 0) {
+              cteCompanyFreight = Number((cteWeight * companyRatePerTon).toFixed(2));
+            } else if (weight > 0 && cteWeight > 0) {
+              cteCompanyFreight = Number((baseCompanyFreight * (cteWeight / weight)).toFixed(2));
+            } else {
+              cteCompanyFreight = Number((baseCompanyFreight / cteInfo.list.length).toFixed(2));
+            }
+
+            let cteDriverFreight = 0;
+            if (driverRatePerTon > 0 && cteWeight > 0) {
+              cteDriverFreight = Number((cteWeight * driverRatePerTon).toFixed(2));
+            } else if (weight > 0 && cteWeight > 0) {
+              cteDriverFreight = Number((baseDriverFreight * (cteWeight / weight)).toFixed(2));
+            } else {
+              cteDriverFreight = Number((baseDriverFreight / cteInfo.list.length).toFixed(2));
+            }
+
+            const cteToll = (weight > 0 && cteWeight > 0)
+              ? Number((toll * (cteWeight / weight)).toFixed(2))
+              : Number((toll / cteInfo.list.length).toFixed(2));
+
+            const cteIcms = (weight > 0 && cteWeight > 0)
+              ? Number((icms * (cteWeight / weight)).toFixed(2))
+              : Number((icms / cteInfo.list.length).toFixed(2));
+
+            const cteFederalTax = (weight > 0 && cteWeight > 0)
+              ? Number((federalTax * (cteWeight / weight)).toFixed(2))
+              : Number((federalTax / cteInfo.list.length).toFixed(2));
+
+            const cteFreightDifference = cteCompanyFreight - cteDriverFreight;
+            const cteNetProfit = cteFreightDifference - cteToll - cteIcms - cteFederalTax;
+
+            items.push({
+              key: `${s.id}-cte-${cteNum}-${idx}`,
+              cteNumber: cteNum,
+              displayCte: cteInfo.raw,
+              allCteNumbers: cteInfo.list,
+              shipment: s,
+              cargo,
+              isComplementary: false,
+              weight: cteWeight,
+              companyFreight: cteCompanyFreight,
+              companyRatePerTon,
+              driverFreight: cteDriverFreight,
+              driverRatePerTon,
+              toll: cteToll,
+              freightDifference: cteFreightDifference,
+              icms: cteIcms,
+              federalTax: cteFederalTax,
+              totalExpenses: Number((calculatedExpenses.totalExpenses / cteInfo.list.length).toFixed(2)),
+              netProfit: cteNetProfit,
+              plate: normalizePlate(s.horsePlate),
+              date: shipmentEffectiveDate,
+              clientName,
+              origin: cargo?.origin || '',
+              destination: cargo?.destination || '',
+              driverName: s.driverName || '---',
+              branchUf: branchUf || '',
+              branchName: branchName || ''
+            });
+          });
+        }
       }
 
       // Sub-linha de CT-e Complementar de Estadia (apenas se possuir CT-e complementar emitido)
@@ -952,18 +1030,18 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
         if (cteCandidates.length > 0) {
           // 1. Prioridade máxima: Mesma Placa E Mesma UF
           const exactMatch = cteCandidates.find(t => 
-            t.plate === atuaPlateClean && 
+            arePlatesMatching(t.plate, atuaPlateClean) && 
             atuaUf && t.branchUf && atuaUf === t.branchUf
           );
 
           if (exactMatch) {
             match = exactMatch;
           } else {
-            // 2. Mesma Placa (veículo confere com o CT-e)
+            // 2. Mesma Placa (veículo confere com o CT-e com suporte a Mercosul/OCR)
             const samePlateMatch = cteCandidates.find(t => 
-              t.plate === atuaPlateClean ||
-              normalizePlate(t.shipment?.trailer1Plate || '') === atuaPlateClean ||
-              normalizePlate(t.shipment?.trailer2Plate || '') === atuaPlateClean
+              arePlatesMatching(t.plate, atuaPlateClean) ||
+              arePlatesMatching(t.shipment?.trailer1Plate, atuaPlateClean) ||
+              arePlatesMatching(t.shipment?.trailer2Plate, atuaPlateClean)
             );
 
             if (samePlateMatch) {
@@ -991,12 +1069,12 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
 
       // Fase 2: Pareamento por Placa Normalizada + Data de Emissão/Embarque (para auditar numeração de CT-e ou ausência de CT-e)
       if (!match && atuaPlateClean) {
-        // Busca exata por placa e data
+        // Busca exata por placa e data (com suporte a placa Mercosul)
         const exactMatches = enrichedTranscunhaData.filter(t => 
           !matchedTranscunhaKeys.has(t.key) && 
-          (t.plate === atuaPlateClean ||
-           normalizePlate(t.shipment?.trailer1Plate || '') === atuaPlateClean ||
-           normalizePlate(t.shipment?.trailer2Plate || '') === atuaPlateClean) && 
+          (arePlatesMatching(t.plate, atuaPlateClean) ||
+           arePlatesMatching(t.shipment?.trailer1Plate, atuaPlateClean) ||
+           arePlatesMatching(t.shipment?.trailer2Plate, atuaPlateClean)) && 
           t.date === atuaDateClean
         );
 
@@ -1022,9 +1100,9 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
           // Tolerância de data (até 3 dias de diferença entre data do agendamento/embarque e emissão do CT-e)
           const nearDateMatches = enrichedTranscunhaData.filter(t => {
             if (matchedTranscunhaKeys.has(t.key)) return false;
-            const samePlate = (t.plate === atuaPlateClean ||
-              normalizePlate(t.shipment?.trailer1Plate || '') === atuaPlateClean ||
-              normalizePlate(t.shipment?.trailer2Plate || '') === atuaPlateClean);
+            const samePlate = (arePlatesMatching(t.plate, atuaPlateClean) ||
+              arePlatesMatching(t.shipment?.trailer1Plate, atuaPlateClean) ||
+              arePlatesMatching(t.shipment?.trailer2Plate, atuaPlateClean));
             if (!samePlate) return false;
             if (!t.date || !atuaDateClean) return false;
             const diffDays = Math.abs((new Date(t.date).getTime() - new Date(atuaDateClean).getTime()) / (1000 * 60 * 60 * 24));
@@ -1050,6 +1128,33 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
               });
             }
           }
+        }
+      }
+
+      // Fase 2.5: Pareamento Heurístico Resiliente para Frotas Gêmeas e Reemissões Fiscais (ex: TCI2C17 vs TCI2C30 com CT-e 2090 vs 2091)
+      if (!match) {
+        const potentialTwinMatches = enrichedTranscunhaData.filter(t => {
+          if (matchedTranscunhaKeys.has(t.key)) return false;
+          if (!t.date || !atuaDateClean) return false;
+          const diffDays = Math.abs((new Date(t.date).getTime() - new Date(atuaDateClean).getTime()) / (1000 * 60 * 60 * 24));
+          if (diffDays > 2) return false;
+
+          const sameCompRate = t.companyRatePerTon > 0 && atuaCompanyRate > 0 && Math.abs(t.companyRatePerTon - atuaCompanyRate) <= 0.50;
+          const sameDrivRate = t.driverRatePerTon > 0 && atuaDriverRate > 0 && Math.abs(t.driverRatePerTon - atuaDriverRate) <= 0.50;
+          if (!sameCompRate && !sameDrivRate) return false;
+
+          const sameToll = (t.toll > 0 && atuaRec.toll > 0 && Math.abs(t.toll - atuaRec.toll) <= 2.0);
+          const sameWeight = (t.weight > 0 && atuaWeight > 0 && Math.abs(t.weight - atuaWeight) <= 1.0);
+          
+          const platePrefix1 = (t.plate || '').slice(0, 4);
+          const platePrefix2 = (atuaPlateClean || '').slice(0, 4);
+          const samePlatePrefix = platePrefix1.length >= 3 && platePrefix1 === platePrefix2;
+
+          return (sameCompRate && sameDrivRate && (sameToll || sameWeight || samePlatePrefix));
+        });
+
+        if (potentialTwinMatches.length === 1) {
+          match = potentialTwinMatches[0];
         }
       }
 
@@ -1390,8 +1495,12 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
           const trailer2 = normalizePlate(pending.shipment?.trailer2Plate || '');
           const trailer3 = normalizePlate(pending.shipment?.trailer3Plate || '');
 
-          const exactPlateMatch = orphanPlate && (orphanPlate === pendingCavalo);
-          const trailerPlateMatch = orphanPlate && (orphanPlate === trailer1 || orphanPlate === trailer2 || orphanPlate === trailer3);
+          const exactPlateMatch = orphanPlate && arePlatesMatching(orphanPlate, pendingCavalo);
+          const trailerPlateMatch = orphanPlate && (
+            arePlatesMatching(orphanPlate, trailer1) || 
+            arePlatesMatching(orphanPlate, trailer2) || 
+            arePlatesMatching(orphanPlate, trailer3)
+          );
 
           if (exactPlateMatch) {
             score += 40;
