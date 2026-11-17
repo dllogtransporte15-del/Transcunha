@@ -811,6 +811,7 @@ export const toShipment = (row: any): Shipment => {
     driverFreightType: row.driver_freight_type || docs.driver_freight_type || 'PJ',
     cteNumber: row.cte_number || docs.cte_number || (getShipmentCte({ status: row.status, documents: docs }) !== '-' ? getShipmentCte({ status: row.status, documents: docs }) : undefined),
     cteEmissionDate: row.cte_emission_date || docs.cte_emission_date || (getShipmentCteEmissionDate({ status: row.status, documents: docs }) || undefined),
+    subCtes: row.sub_ctes || docs.sub_ctes || docs.subCtes || undefined,
     ciotNumber: row.ciot_number || docs.ciot_number || docs.ciot || docs.ciotNumber || (row.ciot && row.ciot !== row.id ? row.ciot : (getShipmentCiotNumber({ id: row.id, documents: docs }) !== '-' ? getShipmentCiotNumber({ id: row.id, documents: docs }) : undefined)),
     ciot: row.ciot || docs.ciot || docs.ciot_number || docs.ciotNumber || (row.ciot_number && row.ciot_number !== row.id ? row.ciot_number : (getShipmentCiotNumber({ id: row.id, documents: docs }) !== '-' ? getShipmentCiotNumber({ id: row.id, documents: docs }) : undefined)),
     nfeNumber: row.nfe_number || docs.nfe_number,

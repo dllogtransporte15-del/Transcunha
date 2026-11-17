@@ -133,45 +133,45 @@ const detectShipmentUf = (
 // Helper para detectar a UF e Filial do registro no relatório Atua TMS
 const detectAtuaRecordUf = (
   rec: AtuaCteRecord
-): { uf: string; branchName: string } => {
-  // 1. Extração pela cidade de origem (ex: "UBERLANDIA / MG", "RIO VERDE / GO")
+): { uf: string; branchName: string; originUf: string } => {
+  let originUf = '';
   const originCity = (rec.originCity || '').trim();
   if (originCity) {
     const match = originCity.match(/\/\s*([A-Za-z]{2})\s*$/) || originCity.match(/-\s*([A-Za-z]{2})\s*$/);
     if (match && VALID_BRAZILIAN_UFS.has(match[1].toUpperCase())) {
-      return { uf: match[1].toUpperCase(), branchName: rec.branch || '' };
+      originUf = match[1].toUpperCase();
     }
   }
 
-  // 2. Extração pelo campo de filial do Atua (rec.branch)
+  // 1. Extração prioritária pelo campo de filial emissora do Atua (rec.branch)
   const branchText = (rec.branch || '').trim();
-  if (branchText) {
+  if (branchText && branchText.toUpperCase() !== 'TRANSCUNHA') {
     // Procura sigla de UF isolada no texto da filial (ex: "FILIAL MG", "UBERLANDIA-MG")
     const matchUf = branchText.match(/\b([A-Za-z]{2})\b/);
     if (matchUf && VALID_BRAZILIAN_UFS.has(matchUf[1].toUpperCase())) {
-      return { uf: matchUf[1].toUpperCase(), branchName: branchText };
+      return { uf: matchUf[1].toUpperCase(), branchName: branchText, originUf };
     }
     
     // Mapeamento por cidades conhecidas
     const upper = branchText.toUpperCase();
     if (upper.includes('UBERLANDIA') || upper.includes('UBERABA') || upper.includes('CONTAGEM') || upper.includes('MINAS') || upper.includes('ARAGUARI') || upper.includes('PATOS')) {
-      return { uf: 'MG', branchName: branchText };
+      return { uf: 'MG', branchName: branchText, originUf };
     }
     if (upper.includes('GOIANIA') || upper.includes('RIO VERDE') || upper.includes('ANAPOLIS') || upper.includes('JATAI') || upper.includes('ITUMBIARA')) {
-      return { uf: 'GO', branchName: branchText };
+      return { uf: 'GO', branchName: branchText, originUf };
     }
     if (upper.includes('SAO PAULO') || upper.includes('SANTOS') || upper.includes('CAMPINAS') || upper.includes('BARRETOS')) {
-      return { uf: 'SP', branchName: branchText };
+      return { uf: 'SP', branchName: branchText, originUf };
     }
     if (upper.includes('RONDONOPOLIS') || upper.includes('CUIABA') || upper.includes('SINOP') || upper.includes('SORRISO') || upper.includes('MUTUM')) {
-      return { uf: 'MT', branchName: branchText };
+      return { uf: 'MT', branchName: branchText, originUf };
     }
     if (upper.includes('CURITIBA') || upper.includes('PARANAGUA') || upper.includes('MARINGA') || upper.includes('LONDRINA')) {
-      return { uf: 'PR', branchName: branchText };
+      return { uf: 'PR', branchName: branchText, originUf };
     }
   }
 
-  return { uf: '', branchName: branchText || '' };
+  return { uf: '', branchName: branchText || '', originUf };
 };
 
 interface AtuaReconciliationPageProps {
@@ -969,19 +969,15 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
             if (samePlateMatch) {
               match = samePlateMatch;
             } else if (cteCandidates.length === 1) {
-              // Apenas 1 candidato no período com este número de CT-e
-              const cand = cteCandidates[0];
-              const isUfCompatible = !atuaUf || !cand.branchUf || atuaUf === cand.branchUf;
-              if (isUfCompatible) {
-                match = cand;
-              } else {
-                // Se a UF é comprovadamente diferente e placas diferentes, é de outro estado
-                match = undefined;
-              }
+              // Apenas 1 candidato no período com este número de CT-e -> Match direto!
+              match = cteCandidates[0];
             } else {
-              // Múltiplos candidatos: filtra por UF compatível se possível
-              const sameUfCandidates = atuaUf ? cteCandidates.filter(t => t.branchUf === atuaUf) : cteCandidates;
-              const pool = sameUfCandidates.length > 0 ? sameUfCandidates : cteCandidates;
+              // Múltiplos candidatos: prioriza filial compatível ou cidade de origem, depois menor delta de valores
+              const sameUfCandidates = atuaUf ? cteCandidates.filter(t => t.branchUf === atuaUf) : [];
+              const sameOriginCandidates = atuaUfInfo.originUf ? cteCandidates.filter(t => t.branchUf === atuaUfInfo.originUf) : [];
+              const pool = sameUfCandidates.length > 0 
+                ? sameUfCandidates 
+                : (sameOriginCandidates.length > 0 ? sameOriginCandidates : cteCandidates);
               
               match = pool.reduce((best, cur) => {
                 const diffBest = Math.abs(best.weight - atuaWeight) + Math.abs(best.companyFreight - atuaRec.companyFreight) / 1000;

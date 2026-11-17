@@ -185,28 +185,37 @@ export const parseAtuaTextLine = (line: string): AtuaCteRecord | null => {
   // "2053 C T 01/10/26 09:49 T R 1 / MATRI ..."
   // "2053 CT 01/10/26 09:49 TR 1 / MATRI ..."
   // "1 C T 02/10/26 16:24 ..."
-  const startMatch = cleaned.match(/^(\d+)\s+C\s*([TE])\s+(?:(\d{2}\/\d{2})\s+)?(\d{2}\/\d{2}\/\d{2,4})(?:\s+(\d{2}:\d{2}))?/i);
-  let cteNumber = '';
-  let docType = 'CT';
+  // "28 CT 23/10/26 ..."
+  // Suporta CT-es de 1 a 8 dígitos, com ou sem espaçamento em 'C T' ou 'CT' / 'CE'
+  const headerOrPrefix = cleaned.match(/^(\d{1,8})\s*(?:C\s*([TE])|([A-Z]{1,2}))?\b/i);
+  if (!headerOrPrefix) return null;
+
+  const cteNumber = headerOrPrefix[1];
+  const docType = (headerOrPrefix[2] || headerOrPrefix[3] || 'CT').toUpperCase().includes('E') ? 'CE' : 'CT';
+
+  // Procura data de emissão na linha (DD/MM/AA ou DD/MM/AAAA)
+  const allDates = Array.from(cleaned.matchAll(/\b(\d{2}\/\d{2}(?:\/\d{2,4})?)\b/g));
   let emissionDate = '';
   let emissionTime = '';
+  let isCanceled = cleaned.includes('CANCELADO') || cleaned.includes('Canc.');
+  let cancelDate: string | undefined = undefined;
 
-  if (startMatch) {
-    cteNumber = startMatch[1];
-    docType = 'C' + startMatch[2].toUpperCase();
-    emissionDate = normalizeDate(startMatch[4]);
-    emissionTime = startMatch[5] || '';
-  } else {
-    // Tenta formato condensado ou alternativo
-    const altMatch = cleaned.match(/^(\d+)\s+(?:C\s*([TE])\s+)?(\d{2}\/\d{2}\/\d{2,4})/i);
-    if (!altMatch) return null;
-    cteNumber = altMatch[1];
-    docType = altMatch[2] ? 'C' + altMatch[2].toUpperCase() : 'CT';
-    emissionDate = normalizeDate(altMatch[3]);
+  if (allDates.length >= 2 && (isCanceled || cleaned.includes('Canc'))) {
+    // Se há 2 datas e a coluna é de cancelamento
+    cancelDate = normalizeDate(allDates[0][1]);
+    emissionDate = normalizeDate(allDates[1][1]);
+  } else if (allDates.length > 0) {
+    emissionDate = normalizeDate(allDates[0][1]);
+  }
+
+  const timeMatch = cleaned.match(/\b(\d{2}:\d{2})\b/);
+  if (timeMatch) {
+    emissionTime = timeMatch[1];
   }
 
   // Procura padrão de placa Mercosul ou tradicional (7 caracteres alfanuméricos com 3 letras no início)
-  const plateMatch = cleaned.match(/\b([A-Z]{3}[A-Z0-9]{4})\b/i);
+  const plateMatch = cleaned.match(/\b([A-Za-z]{3}[0-9][A-Za-z0-9][0-9]{2})\b/) ||
+                     cleaned.match(/\b([A-Za-z]{3}-?[0-9]{4})\b/);
   const plate = plateMatch ? normalizePlate(plateMatch[1]) : '';
 
   // Extração do Pagador (Tomador do frete) que antecede a placa no relatório
@@ -228,7 +237,11 @@ export const parseAtuaTextLine = (line: string): AtuaCteRecord | null => {
   }
 
   // Remove nomes de cidades do final para não confundir com números
-  const cityRegex = /(?:[A-Z\s]{4,}\s*\/\s*[A-Z]{2})/g;
+  const cityRegex = /(?:[A-Za-zÀ-ÿ\s]{3,}\s*\/\s*[A-Za-z]{2})/g;
+  const citiesFound = Array.from(afterPlate.matchAll(cityRegex)).map(m => m[0].trim());
+  const originCity = citiesFound[0] || '';
+  const destinationCity = citiesFound[1] || '';
+
   const withoutCities = afterPlate.replace(cityRegex, '');
 
   const numbersFound: number[] = [];
@@ -241,7 +254,7 @@ export const parseAtuaTextLine = (line: string): AtuaCteRecord | null => {
     }
   }
 
-  if (numbersFound.length < 3) {
+  if (numbersFound.length < 2) {
     return null;
   }
 
@@ -280,7 +293,8 @@ export const parseAtuaTextLine = (line: string): AtuaCteRecord | null => {
   return {
     cteNumber,
     docType,
-    isCanceled: cleaned.includes('CANCELADO') || cleaned.includes('Canc.'),
+    isCanceled,
+    cancelDate,
     emissionDate,
     emissionTime,
     branch: 'Transcunha',
@@ -297,6 +311,8 @@ export const parseAtuaTextLine = (line: string): AtuaCteRecord | null => {
     federalTax,
     otherCosts,
     result,
+    originCity,
+    destinationCity,
     isComplementary,
     rawLine: trimmed
   };
@@ -496,101 +512,168 @@ const extractAtuaFromCoordinates = (allPagesItems: any[][]): AtuaCteRecord[] => 
       const row = rowsMap.get(y)!;
       row.sort((a, b) => a.transform[4] - b.transform[4]);
 
-      // Verifica se é uma linha de CT-e: número antes de X=45 e 'C'/'CT' em X 35..60
-      const cteItem = row.find(it => it.transform[4] < 45 && /^\d+$/.test(it.str.trim()));
-      const typeItem = row.find(it => it.transform[4] >= 35 && it.transform[4] <= 60 && /^[CT|CE]/i.test(it.str.trim()));
-
-      if (!cteItem || !typeItem) continue;
-
       // Ignora itens de rodapé que possam compartilhar a mesma linha Y
       const validItems = row.filter(it => 
         !it.str.includes('Desenvolvido') && 
         !it.str.includes('maisfrete') && 
-        it.transform[4] < 840
+        it.transform[4] < 860
       );
 
-      const cteNumber = cteItem.str.trim();
+      const lineText = validItems.map(it => it.str).join(' ').trim();
+      if (!lineText) continue;
 
-      // Placa (X entre 270 e 325)
+      if (
+        lineText.includes('Ambiente de Produção') ||
+        lineText.includes('Relatório:') ||
+        lineText.startsWith('Número') ||
+        lineText.startsWith('T. =') ||
+        lineText.startsWith('Vl. Out.') ||
+        lineText.startsWith('Vl. Resultado')
+      ) {
+        continue;
+      }
+
+      // Detecção flexível do número do CT-e e tipo (suporta números de 1 a 8 dígitos)
+      let cteNumber = '';
+      let docType = 'CT';
+
+      // 1. Tenta identificar no início do texto consolidado da linha
+      const startTextMatch = lineText.match(/^(\d{1,8})\s*(?:C\s*([TE])|([A-Z]{1,2}))?\b/i);
+      if (startTextMatch && parseInt(startTextMatch[1], 10) > 0) {
+        cteNumber = startTextMatch[1];
+        docType = (startTextMatch[2] || startTextMatch[3] || 'CT').toUpperCase().includes('E') ? 'CE' : 'CT';
+      } else {
+        // 2. Tenta por itens no início da linha (X < 75)
+        const cteItem = row.find(it => it.transform[4] < 75 && /^\d{1,8}$/.test(it.str.trim()) && parseInt(it.str.trim(), 10) > 0);
+        if (cteItem) {
+          const typeItem = row.find(it => it.transform[4] >= cteItem.transform[4] && it.transform[4] <= 90 && /^[CT|CE]/i.test(it.str.trim()));
+          cteNumber = cteItem.str.trim();
+          docType = (typeItem?.str || 'CT').toUpperCase().includes('E') ? 'CE' : 'CT';
+        }
+      }
+
+      if (!cteNumber) continue;
+
+      // Placa: Busca prioritária por coordenada (240..360), com fallback regex na linha
+      let plate = '';
       const plateItem = validItems.find(it => {
         const cleanedStr = it.str.replace(/[^A-Za-z0-9]/g, '');
-        return it.transform[4] >= 270 && 
-          it.transform[4] <= 325 && 
-          /^[A-Za-z]{3}[A-Za-z0-9]{4}$/.test(cleanedStr);
+        return it.transform[4] >= 240 && 
+          it.transform[4] <= 360 && 
+          (/^[A-Za-z]{3}[0-9][A-Za-z0-9][0-9]{2}$/.test(cleanedStr) || /^[A-Za-z]{3}[0-9]{4}$/.test(cleanedStr));
       });
-      const plate = plateItem ? normalizePlate(plateItem.str) : '';
+      if (plateItem) {
+        plate = normalizePlate(plateItem.str);
+      } else {
+        const plateMatch = lineText.match(/\b([A-Za-z]{3}[0-9][A-Za-z0-9][0-9]{2})\b/) ||
+                           lineText.match(/\b([A-Za-z]{3}-?[0-9]{4})\b/);
+        if (plateMatch) {
+          plate = normalizePlate(plateMatch[1]);
+        }
+      }
 
-      // Pagador / Tomador do Frete (X entre 160 e 270, antecede a placa)
-      const payerItem = validItems.find(it => it.transform[4] >= 160 && it.transform[4] < 270 && !/^\d+$/.test(it.str.trim()));
+      // Pagador / Tomador do Frete (X entre 130 e 270, antecede a placa)
+      const payerItem = validItems.find(it => it.transform[4] >= 130 && it.transform[4] < 270 && !/^\d+$/.test(it.str.trim()) && !/\d{2}\/\d{2}/.test(it.str));
       const payer = payerItem ? payerItem.str.trim() : '';
 
-      // Data de Emissão (X entre 65 e 115)
-      const dateItem = validItems.find(it => it.transform[4] >= 65 && it.transform[4] <= 115 && /\d{2}\/\d{2}/.test(it.str));
-      const emissionDate = dateItem ? normalizeDate(dateItem.str) : '';
+      // Data de Emissão (X entre 60 e 130)
+      const dateItem = validItems.find(it => it.transform[4] >= 60 && it.transform[4] <= 130 && /\d{2}\/\d{2}/.test(it.str));
+      let emissionDate = dateItem ? normalizeDate(dateItem.str) : '';
+      if (!emissionDate) {
+        const anyDate = lineText.match(/\b(\d{2}\/\d{2}(?:\/\d{2,4})?)\b/);
+        if (anyDate) emissionDate = normalizeDate(anyDate[1]);
+      }
 
-      // Verificação de Cancelado (X entre 48 e 68)
-      const cancelItem = validItems.find(it => it.transform[4] >= 48 && it.transform[4] <= 68 && /\d{2}\/\d{2}/.test(it.str));
-      const isCanceled = Boolean(cancelItem);
+      // Verificação de Cancelado (X entre 45 e 70)
+      const cancelItem = validItems.find(it => it.transform[4] >= 45 && it.transform[4] <= 70 && /\d{2}\/\d{2}/.test(it.str));
+      const isCanceled = Boolean(cancelItem) || lineText.includes('CANCELADO') || lineText.includes('Canc.');
       const cancelDate = cancelItem ? normalizeDate(cancelItem.str) : undefined;
 
       // Colunas numéricas por coordenada X:
-      // Peso: 315..348
-      const weightItem = validItems.find(it => it.transform[4] >= 315 && it.transform[4] <= 348);
-      const weight = weightItem ? parseBrazilianNumber(weightItem.str) : 0;
+      // Peso: 300..355
+      const weightItem = validItems.find(it => it.transform[4] >= 300 && it.transform[4] <= 355 && /^[0-9.,]+$/.test(it.str.trim()));
+      let weight = weightItem ? parseBrazilianNumber(weightItem.str) : 0;
 
-      // Frete Empresa: 348..382
-      const companyFreightItem = validItems.find(it => it.transform[4] > 348 && it.transform[4] <= 382);
-      const companyFreight = companyFreightItem ? parseBrazilianNumber(companyFreightItem.str) : 0;
+      // Frete Empresa: 345..385
+      const companyFreightItem = validItems.find(it => it.transform[4] > 345 && it.transform[4] <= 385 && /^[0-9.,]+$/.test(it.str.trim()));
+      let companyFreight = companyFreightItem ? parseBrazilianNumber(companyFreightItem.str) : 0;
 
-      // Frete Motorista: 382..418
-      const driverFreightItem = validItems.find(it => it.transform[4] > 382 && it.transform[4] <= 418);
-      const driverFreight = driverFreightItem ? parseBrazilianNumber(driverFreightItem.str) : 0;
+      // Frete Motorista: 380..425
+      const driverFreightItem = validItems.find(it => it.transform[4] > 380 && it.transform[4] <= 425 && /^[0-9.,]+$/.test(it.str.trim()));
+      let driverFreight = driverFreightItem ? parseBrazilianNumber(driverFreightItem.str) : 0;
 
-      // Tarifa Empresa: 418..445
-      const compTariffItem = validItems.find(it => it.transform[4] > 418 && it.transform[4] <= 445);
-      const companyTariff = compTariffItem ? parseBrazilianNumber(compTariffItem.str) : undefined;
+      // Fallback numérico resiliente se colunas coordenadas falharem ou deslocarem
+      if (weight === 0 && companyFreight === 0) {
+        let afterPlate = lineText;
+        if (plate) {
+          const pIdx = lineText.indexOf(plate);
+          if (pIdx >= 0) afterPlate = lineText.slice(pIdx + plate.length);
+        }
+        const numRegex = /[-+]?[0-9]{1,3}(?:\.[0-9]{3})*(?:,[0-9]+)?|[-+]?[0-9]+(?:,[0-9]+)?/g;
+        const lineNums = (afterPlate.match(numRegex) || []).map(parseBrazilianNumber);
+        if (lineNums.length >= 2) {
+          weight = lineNums[0];
+          companyFreight = lineNums[1];
+          if (lineNums.length >= 3) driverFreight = lineNums[2];
+        }
+      }
 
-      // Tarifa Motorista: 445..470
-      const drivTariffItem = validItems.find(it => it.transform[4] > 445 && it.transform[4] <= 470);
-      const driverTariff = drivTariffItem ? parseBrazilianNumber(drivTariffItem.str) : undefined;
+      // Tarifa Empresa: 415..448
+      const compTariffItem = validItems.find(it => it.transform[4] > 415 && it.transform[4] <= 448);
+      const companyTariff = compTariffItem ? parseBrazilianNumber(compTariffItem.str) : (weight > 0 && companyFreight > 0 ? Number((companyFreight / weight).toFixed(2)) : undefined);
 
-      // Dif. Fr. %: 470..488
-      const diffFrItem = validItems.find(it => it.transform[4] > 470 && it.transform[4] <= 488);
+      // Tarifa Motorista: 445..475
+      const drivTariffItem = validItems.find(it => it.transform[4] > 445 && it.transform[4] <= 475);
+      const driverTariff = drivTariffItem ? parseBrazilianNumber(drivTariffItem.str) : (weight > 0 && driverFreight > 0 ? Number((driverFreight / weight).toFixed(2)) : undefined);
+
+      // Dif. Fr. %: 470..495
+      const diffFrItem = validItems.find(it => it.transform[4] > 470 && it.transform[4] <= 495);
       const freightDiffPercent = diffFrItem ? parseBrazilianNumber(diffFrItem.str) : undefined;
 
-      // ICMS ISSQN: 520..548
-      const icmsItem = validItems.find(it => it.transform[4] >= 520 && it.transform[4] <= 548);
+      // ICMS ISSQN: 515..550
+      const icmsItem = validItems.find(it => it.transform[4] >= 515 && it.transform[4] <= 550);
       const icmsIssqn = icmsItem ? parseBrazilianNumber(icmsItem.str) : 0;
 
-      // Vl. Pedágio: 548..585
-      const tollItem = validItems.find(it => it.transform[4] > 548 && it.transform[4] <= 585);
+      // Vl. Pedágio: 545..590
+      const tollItem = validItems.find(it => it.transform[4] > 545 && it.transform[4] <= 590);
       const toll = tollItem ? parseBrazilianNumber(tollItem.str) : 0;
 
-      // Imposto Federal: 650..682
-      const fedItem = validItems.find(it => it.transform[4] >= 650 && it.transform[4] <= 682);
+      // Imposto Federal: 645..685
+      const fedItem = validItems.find(it => it.transform[4] >= 645 && it.transform[4] <= 685);
       const federalTax = fedItem ? parseBrazilianNumber(fedItem.str) : 0;
 
-      // Outros Custos: 682..712
-      const otherCostsItem = validItems.find(it => it.transform[4] > 682 && it.transform[4] <= 712);
+      // Outros Custos: 680..715
+      const otherCostsItem = validItems.find(it => it.transform[4] > 680 && it.transform[4] <= 715);
       const otherCosts = otherCostsItem ? parseBrazilianNumber(otherCostsItem.str) : 0;
 
-      // Resultado: 712..742
-      const resultItem = validItems.find(it => it.transform[4] > 712 && it.transform[4] <= 742);
+      // Resultado: 710..745
+      const resultItem = validItems.find(it => it.transform[4] > 710 && it.transform[4] <= 745);
       const result = resultItem ? parseBrazilianNumber(resultItem.str) : 0;
 
-      // Cidade Origem: 740..780
-      const originItem = validItems.find(it => it.transform[4] >= 740 && it.transform[4] < 780);
-      const originCity = originItem ? originItem.str.trim() : '';
+      // Cidade Origem: 735..785
+      const originItem = validItems.find(it => it.transform[4] >= 735 && it.transform[4] < 785);
+      let originCity = originItem ? originItem.str.trim() : '';
 
       // Cidade Destino: >= 780
-      const destItem = validItems.find(it => it.transform[4] >= 780 && it.transform[4] < 840);
-      const destinationCity = destItem ? destItem.str.trim() : '';
+      const destItem = validItems.find(it => it.transform[4] >= 780 && it.transform[4] < 860);
+      let destinationCity = destItem ? destItem.str.trim() : '';
+
+      // Fallback para cidades por regex
+      if (!originCity || !destinationCity) {
+        const cityMatches = Array.from(lineText.matchAll(/\b([A-Za-zÀ-ÿ\s]{3,})\s*\/\s*([A-Za-z]{2})\b/g));
+        if (cityMatches.length >= 2) {
+          if (!originCity) originCity = `${cityMatches[0][1].trim()} / ${cityMatches[0][2].toUpperCase()}`;
+          if (!destinationCity) destinationCity = `${cityMatches[1][1].trim()} / ${cityMatches[1][2].toUpperCase()}`;
+        } else if (cityMatches.length === 1 && !originCity) {
+          originCity = `${cityMatches[0][1].trim()} / ${cityMatches[0][2].toUpperCase()}`;
+        }
+      }
 
       const isComplementary = (weight === 0 && companyFreight > 0);
 
       records.push({
         cteNumber,
-        docType: typeItem.str.includes('E') ? 'CE' : 'CT',
+        docType,
         isCanceled,
         cancelDate,
         emissionDate,
@@ -611,7 +694,7 @@ const extractAtuaFromCoordinates = (allPagesItems: any[][]): AtuaCteRecord[] => 
         originCity,
         destinationCity,
         isComplementary,
-        rawLine: validItems.map(i => i.str).join(' ')
+        rawLine: lineText
       });
     }
   }
@@ -693,9 +776,42 @@ export const parseAtuaPdfFile = async (file: File): Promise<AtuaReportParseResul
     return parseTranscunhaTextReport(fullText);
   }
 
-  // Tenta primeiro a extração geométrica por coordenadas (100% de acurácia no CTRC do Atua)
+  // Combina extração geométrica por coordenadas com parser textual resiliente para 100% de cobertura
   const coordinateRecords = extractAtuaFromCoordinates(allPagesItems);
-  if (coordinateRecords.length > 0) {
+  const textResult = parseAtuaTextReport(fullText);
+  const textRecords = textResult.records || [];
+
+  // Mapa consolidado indexado por número de CT-e e tipo
+  const mergedMap = new Map<string, AtuaCteRecord>();
+  for (const r of coordinateRecords) {
+    if (r.cteNumber) {
+      mergedMap.set(`${r.cteNumber}-${r.docType}`, r);
+    }
+  }
+  for (const tRec of textRecords) {
+    if (!tRec.cteNumber) continue;
+    const key = `${tRec.cteNumber}-${tRec.docType}`;
+    if (!mergedMap.has(key)) {
+      mergedMap.set(key, tRec);
+    } else {
+      // Completa propriedades que possam estar zeradas ou vazias no registro por coordenadas
+      const existing = mergedMap.get(key)!;
+      if (!existing.plate && tRec.plate) existing.plate = tRec.plate;
+      if (existing.weight === 0 && tRec.weight > 0) existing.weight = tRec.weight;
+      if (existing.companyFreight === 0 && tRec.companyFreight > 0) existing.companyFreight = tRec.companyFreight;
+      if (existing.driverFreight === 0 && tRec.driverFreight > 0) existing.driverFreight = tRec.driverFreight;
+      if (!existing.originCity && tRec.originCity) existing.originCity = tRec.originCity;
+      if (!existing.destinationCity && tRec.destinationCity) existing.destinationCity = tRec.destinationCity;
+      if (!existing.emissionDate && tRec.emissionDate) existing.emissionDate = tRec.emissionDate;
+      if (existing.toll === 0 && tRec.toll > 0) existing.toll = tRec.toll;
+      if (existing.icmsIssqn === 0 && tRec.icmsIssqn > 0) existing.icmsIssqn = tRec.icmsIssqn;
+      if (existing.federalTax === 0 && tRec.federalTax > 0) existing.federalTax = tRec.federalTax;
+      if (existing.result === 0 && tRec.result !== 0) existing.result = tRec.result;
+    }
+  }
+
+  const combinedRecords = Array.from(mergedMap.values());
+  if (combinedRecords.length > 0) {
     let periodText = '';
     let startDate = '';
     let endDate = '';
@@ -709,23 +825,23 @@ export const parseAtuaPdfFile = async (file: File): Promise<AtuaReportParseResul
 
     return {
       detectedFileType: 'ATUA_CTRC',
-      records: coordinateRecords,
+      records: combinedRecords,
       periodText,
       startDate,
       endDate,
-      totalWeight: coordinateRecords.reduce((sum, r) => sum + r.weight, 0),
-      totalFreightCompany: coordinateRecords.reduce((sum, r) => sum + r.companyFreight, 0),
-      totalFreightDriver: coordinateRecords.reduce((sum, r) => sum + r.driverFreight, 0),
-      totalToll: coordinateRecords.reduce((sum, r) => sum + r.toll, 0),
-      totalIcms: coordinateRecords.reduce((sum, r) => sum + r.icmsIssqn, 0),
-      totalFederalTax: coordinateRecords.reduce((sum, r) => sum + r.federalTax, 0),
-      totalResult: coordinateRecords.reduce((sum, r) => sum + r.result, 0),
+      totalWeight: combinedRecords.reduce((sum, r) => sum + r.weight, 0),
+      totalFreightCompany: combinedRecords.reduce((sum, r) => sum + r.companyFreight, 0),
+      totalFreightDriver: combinedRecords.reduce((sum, r) => sum + r.driverFreight, 0),
+      totalToll: combinedRecords.reduce((sum, r) => sum + r.toll, 0),
+      totalIcms: combinedRecords.reduce((sum, r) => sum + r.icmsIssqn, 0),
+      totalFederalTax: combinedRecords.reduce((sum, r) => sum + r.federalTax, 0),
+      totalResult: combinedRecords.reduce((sum, r) => sum + r.result, 0),
       errors: []
     };
   }
 
-  // Fallback para parser textual resiliente
-  return parseAtuaTextReport(fullText);
+  // Fallback para parser textual resiliente caso nada tenha sido consolidado
+  return textResult;
 };
 
 /**

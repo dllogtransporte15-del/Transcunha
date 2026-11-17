@@ -27,6 +27,30 @@ export interface SystemRelease {
  */
 export const SYSTEM_RELEASES: SystemRelease[] = [
   {
+    id: 'rel_2026_11_16_v2_116_21',
+    version: 'v2.116.21',
+    date: '16/11/2026',
+    title: 'Eliminação de Falsos Pendentes Atua e Extração Total de CT-es do PDF CTRC',
+    summary: 'Corrigida a extração e o pareamento de CT-es na Auditoria e Reconciliação com o Atua TMS. Resolvidos problemas onde CT-es de 1 dígito (ex: 1), 2 dígitos (ex: 28, 29, 35, 36, 37, 38, 39, 40, 41) e 4 dígitos (ex: 2091, 2119, 2129, 2130, 2131) eram descartados pelas coordenadas estreitas do leitor de PDF, além de unificar a extração por coordenadas com o parser textual e eliminar falsos bloqueios por UF da cidade de origem.',
+    items: [
+      {
+        category: 'fix',
+        title: 'Extração Híbrida e Resiliente de 100% dos CT-es do PDF Atua CTRC',
+        description: 'O leitor de relatórios do Atua agora combina a extração geométrica por coordenadas com o parser textual resiliente. Foi flexibilizada a detecção de números de CT-e para suportar perfeitamente CT-es de 1 dígito (ex: 1), 2 dígitos (ex: 28 a 41) e 4 dígitos (ex: 2091, 2119, 2129, 2130, 2131), garantindo que nenhuma linha do CTRC seja ignorada.'
+      },
+      {
+        category: 'fix',
+        title: 'Pareamento Incondicional de CT-e Único na Auditoria',
+        description: 'Quando há apenas um embarque correspondente ao número do CT-e no período, o pareamento agora é realizado diretamente sem falso descarte motivado pela UF da cidade de origem do frete (ex: cidade de origem em SP com filial emissora em MG).'
+      },
+      {
+        category: 'improvement',
+        title: 'Preservação de Sub-CT-es ao Carregar Embarques do Banco de Dados',
+        description: 'Garantido que os dados desmembrados de sub-CT-es sejam persistidos e recuperados na totalidade do banco de dados para evitar reclassificações indevidas em recarregamentos.'
+      }
+    ]
+  },
+  {
     id: 'rel_2026_11_16_v2_116_20',
     version: 'v2.116.20',
     date: '16/11/2026',
