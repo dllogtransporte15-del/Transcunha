@@ -845,21 +845,20 @@ export const parseAtuaPdfFile = async (file: File): Promise<AtuaReportParseResul
   const textResult = parseAtuaTextReport(fullText);
   const textRecords = textResult.records || [];
 
-  // Mapa consolidado indexado por número de CT-e e tipo
-  const mergedMap = new Map<string, AtuaCteRecord>();
-  for (const r of coordinateRecords) {
-    if (r.cteNumber) {
-      mergedMap.set(`${r.cteNumber}-${r.docType}`, r);
-    }
-  }
+  // coordinateRecords contém a extração posicional precisa de cada linha física do PDF.
+  // ATENÇÃO CRÍTICA: Cada filial/série pode emitir um CT-e com o mesmo número no mesmo mês (homônimos).
+  // Portanto, a lista NUNCA pode ser desduplicada apenas por cteNumber! Todos os CT-es reais devem ser preservados.
+  const finalRecords: AtuaCteRecord[] = [...coordinateRecords];
+
+  // Completa propriedades que possam estar zeradas nos registros por coordenadas usando dados do parser textual
   for (const tRec of textRecords) {
     if (!tRec.cteNumber) continue;
-    const key = `${tRec.cteNumber}-${tRec.docType}`;
-    if (!mergedMap.has(key)) {
-      mergedMap.set(key, tRec);
-    } else {
-      // Completa propriedades que possam estar zeradas ou vazias no registro por coordenadas
-      const existing = mergedMap.get(key)!;
+    const existing = finalRecords.find(r => 
+      r.cteNumber === tRec.cteNumber && 
+      (r.plate === tRec.plate || arePlatesMatching(r.plate, tRec.plate)) &&
+      (r.emissionDate === tRec.emissionDate || !r.emissionDate || !tRec.emissionDate)
+    );
+    if (existing) {
       if (!existing.plate && tRec.plate) existing.plate = tRec.plate;
       if (existing.weight === 0 && tRec.weight > 0) existing.weight = tRec.weight;
       if (existing.companyFreight === 0 && tRec.companyFreight > 0) existing.companyFreight = tRec.companyFreight;
@@ -871,10 +870,18 @@ export const parseAtuaPdfFile = async (file: File): Promise<AtuaReportParseResul
       if (existing.icmsIssqn === 0 && tRec.icmsIssqn > 0) existing.icmsIssqn = tRec.icmsIssqn;
       if (existing.federalTax === 0 && tRec.federalTax > 0) existing.federalTax = tRec.federalTax;
       if (existing.result === 0 && tRec.result !== 0) existing.result = tRec.result;
+    } else {
+      // Se porventura uma linha só foi encontrada no parser textual, adiciona se não houver mesmo CT-e e placa
+      const alreadyPresent = finalRecords.some(r => 
+        r.cteNumber === tRec.cteNumber && arePlatesMatching(r.plate, tRec.plate)
+      );
+      if (!alreadyPresent && (tRec.emissionDate || tRec.plate)) {
+        finalRecords.push(tRec);
+      }
     }
   }
 
-  const combinedRecords = Array.from(mergedMap.values());
+  const combinedRecords = finalRecords;
   if (combinedRecords.length > 0) {
     let periodText = '';
     let startDate = '';

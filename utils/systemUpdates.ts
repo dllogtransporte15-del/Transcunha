@@ -52,6 +52,11 @@ export const SYSTEM_RELEASES: SystemRelease[] = [
         category: 'fix',
         title: 'Descarte Automático da Linha Totalizadora do Relatório Atua',
         description: 'Corrigido o leitor do PDF CTRC do Atua para ignorar a linha de resumo/totalizador de rodapé (que exibia a contagem de 152 CTRCs emitidos e totais financeiros de R$ 995 mil), impedindo que o número 152 fosse incorretamente interpretado como um número de CT-e e gerasse um falso Órfão Atua.'
+      },
+      {
+        category: 'fix',
+        title: 'Preservação de CT-es Homônimos entre Filiais Distintas',
+        description: 'Corrigido o mecanismo de consolidação do leitor de PDF para não sobrescrever CT-es com numeração idêntica emitidos por filiais ou agências distintas (ex: CT-e 47 de Castilho/SP e CT-e 47 de Aruanã/GO). Todas as 152 emissões do relatório são preservadas na íntegra, eliminando o falso status de "Pendente Atua" para os veículos FXF2G16 (47), STW2G39 (46), GXS2384 (48), EJY5B46 (43), BWY6A52 (40), EKH1S15 (42), STJ6B05 (41), QTN4J70 (39), AVT4C29 (34), STC8F04 (50) e NJO7G33 (50).'
       }
     ]
   },
