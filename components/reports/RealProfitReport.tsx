@@ -185,7 +185,8 @@ export const RealProfitReport: React.FC<RealProfitReportProps> = ({
       if (searchTerm.trim()) {
         const term = searchTerm.toLowerCase().trim();
         const matchesId = s.id.toLowerCase().includes(term);
-        const matchesCte = s.cteNumber?.toLowerCase().includes(term);
+        const cleanTerm = term.replace(/\\D/g, '');
+        const matchesCte = s.cteNumber?.toLowerCase().includes(term) || (cleanTerm && s.cteNumber?.replace(/\\D/g, '').includes(cleanTerm)) || (s.subCtes || (s.documents as any)?.sub_ctes || []).some((sc: any) => String(sc?.cteNumber || '').toLowerCase().includes(term) || (cleanTerm && String(sc?.cteNumber || '').replace(/\\D/g, '').includes(cleanTerm))) || (s.cteNumber && s.cteNumber.split(/[\\/,;\\s]+/).some((p: string) => p.toLowerCase().includes(term) || (cleanTerm && p.replace(/\\D/g, '').includes(cleanTerm))));
         const matchesNfe = s.nfeNumber?.toLowerCase().includes(term);
         const matchesDriver = s.driverName.toLowerCase().includes(term);
         const matchesPlate = s.horsePlate.toLowerCase().includes(term);

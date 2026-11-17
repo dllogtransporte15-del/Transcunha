@@ -27,6 +27,68 @@ export interface SystemRelease {
  */
 export const SYSTEM_RELEASES: SystemRelease[] = [
   {
+    id: 'rel_2026_11_16_v2_116_20',
+    version: 'v2.116.20',
+    date: '16/11/2026',
+    title: 'Suporte a Múltiplos CT-es por Embarque: Consolidação Operacional e Desmembramento Fiscal',
+    summary: 'Implementada inteligência integral para embarques com múltiplos CT-es (emissões bipartidas, ex: CT-e 2111 com 27,50 t e CT-e 2112 com 12,05 t). Consolida pesos e fretes somados na conferência operacional para eliminar falsas divergências com o Ticket de Balança, desmembra registros para conciliação 1:1 com o Atua TMS e expande a busca em todo o sistema.',
+    items: [
+      {
+        category: 'feature',
+        title: 'Consolidação Automática de Múltiplos DACTEs no Modal de Anexos',
+        description: 'Ao anexar múltiplos DACTEs ou quando há numeração composta (ex: 2112/2111), o leitor automático agora extrai os dados individualizados em subCtes e consolida o peso total somado (ex: 27,500 + 12,050 = 39,550 ton), eliminando avisos de falsa divergência com o Ticket de Carregamento e exibindo detalhamento visual por CT-e.'
+      },
+      {
+        category: 'improvement',
+        title: 'Desmembramento Inteligente na Conciliação Atua TMS vs. Transcunha',
+        description: 'Na tela de reconciliação com o Atua TMS, embarques com múltiplos CT-es são divididos em linhas/candidatos individuais para cada CT-e com seu peso e frete correspondentes, garantindo pareamento exato 1:1 e eliminando falsos status de Órfão no Atua (como o CT-e 2112 do embarque FEL-818).'
+      },
+      {
+        category: 'improvement',
+        title: 'Busca Flexível por Qualquer Número de CT-e em Todo o Sistema',
+        description: 'A busca e os filtros na tabela de embarques, tela de embarques e no Relatório de Lucro Real agora reconhecem números individuais de CT-e em strings compostas ou listas de sub-CT-es (ex: buscar por 2112 ou 2111 localiza o embarque com sucesso).'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_16_v2_116_19',
+    version: 'v2.116.19',
+    date: '16/11/2026',
+    title: 'Reconciliação e Pareamento de Embarques com Múltiplos CT-es no Atua TMS',
+    summary: 'Corrigida a lógica de conciliação e auditoria para reconhecer com precisão embarques que possuem múltiplos CT-es emitidos (ex: carretas/bi-trens com CT-es como "2112/2111"), evitando falsos apontamentos de "Órfão Atua" ou "Trans: S/ CT-e".',
+    items: [
+      {
+        category: 'fix',
+        title: 'Suporte Completo a Múltiplos CT-es no Pareamento de Auditoria',
+        description: 'Embarques com múltiplos CT-es vinculados (ex: "2112/2111") agora são desmembrados adequadamente nas rotinas de auditoria cruzada, permitindo que cada CT-e individual do Atua TMS (como o CT-e 2112) seja localizado e conciliado com seu respectivo embarque no Transcunha.'
+      },
+      {
+        category: 'improvement',
+        title: 'Eliminação de Falsos Órfãos no Módulo Atua vs. Transcunha',
+        description: 'Ajustadas as Fases 1 (CT-e) e 2 (Placa + Data) para validar todas as numerações fiscais ativas e arquivos DACTE anexados ao embarque, garantindo que nenhum CT-e existente seja incorretamente classificado como ausente.'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_16_v2_116_18',
+    version: 'v2.116.18',
+    date: '16/11/2026',
+    title: 'Destaque Pontual de Divergências no Relatório de Conciliação Atua TMS vs. Transcunha',
+    summary: 'Ajustada a coloração do relatório em PDF da auditoria Atua TMS vs. Transcunha para destacar em vermelho estritamente as colunas e células que possuem divergência matemática ou cadastral apurada, preservando a cor neutra nos valores idênticos e conciliados.',
+    items: [
+      {
+        category: 'improvement',
+        title: 'Destaque em Vermelho Estritamente nas Células Divergentes',
+        description: 'No relatório PDF de conciliação e auditoria, apenas os campos com divergência (CT-e, fretes, tarifas, peso, pedágio ou ICMS) são destacados em vermelho, mantendo em tom neutro os dados coincidentes da mesma linha.'
+      },
+      {
+        category: 'improvement',
+        title: 'Preservação da Legibilidade e Conferência Rápida',
+        description: 'Permite aos auditores e gestores identificar instantaneamente a raiz de cada divergência sem poluição visual por linha inteira colorida.'
+      }
+    ]
+  },
+  {
     id: 'rel_2026_11_12_v2_116_17',
     version: 'v2.116.17',
     date: '12/11/2026',

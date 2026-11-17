@@ -574,6 +574,22 @@ export interface CancelledCteRecord {
   substituteFileUrl?: string;
 }
 
+export interface SubCteRecord {
+  cteNumber: string;
+  weight?: number; // em Toneladas
+  weightKg?: number; // em Kg
+  companyFreight?: number;
+  driverFreight?: number;
+  icms?: number;
+  toll?: number;
+  emissionDate?: string;
+  fileUrl?: string;
+  fileName?: string;
+  tomadorNome?: string;
+  tomadorCnpj?: string;
+  remetente?: string;
+}
+
 export interface DriverExtraPayment {
   id: string;
   amount: number;
@@ -668,6 +684,7 @@ export interface Shipment {
   branchId?: string;
   cteNumber?: string;   // Número do CT-e extraído automaticamente do XML/PDF
   cteEmissionDate?: string; // Data e Hora da Emissão do CT-e (ex: 13/08/2026 11:40)
+  subCtes?: SubCteRecord[]; // Detalhamento individual de cada CT-e emitido para a mesma viagem/embarque (ex: 2112 e 2111)
   ciotNumber?: string;  // Número do CIOT informado ou extraído do embarque
   ciot?: string;        // Código Identificador da Operação de Transporte (CIOT)
   nfeNumber?: string;   // Número da Nota Fiscal (NF-e) extraído automaticamente

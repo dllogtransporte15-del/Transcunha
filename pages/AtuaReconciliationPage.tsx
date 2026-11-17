@@ -468,31 +468,82 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
     }
   };
 
-  // Função auxiliar para extração estrita do número real de CT-e do embarque
-  // NOTA CRÍTICA: 'codigo_atua' é código interno/ordem e NÃO deve ser usado como número fiscal de CT-e.
-  const extractShipmentCteClean = (s: Shipment): string => {
-    if (!s) return '';
-    
+  // Função auxiliar para extração estrita de todos os números de CT-e do embarque
+  // NOTA CRÍTICA: Suporta múltiplos CT-es (ex: "2112/2111", "2112, 2111", bi-trem/múltiplas NFs)
+  // 'codigo_atua' é código interno/ordem e NÃO deve ser usado como número fiscal de CT-e.
+  const extractShipmentCteNumbers = (s: Shipment): { raw: string; list: string[] } => {
+    if (!s) return { raw: '', list: [] };
+    const numbersFound = new Set<string>();
+
+    const addCandidatesFromText = (txt: string) => {
+      if (!txt) return;
+      const parts = String(txt).split(/[/,;|\s\n\r-]+/);
+      for (const p of parts) {
+        const clean = p.replace(/[^0-9]/g, '');
+        if (clean && clean !== '0' && clean.length < 10 && !clean.startsWith('178') && !clean.startsWith('179')) {
+          numbersFound.add(clean);
+        }
+      }
+    };
+
     // 1. Número explícito de CT-e cadastrado no embarque
     const direct = s.cteNumber || s.documents?.cte_number || s.documents?.cteNumber;
+    let rawStr = '';
     if (direct !== undefined && direct !== null) {
       const trimmed = String(direct).trim();
       if (trimmed !== '' && trimmed !== '-' && trimmed !== '0') {
-        return trimmed;
+        rawStr = trimmed;
+        addCandidatesFromText(trimmed);
       }
     }
 
     // 2. Extração via função oficial getShipmentCte (com tratamento de anexos)
     const helperVal = getShipmentCte(s);
     if (helperVal && helperVal !== '-' && helperVal !== '0') {
-      const cleanDigits = helperVal.replace(/[^0-9]/g, '');
-      // Evita timestamps de upload (que têm 10+ dígitos)
-      if (cleanDigits.length < 10) {
-        return helperVal.trim();
+      if (!rawStr) rawStr = helperVal.trim();
+      addCandidatesFromText(helperVal);
+    }
+
+    // 3. Extração de s.documents.cancelled_ctes se houver
+    if (Array.isArray(s.documents?.cancelled_ctes)) {
+      for (const c of s.documents.cancelled_ctes) {
+        if (c?.cteNumber) addCandidatesFromText(String(c.cteNumber));
       }
     }
 
-    return '';
+    // 4. Extração de nomes de arquivos anexos
+    const cteDocs = s.documents?.['CT-e'] || s.documents?.['CT-E'] || s.documents?.['cte'] || s.documents?.['Cte'] || s.documents?.['DACTE'];
+    if (Array.isArray(cteDocs)) {
+      for (const item of cteDocs) {
+        if (typeof item === 'string') {
+          const cleanItem = item.replace(/CT[-_]?e_\d{10,14}_/i, '').replace(/DACTE_\d{10,14}_/i, '');
+          const match = cleanItem.match(/DACTE_(\d{1,8})/i) || 
+                        cleanItem.match(/(?:^|_)CTE_(\d{1,8})/i) || 
+                        cleanItem.match(/_(\d{1,8})\.(?:pdf|xml)/i);
+          if (match && match[1]) {
+            addCandidatesFromText(match[1]);
+          }
+        }
+      }
+    } else if (typeof cteDocs === 'string' && cteDocs.trim() !== '') {
+      const cleanItem = cteDocs.replace(/CT[-_]?e_\d{10,14}_/i, '').replace(/DACTE_\d{10,14}_/i, '');
+      const match = cleanItem.match(/DACTE_(\d{1,8})/i) || 
+                    cleanItem.match(/(?:^|_)CTE_(\d{1,8})/i) || 
+                    cleanItem.match(/_(\d{1,8})\.(?:pdf|xml)/i);
+      if (match && match[1]) {
+        addCandidatesFromText(match[1]);
+      }
+    }
+
+    const list = Array.from(numbersFound);
+    return {
+      raw: rawStr || list.join('/'),
+      list
+    };
+  };
+
+  const extractShipmentCteClean = (s: Shipment): string => {
+    return extractShipmentCteNumbers(s).raw;
   };
 
   // 1. Enriquecimento dos Embarques do Transcunha no Período Selecionado
@@ -508,8 +559,8 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
       if (s.status === 'Cancelado' || (s as any)?.isCancelled) return false;
 
       // 2. REGRA MANDATÓRIA: Deve ser embarque efetivado COM CT-E emitido
-      const directCte = extractShipmentCteClean(s).replace(/[^0-9]/g, '');
-      if (!directCte) return false;
+      const cteInfo = extractShipmentCteNumbers(s);
+      if (cteInfo.list.length === 0) return false;
 
       const plate = normalizePlate(s.horsePlate);
       if (!plate) return false;
@@ -528,6 +579,8 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
     const items: Array<{
       key: string;
       cteNumber: string;
+      displayCte?: string;
+      allCteNumbers?: string[];
       shipment: Shipment;
       cargo?: Cargo;
       isComplementary: boolean;
@@ -555,7 +608,8 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
     validShipments.forEach(s => {
       const cargo = s.cargoId ? cargoMap.get(s.cargoId) : undefined;
       const clientName = (cargo?.clientId ? clientMap.get(cargo.clientId) : '') || '---';
-      const cte = extractShipmentCteClean(s);
+      const cteInfo = extractShipmentCteNumbers(s);
+      const cte = cteInfo.raw;
       const calculatedExpenses = calculateShipmentExpenses(s, cargo, DEFAULT_EXPENSES_CONFIG, stays);
       const toll = (s.tollValue !== undefined && s.tollValue !== null) ? Number(s.tollValue) || 0 : (s.realProfitData?.toll || 0);
 
@@ -630,33 +684,112 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
 
       const shipmentEffectiveDate = normalizeDate(getShipmentEffectiveDate(s) || s.scheduledDate || '');
 
-      // Linha Principal do Embarque (Sempre entra mesmo que ainda não tenha CT-e anexado)
-      items.push({
-        key: `${s.id}-base`,
-        cteNumber: cte ? cte.replace(/[^0-9]/g, '') : '',
-        shipment: s,
-        cargo,
-        isComplementary: false,
-        weight,
-        companyFreight: baseCompanyFreight,
-        companyRatePerTon,
-        driverFreight: baseDriverFreight,
-        driverRatePerTon,
-        toll,
-        freightDifference: baseFreightDifference,
-        icms,
-        federalTax,
-        totalExpenses: calculatedExpenses.totalExpenses,
-        netProfit: baseNetProfit,
-        plate: normalizePlate(s.horsePlate),
-        date: shipmentEffectiveDate,
-        clientName,
-        origin: cargo?.origin || '',
-        destination: cargo?.destination || '',
-        driverName: s.driverName || '---',
-        branchUf: branchUf || '',
-        branchName: branchName || ''
-      });
+      // Linha Principal do Embarque (suporta múltiplos CT-es como 2112/2111)
+      if (cteInfo.list.length <= 1) {
+        const singleCte = cteInfo.list[0] || (cte ? cte.replace(/[^0-9]/g, '') : '');
+        items.push({
+          key: `${s.id}-base`,
+          cteNumber: singleCte,
+          displayCte: cteInfo.raw || singleCte,
+          allCteNumbers: cteInfo.list.length > 0 ? cteInfo.list : (singleCte ? [singleCte] : []),
+          shipment: s,
+          cargo,
+          isComplementary: false,
+          weight,
+          companyFreight: baseCompanyFreight,
+          companyRatePerTon,
+          driverFreight: baseDriverFreight,
+          driverRatePerTon,
+          toll,
+          freightDifference: baseFreightDifference,
+          icms,
+          federalTax,
+          totalExpenses: calculatedExpenses.totalExpenses,
+          netProfit: baseNetProfit,
+          plate: normalizePlate(s.horsePlate),
+          date: shipmentEffectiveDate,
+          clientName,
+          origin: cargo?.origin || '',
+          destination: cargo?.destination || '',
+          driverName: s.driverName || '---',
+          branchUf: branchUf || '',
+          branchName: branchName || ''
+        });
+      } else {
+        // Embarque com múltiplos CT-es (ex: 2112/2111 - carreta/bi-trem/múltiplas NFs)
+        cteInfo.list.forEach((cteNum, idx) => {
+          const atuaRecForCte = (atuaResult?.records || []).find(r => r.cteNumber.replace(/[^0-9]/g, '') === cteNum);
+          
+          let cteWeight = 0;
+          if (atuaRecForCte && atuaRecForCte.weight > 0) {
+            cteWeight = atuaRecForCte.weight;
+          } else if (weight > 0) {
+            cteWeight = Number((weight / cteInfo.list.length).toFixed(3));
+          }
+
+          let cteCompanyFreight = 0;
+          if (companyRatePerTon > 0 && cteWeight > 0) {
+            cteCompanyFreight = Number((cteWeight * companyRatePerTon).toFixed(2));
+          } else if (weight > 0 && cteWeight > 0) {
+            cteCompanyFreight = Number((baseCompanyFreight * (cteWeight / weight)).toFixed(2));
+          } else {
+            cteCompanyFreight = Number((baseCompanyFreight / cteInfo.list.length).toFixed(2));
+          }
+
+          let cteDriverFreight = 0;
+          if (driverRatePerTon > 0 && cteWeight > 0) {
+            cteDriverFreight = Number((cteWeight * driverRatePerTon).toFixed(2));
+          } else if (weight > 0 && cteWeight > 0) {
+            cteDriverFreight = Number((baseDriverFreight * (cteWeight / weight)).toFixed(2));
+          } else {
+            cteDriverFreight = Number((baseDriverFreight / cteInfo.list.length).toFixed(2));
+          }
+
+          const cteToll = (weight > 0 && cteWeight > 0)
+            ? Number((toll * (cteWeight / weight)).toFixed(2))
+            : Number((toll / cteInfo.list.length).toFixed(2));
+
+          const cteIcms = (weight > 0 && cteWeight > 0)
+            ? Number((icms * (cteWeight / weight)).toFixed(2))
+            : Number((icms / cteInfo.list.length).toFixed(2));
+
+          const cteFederalTax = (weight > 0 && cteWeight > 0)
+            ? Number((federalTax * (cteWeight / weight)).toFixed(2))
+            : Number((federalTax / cteInfo.list.length).toFixed(2));
+
+          const cteFreightDifference = cteCompanyFreight - cteDriverFreight;
+          const cteNetProfit = cteFreightDifference - cteToll - cteIcms - cteFederalTax;
+
+          items.push({
+            key: `${s.id}-cte-${cteNum}-${idx}`,
+            cteNumber: cteNum,
+            displayCte: cteInfo.raw,
+            allCteNumbers: cteInfo.list,
+            shipment: s,
+            cargo,
+            isComplementary: false,
+            weight: cteWeight,
+            companyFreight: cteCompanyFreight,
+            companyRatePerTon,
+            driverFreight: cteDriverFreight,
+            driverRatePerTon,
+            toll: cteToll,
+            freightDifference: cteFreightDifference,
+            icms: cteIcms,
+            federalTax: cteFederalTax,
+            totalExpenses: Number((calculatedExpenses.totalExpenses / cteInfo.list.length).toFixed(2)),
+            netProfit: cteNetProfit,
+            plate: normalizePlate(s.horsePlate),
+            date: shipmentEffectiveDate,
+            clientName,
+            origin: cargo?.origin || '',
+            destination: cargo?.destination || '',
+            driverName: s.driverName || '---',
+            branchUf: branchUf || '',
+            branchName: branchName || ''
+          });
+        });
+      }
 
       // Sub-linha de CT-e Complementar de Estadia (apenas se possuir CT-e complementar emitido)
       if (hasComplement) {
@@ -702,8 +835,10 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
     // Mescla embarques do relatório Lucro Real em arquivo (se fornecido - apenas efetivados com CT-e)
     if (uploadedTranscunhaRecords && uploadedTranscunhaRecords.length > 0) {
       uploadedTranscunhaRecords.forEach((tr, idx) => {
-        const cteClean = tr.cteNumber ? tr.cteNumber.replace(/[^0-9]/g, '') : '';
-        if (!cteClean) return; // Ignora registros sem CT-e emitido
+        const rawCte = tr.cteNumber || '';
+        const cteParts = String(rawCte).split(/[/,;|\s\n\r-]+/).map(p => p.replace(/[^0-9]/g, '')).filter(p => p && p !== '0' && p.length < 10);
+        const cteClean = cteParts[0] || (rawCte ? rawCte.replace(/[^0-9]/g, '') : '');
+        if (!cteClean && cteParts.length === 0) return; // Ignora registros sem CT-e emitido
 
         const plateNorm = normalizePlate(tr.plate);
         const dateNorm = normalizeDate(tr.date);
@@ -730,6 +865,8 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
           items.push({
             key: `trans-file-${tr.shipmentId || cteClean || plateNorm}-${idx}`,
             cteNumber: cteClean,
+            displayCte: rawCte || cteClean,
+            allCteNumbers: cteParts.length > 0 ? cteParts : [cteClean],
             shipment: fakeShipment,
             cargo: undefined,
             isComplementary: (tr.weight === 0 && tr.companyFreight > 0),
@@ -802,11 +939,14 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
       // NOTA CRÍTICA: Cada estado/filial pode ter sua própria sequência numérica de CT-e.
       // Se houver mais de um CT-e com mesmo número (homônimos de estados distintos),
       // desempatamos obrigatoriamente por Mesma Placa e Mesma UF.
+      // Suporta correspondência individual e múltipla (ex: 2112 vs 2112/2111).
       if (atuaCteClean) {
         const cteCandidates = enrichedTranscunhaData.filter(t => 
           !matchedTranscunhaKeys.has(t.key) && 
-          t.cteNumber && 
-          (t.cteNumber === atuaCteClean || parseInt(t.cteNumber, 10) === parseInt(atuaCteClean, 10))
+          (
+            (t.cteNumber && (t.cteNumber === atuaCteClean || parseInt(t.cteNumber, 10) === parseInt(atuaCteClean, 10))) ||
+            (t.allCteNumbers && t.allCteNumbers.some(c => c === atuaCteClean || parseInt(c, 10) === parseInt(atuaCteClean, 10)))
+          )
         );
 
         if (cteCandidates.length > 0) {
@@ -867,7 +1007,10 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
         if (exactMatches.length === 1) {
           match = exactMatches[0];
         } else if (exactMatches.length > 1) {
-          const cteMatch = exactMatches.find(t => t.cteNumber && t.cteNumber === atuaCteClean);
+          const cteMatch = exactMatches.find(t => 
+            (t.cteNumber && (t.cteNumber === atuaCteClean || parseInt(t.cteNumber, 10) === parseInt(atuaCteClean, 10))) ||
+            (t.allCteNumbers && t.allCteNumbers.some(c => c === atuaCteClean || parseInt(c, 10) === parseInt(atuaCteClean, 10)))
+          );
           if (cteMatch) {
             match = cteMatch;
           } else {
@@ -895,13 +1038,21 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
           if (nearDateMatches.length === 1) {
             match = nearDateMatches[0];
           } else if (nearDateMatches.length > 1) {
-            const sameUfMatches = atuaUf ? nearDateMatches.filter(t => t.branchUf === atuaUf) : nearDateMatches;
-            const pool = sameUfMatches.length > 0 ? sameUfMatches : nearDateMatches;
-            match = pool.reduce((best, cur) => {
-              const diffBest = Math.abs(best.weight - atuaWeight) + Math.abs(best.companyFreight - atuaRec.companyFreight) / 1000;
-              const diffCur = Math.abs(cur.weight - atuaWeight) + Math.abs(cur.companyFreight - atuaRec.companyFreight) / 1000;
-              return diffCur < diffBest ? cur : best;
-            });
+            const cteMatch = nearDateMatches.find(t => 
+              (t.cteNumber && (t.cteNumber === atuaCteClean || parseInt(t.cteNumber, 10) === parseInt(atuaCteClean, 10))) ||
+              (t.allCteNumbers && t.allCteNumbers.some(c => c === atuaCteClean || parseInt(c, 10) === parseInt(atuaCteClean, 10)))
+            );
+            if (cteMatch) {
+              match = cteMatch;
+            } else {
+              const sameUfMatches = atuaUf ? nearDateMatches.filter(t => t.branchUf === atuaUf) : nearDateMatches;
+              const pool = sameUfMatches.length > 0 ? sameUfMatches : nearDateMatches;
+              match = pool.reduce((best, cur) => {
+                const diffBest = Math.abs(best.weight - atuaWeight) + Math.abs(best.companyFreight - atuaRec.companyFreight) / 1000;
+                const diffCur = Math.abs(cur.weight - atuaWeight) + Math.abs(cur.companyFreight - atuaRec.companyFreight) / 1000;
+                return diffCur < diffBest ? cur : best;
+              });
+            }
           }
         }
       }
@@ -911,8 +1062,12 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
         matchedAtuaIndexes.add(atuaIdx);
 
         // 1. Auditoria do CT-e
-        const transCte = match.cteNumber;
-        const isCteDivergent = !transCte || !atuaCteClean || (transCte !== atuaCteClean && parseInt(transCte, 10) !== parseInt(atuaCteClean, 10));
+        const transCte = match.displayCte || match.cteNumber;
+        const isCteMatch = Boolean(
+          (match.cteNumber && (match.cteNumber === atuaCteClean || parseInt(match.cteNumber, 10) === parseInt(atuaCteClean, 10))) ||
+          (match.allCteNumbers && match.allCteNumbers.some(c => c === atuaCteClean || parseInt(c, 10) === parseInt(atuaCteClean, 10)))
+        );
+        const isCteDivergent = !isCteMatch;
 
         // Pedágio de referência da operação para conferência cruzada
         const effectiveToll = (match.toll > 0 ? match.toll : atuaRec.toll) || 0;
@@ -1151,7 +1306,7 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
         results.push({
           id: `transcunha-pending-${t.key}`,
           cteNumber: t.cteNumber,
-          cteNumberTrans: t.cteNumber,
+          cteNumberTrans: t.displayCte || t.cteNumber,
           cteNumberAtua: '',
           isCteDivergent: true,
           shipmentId: t.shipment.id,
@@ -1516,7 +1671,7 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
         ? `R$ ${item.transcunha.icms.toFixed(2)} / ${item.atua.icms.toFixed(2)}`
         : (item.transcunha ? `R$ ${item.transcunha.icms.toFixed(2)}` : (item.atua ? `R$ ${item.atua.icms.toFixed(2)}` : '---'));
 
-      return [
+      const row = [
         item.plate || '---',
         item.date ? new Date(item.date + 'T00:00:00').toLocaleDateString('pt-BR') : '---',
         cteAtuaStr,
@@ -1533,6 +1688,8 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
         tollStr,
         icmsStr
       ];
+      (row as any)._item = item;
+      return row;
     });
 
     autoTable(doc, {
@@ -1540,21 +1697,77 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
       body: tableData,
       startY: 26,
       margin: { left: 6, right: 6 },
-      styles: { fontSize: 5.2, cellPadding: 1.1, halign: 'center', valign: 'middle' },
+      styles: { fontSize: 5.2, cellPadding: 1.1, halign: 'center', valign: 'middle', textColor: [51, 65, 85] },
       headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontStyle: 'bold' },
       alternateRowStyles: { fillColor: [248, 250, 252] },
       didParseCell: (data) => {
         if (data.section === 'body') {
-          const rawRow = Array.isArray(data.row.raw) ? data.row.raw : [];
-          const statusVal = String(rawRow[4] || '');
-          if (statusVal.includes('Divergente')) {
+          const rawRow = Array.isArray(data.row.raw) ? (data.row.raw as any) : [];
+          const item: ReconciliationItem | undefined = rawRow?._item || filteredItems[data.row.index];
+          const colIdx = data.column.index;
+          if (!item) return;
+
+          // Por padrão, texto neutro ardósia/grafite
+          data.cell.styles.textColor = [51, 65, 85];
+          data.cell.styles.fontStyle = 'normal';
+
+          // 4. Status Auditoria
+          if (colIdx === 4) {
+            if (item.status === 'DIVERGENT') {
+              data.cell.styles.textColor = [185, 28, 28]; // red
+              data.cell.styles.fontStyle = 'bold';
+            } else if (item.status === 'CONCILIATED') {
+              data.cell.styles.textColor = [21, 128, 61]; // green
+              data.cell.styles.fontStyle = 'bold';
+            } else if (item.status === 'ORPHAN_ATUA') {
+              data.cell.styles.textColor = [126, 34, 206]; // purple
+              data.cell.styles.fontStyle = 'bold';
+            } else if (item.status === 'PENDING_ATUA') {
+              data.cell.styles.textColor = [217, 119, 6]; // amber
+              data.cell.styles.fontStyle = 'bold';
+            }
+            return;
+          }
+
+          // Apenas destacar em vermelho as células cujo campo possui divergência real apurada
+          let isCellDivergent = false;
+
+          // 2 e 3: CT-e Atua e CT-e Trans
+          if ((colIdx === 2 || colIdx === 3) && item.isCteDivergent) {
+            isCellDivergent = true;
+          }
+          // 5 e 6: Frete Empresa (Trans) e Frete Empresa (Atua)
+          else if ((colIdx === 5 || colIdx === 6) && item.isCompanyFreightDivergent) {
+            isCellDivergent = true;
+          }
+          // 7: Tarifa Empresa (Trans/Atua)
+          else if (colIdx === 7 && item.isCompanyRateDivergent) {
+            isCellDivergent = true;
+          }
+          // 8 e 9: Frete Motorista (Trans) e Frete Motorista (Atua)
+          else if ((colIdx === 8 || colIdx === 9) && item.isDriverFreightDivergent) {
+            isCellDivergent = true;
+          }
+          // 10: Tarifa Motorista (Trans/Atua)
+          else if (colIdx === 10 && item.isDriverRateDivergent) {
+            isCellDivergent = true;
+          }
+          // 11 e 12: Peso Trans (t) e Peso Atua (t)
+          else if ((colIdx === 11 || colIdx === 12) && item.isWeightDivergent) {
+            isCellDivergent = true;
+          }
+          // 13: Pedágio (Trans/Atua)
+          else if (colIdx === 13 && item.isTollDivergent) {
+            isCellDivergent = true;
+          }
+          // 14: ICMS (Trans/Atua)
+          else if (colIdx === 14 && item.isIcmsDivergent) {
+            isCellDivergent = true;
+          }
+
+          if (isCellDivergent) {
             data.cell.styles.textColor = [185, 28, 28]; // red
-          } else if (statusVal.includes('Conciliado') || statusVal.includes('100% OK')) {
-            data.cell.styles.textColor = [21, 128, 61]; // green
-          } else if (statusVal.includes('Órfão')) {
-            data.cell.styles.textColor = [126, 34, 206]; // purple
-          } else if (statusVal.includes('Pendente')) {
-            data.cell.styles.textColor = [217, 119, 6]; // amber
+            data.cell.styles.fontStyle = 'bold';
           }
         }
       }

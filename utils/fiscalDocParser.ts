@@ -1,8 +1,9 @@
 import * as pdfjsLib from 'pdfjs-dist';
+import type { SubCteRecord } from '../types';
 import { FreightBalanceCalculation, calculateFreightBalance } from './freightBalanceCalculator';
 import { extractOcNumberFromText } from './ocParser';
 
-export type { FreightBalanceCalculation };
+export type { FreightBalanceCalculation, SubCteRecord };
 export { calculateFreightBalance };
 
 // Configuração do Worker do PDF.js para ambiente de navegador/Vite
@@ -2068,6 +2069,7 @@ export interface FiscalDocNumbers {
   cteEmissionDate?: string;
   cteWeightKg?: number;
   cteTotalServiceValue?: number;
+  subCtes?: SubCteRecord[];
   nfeNumber?: string;
   nfeValue?: number;
   mdfeNumber?: string;
@@ -2103,6 +2105,7 @@ export async function extractFiscalDocNumbers(
   filesToAttach: { [docType: string]: File[] }
 ): Promise<FiscalDocNumbers> {
   const result: FiscalDocNumbers = {};
+  const extractedSubCtes: SubCteRecord[] = [];
 
   const docTypes = Object.keys(filesToAttach);
   for (const docType of docTypes) {
@@ -2118,6 +2121,51 @@ export async function extractFiscalDocNumbers(
 
         const isCteDoc = (isCteField || detailed.documentType === 'CT-e') && !isCartaFreteField && detailed.documentType !== 'MDF-e';
         if (isCteDoc) {
+          const numStr = detailed.docNumber ? String(detailed.docNumber).trim() : '';
+          const singleWeightKg = detailed.carga?.pesoBrutoKg !== undefined
+            ? detailed.carga.pesoBrutoKg
+            : detailed.carga?.pesoLiquidoKg;
+          const singleWeightTon = (singleWeightKg !== undefined && singleWeightKg > 0)
+            ? (singleWeightKg >= 1000 ? Number((singleWeightKg / 1000).toFixed(3)) : singleWeightKg)
+            : undefined;
+          const singleServiceVal = detailed.financeiro?.valorTotalServico !== undefined
+            ? detailed.financeiro.valorTotalServico
+            : detailed.financeiro?.valorTotalFrete;
+          const singleIcms = detailed.financeiro?.valorIcms || 0;
+          const singleToll = detailed.financeiro?.valorPedagio || 0;
+
+          if (numStr) {
+            const existingIdx = extractedSubCtes.findIndex(c => c.cteNumber === numStr);
+            if (existingIdx >= 0) {
+              extractedSubCtes[existingIdx] = {
+                ...extractedSubCtes[existingIdx],
+                weight: singleWeightTon ?? extractedSubCtes[existingIdx].weight,
+                weightKg: singleWeightKg ?? extractedSubCtes[existingIdx].weightKg,
+                companyFreight: singleServiceVal ?? extractedSubCtes[existingIdx].companyFreight,
+                icms: singleIcms || extractedSubCtes[existingIdx].icms,
+                toll: singleToll || extractedSubCtes[existingIdx].toll,
+                emissionDate: detailed.emissionDate || extractedSubCtes[existingIdx].emissionDate,
+                tomadorNome: detailed.tomador?.razaoSocial || extractedSubCtes[existingIdx].tomadorNome,
+                tomadorCnpj: detailed.tomador?.cnpjCpf || extractedSubCtes[existingIdx].tomadorCnpj,
+                remetente: (detailed.remetente?.razaoSocial || detailed.remetente?.cnpjCpf) || extractedSubCtes[existingIdx].remetente,
+              };
+            } else {
+              extractedSubCtes.push({
+                cteNumber: numStr,
+                weight: singleWeightTon,
+                weightKg: singleWeightKg,
+                companyFreight: singleServiceVal,
+                icms: singleIcms,
+                toll: singleToll,
+                emissionDate: detailed.emissionDate,
+                fileName: file.name,
+                tomadorNome: detailed.tomador?.razaoSocial,
+                tomadorCnpj: detailed.tomador?.cnpjCpf,
+                remetente: detailed.remetente?.razaoSocial || detailed.remetente?.cnpjCpf,
+              });
+            }
+          }
+
           if (detailed.docNumber && !result.cteNumber) result.cteNumber = detailed.docNumber;
           if (detailed.emissionDate && !result.cteEmissionDate) result.cteEmissionDate = detailed.emissionDate;
           if (detailed.carga?.pesoBrutoKg !== undefined && !result.cteWeightKg) {
@@ -2270,6 +2318,25 @@ export async function extractFiscalDocNumbers(
     }
   }
 
+  if (extractedSubCtes.length > 0) {
+    result.subCtes = extractedSubCtes;
+    if (extractedSubCtes.length > 1) {
+      result.cteNumber = extractedSubCtes.map(c => c.cteNumber).filter(Boolean).join('/');
+      const totalWeightKg = extractedSubCtes.reduce((sum, c) => sum + (c.weightKg || (c.weight ? c.weight * 1000 : 0)), 0);
+      if (totalWeightKg > 0) {
+        result.cteWeightKg = totalWeightKg;
+      }
+      const totalServiceVal = extractedSubCtes.reduce((sum, c) => sum + (c.companyFreight || 0), 0);
+      if (totalServiceVal > 0) {
+        result.cteTotalServiceValue = totalServiceVal;
+      }
+      const totalIcms = extractedSubCtes.reduce((sum, c) => sum + (c.icms || 0), 0);
+      if (totalIcms > 0) {
+        result.icmsValue = totalIcms;
+      }
+    }
+  }
+
   console.log('[fiscalDocParser] Extracted fiscal and contract numbers:', result);
   return result;
 }
@@ -2278,6 +2345,7 @@ export async function extractFiscalDocNumbersFromUrls(
   docsByType: { [docType: string]: string[] }
 ): Promise<FiscalDocNumbers> {
   const result: FiscalDocNumbers = {};
+  const extractedSubCtes: SubCteRecord[] = [];
 
   for (const [docType, urls] of Object.entries(docsByType)) {
     if (!Array.isArray(urls) || urls.length === 0) continue;
@@ -2290,6 +2358,54 @@ export async function extractFiscalDocNumbersFromUrls(
 
         const isCteDoc = (isCteField || detailed.documentType === 'CT-e') && !isCartaFreteField && detailed.documentType !== 'MDF-e';
         if (isCteDoc) {
+          const numStr = detailed.docNumber ? String(detailed.docNumber).trim() : '';
+          const singleWeightKg = detailed.carga?.pesoBrutoKg !== undefined
+            ? detailed.carga.pesoBrutoKg
+            : detailed.carga?.pesoLiquidoKg;
+          const singleWeightTon = (singleWeightKg !== undefined && singleWeightKg > 0)
+            ? (singleWeightKg >= 1000 ? Number((singleWeightKg / 1000).toFixed(3)) : singleWeightKg)
+            : undefined;
+          const singleServiceVal = detailed.financeiro?.valorTotalServico !== undefined
+            ? detailed.financeiro.valorTotalServico
+            : detailed.financeiro?.valorTotalFrete;
+          const singleIcms = detailed.financeiro?.valorIcms || 0;
+          const singleToll = detailed.financeiro?.valorPedagio || 0;
+
+          if (numStr) {
+            const existingIdx = extractedSubCtes.findIndex(c => c.cteNumber === numStr);
+            if (existingIdx >= 0) {
+              extractedSubCtes[existingIdx] = {
+                ...extractedSubCtes[existingIdx],
+                weight: singleWeightTon ?? extractedSubCtes[existingIdx].weight,
+                weightKg: singleWeightKg ?? extractedSubCtes[existingIdx].weightKg,
+                companyFreight: singleServiceVal ?? extractedSubCtes[existingIdx].companyFreight,
+                icms: singleIcms || extractedSubCtes[existingIdx].icms,
+                toll: singleToll || extractedSubCtes[existingIdx].toll,
+                emissionDate: detailed.emissionDate || extractedSubCtes[existingIdx].emissionDate,
+                fileUrl: url,
+                fileName: url.split('/').pop()?.split('?')[0],
+                tomadorNome: detailed.tomador?.razaoSocial || extractedSubCtes[existingIdx].tomadorNome,
+                tomadorCnpj: detailed.tomador?.cnpjCpf || extractedSubCtes[existingIdx].tomadorCnpj,
+                remetente: (detailed.remetente?.razaoSocial || detailed.remetente?.cnpjCpf) || extractedSubCtes[existingIdx].remetente,
+              };
+            } else {
+              extractedSubCtes.push({
+                cteNumber: numStr,
+                weight: singleWeightTon,
+                weightKg: singleWeightKg,
+                companyFreight: singleServiceVal,
+                icms: singleIcms,
+                toll: singleToll,
+                emissionDate: detailed.emissionDate,
+                fileUrl: url,
+                fileName: url.split('/').pop()?.split('?')[0],
+                tomadorNome: detailed.tomador?.razaoSocial,
+                tomadorCnpj: detailed.tomador?.cnpjCpf,
+                remetente: detailed.remetente?.razaoSocial || detailed.remetente?.cnpjCpf,
+              });
+            }
+          }
+
           if (detailed.docNumber && !result.cteNumber) result.cteNumber = detailed.docNumber;
           if (detailed.emissionDate && !result.cteEmissionDate) result.cteEmissionDate = detailed.emissionDate;
           if (detailed.carga?.pesoBrutoKg !== undefined && !result.cteWeightKg) {
@@ -2438,6 +2554,25 @@ export async function extractFiscalDocNumbersFromUrls(
         }
       } catch (e) {
         console.warn(`[fiscalDocParser] Could not fetch URL "${url}":`, e);
+      }
+    }
+  }
+
+  if (extractedSubCtes.length > 0) {
+    result.subCtes = extractedSubCtes;
+    if (extractedSubCtes.length > 1) {
+      result.cteNumber = extractedSubCtes.map(c => c.cteNumber).filter(Boolean).join('/');
+      const totalWeightKg = extractedSubCtes.reduce((sum, c) => sum + (c.weightKg || (c.weight ? c.weight * 1000 : 0)), 0);
+      if (totalWeightKg > 0) {
+        result.cteWeightKg = totalWeightKg;
+      }
+      const totalServiceVal = extractedSubCtes.reduce((sum, c) => sum + (c.companyFreight || 0), 0);
+      if (totalServiceVal > 0) {
+        result.cteTotalServiceValue = totalServiceVal;
+      }
+      const totalIcms = extractedSubCtes.reduce((sum, c) => sum + (c.icms || 0), 0);
+      if (totalIcms > 0) {
+        result.icmsValue = totalIcms;
       }
     }
   }

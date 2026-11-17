@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from './supabase';
 import { useDatabase } from './hooks/useDatabase';
-import type { Client, Owner, Driver, Vehicle, Product, Cargo, Shipment, User, Page, ProfilePermissions, HistoryLog, Ticket, TicketHistory, ShipmentLock, Branch, FreightOffer, RiskQueryOption, RealProfitData, ExpedidorRecebedor } from './types';
+import type { Client, Owner, Driver, Vehicle, Product, Cargo, Shipment, User, Page, ProfilePermissions, HistoryLog, Ticket, TicketHistory, ShipmentLock, Branch, FreightOffer, RiskQueryOption, RealProfitData, ExpedidorRecebedor, SubCteRecord } from './types';
 import { CargoStatus, ShipmentStatus, UserProfile, TicketStatus, TicketPriority, DriverClassification, VehicleSetType, VehicleBodyType, REQUIRED_DOCUMENT_MAP, OwnerType, FreightOfferStatus, DEFAULT_RISK_QUERY_OPTIONS, AnttModality, DriverPaymentMethod } from './types';
 import { formatId, isCteApplicableForStatus, getShipmentCte, getShipmentCteEmissionDate, findCargoById, findProductForCargo, checkRequiresRiskManagement } from './utils';
 import { extractFiscalDocNumbers, isCteDocType } from './utils/fiscalDocParser';
@@ -2342,8 +2342,9 @@ const App: React.FC = () => {
     riskQueryCost?: number,
     realProfitData?: RealProfitData,
     codigoAtua?: string,
+    subCtes?: SubCteRecord[],
   }) => {
-    const { filesToAttach, bankDetails, loadedTonnage, driverFreightValue, icmsValue, advancePercentage, advanceValue, tollValue, balanceToReceiveValue, discountValue, isBreakageWaived, netBalanceValue, unloadedTonnage, route, grStatus, riskReleaseCode, riskQueryType, riskQueryCost, realProfitData, codigoAtua } = data;
+    const { filesToAttach, bankDetails, loadedTonnage, driverFreightValue, icmsValue, advancePercentage, advanceValue, tollValue, balanceToReceiveValue, discountValue, isBreakageWaived, netBalanceValue, unloadedTonnage, route, grStatus, riskReleaseCode, riskQueryType, riskQueryCost, realProfitData, codigoAtua, subCtes } = data;
     
     if (!currentUser) {
       showToast('Usuário não autenticado.', 'error');
@@ -2611,6 +2612,7 @@ const App: React.FC = () => {
     let extractedAdvanceValue: number | undefined = undefined;
     let extractedAdvancePercentage: number | undefined = undefined;
     let extractedFiscalNums: any = null;
+    let extractedSubCtes: SubCteRecord[] | undefined = subCtes;
 
     if (Object.keys(filesToAttach).length > 0) {
       try {
@@ -2651,6 +2653,12 @@ const App: React.FC = () => {
         if (fiscalNums.cteTomadorCnpj) {
           updatedDocuments.cte_tomador_cnpj = fiscalNums.cteTomadorCnpj;
           updatedDocuments.cteTomadorCnpj = fiscalNums.cteTomadorCnpj;
+        }
+        if (fiscalNums.subCtes && fiscalNums.subCtes.length > 0) {
+          extractedSubCtes = fiscalNums.subCtes;
+          updatedDocuments.sub_ctes = fiscalNums.subCtes;
+        } else if (subCtes && subCtes.length > 0) {
+          updatedDocuments.sub_ctes = subCtes;
         }
         if (fiscalNums.nfeNumber) extractedNfeNumber = fiscalNums.nfeNumber;
         if (fiscalNums.mdfeNumber) extractedMdfeNumber = fiscalNums.mdfeNumber;
@@ -2898,6 +2906,7 @@ const App: React.FC = () => {
         riskQueryCost: riskQueryCost !== undefined ? riskQueryCost : originalShipment.riskQueryCost,
         cteNumber: extractedCteNumber,
         cteEmissionDate: extractedCteEmissionDate,
+        subCtes: subCtes || extractedSubCtes || originalShipment.subCtes || (originalShipment.documents as any)?.sub_ctes,
         ciotNumber: extractedCiotNumber,
         ciot: extractedCiotNumber,
         nfeNumber: extractedNfeNumber,

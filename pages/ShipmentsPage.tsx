@@ -160,9 +160,18 @@ const ShipmentsPage: React.FC<ShipmentsPageProps> = ({
     }
     if (filterCte.trim()) {
       const q = filterCte.trim().toLowerCase();
+      const cleanQ = q.replace(/\\D/g, '');
       result = result.filter(s => {
         const cte = getShipmentCte(s).toLowerCase();
-        return (cte !== '-' && cte.includes(q)) || (isCteApplicableForStatus(s.status) && !!s.cteNumber && s.cteNumber.toLowerCase().includes(q));
+        const baseMatch = (cte !== '-' && cte.includes(q)) || (isCteApplicableForStatus(s.status) && !!s.cteNumber && s.cteNumber.toLowerCase().includes(q));
+        if (baseMatch) return true;
+        const subCtes = (s.subCtes || (s.documents as any)?.sub_ctes || []) as any[];
+        if (subCtes.some(sc => String(sc?.cteNumber || '').toLowerCase().includes(q) || (cleanQ && String(sc?.cteNumber || '').replace(/\\D/g, '').includes(cleanQ)))) return true;
+        if (s.cteNumber) {
+          const parts = s.cteNumber.split(/[\\/,;\\s]+/);
+          if (parts.some(p => p.toLowerCase().includes(q) || (cleanQ && p.replace(/\\D/g, '').includes(cleanQ)))) return true;
+        }
+        return false;
       });
     }
     return result;

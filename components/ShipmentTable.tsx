@@ -560,7 +560,14 @@ const ShipmentTable: React.FC<ShipmentTableProps> = ({ shipments, drivers, cargo
           const idMatch = shipment.id.toLowerCase().includes(q);
           const cargoSeqMatch = cargo?.sequenceId ? String(cargo.sequenceId).toLowerCase().includes(q) : false;
           const atuaMatch = getDriverCodigoAtua(shipment).toLowerCase().includes(q);
-          if (!idMatch && !cargoSeqMatch && !atuaMatch) return false;
+          const cteVal = (getShipmentCte(shipment) || '').toLowerCase();
+          const cleanQ = q.replace(/\\D/g, '');
+          const cteMatch = (cteVal !== '-' && cteVal.includes(q)) || (shipment.cteNumber && shipment.cteNumber.toLowerCase().includes(q));
+          const subCteMatch = (shipment.subCtes || (shipment.documents as any)?.sub_ctes || []).some((sc: any) => String(sc?.cteNumber || '').toLowerCase().includes(q) || (cleanQ && String(sc?.cteNumber || '').replace(/\\D/g, '').includes(cleanQ)));
+          const splitCteMatch = (shipment.cteNumber || '').split(/[\\/,;\\s]+/).some((part: string) => { const p = part.trim().toLowerCase(); return p.length > 0 && (p.includes(q) || (cleanQ && p.replace(/\\D/g, '').includes(cleanQ))); });
+          const plateMatch = shipment.horsePlate?.toLowerCase().includes(q);
+          const driverMatch = shipment.driverName?.toLowerCase().includes(q);
+          if (!idMatch && !cargoSeqMatch && !atuaMatch && !cteMatch && !subCteMatch && !splitCteMatch && !plateMatch && !driverMatch) return false;
         }
         if (filterPlate.length > 0 && !filterPlate.includes(shipment.horsePlate)) return false;
         if (filterName.length > 0 && !filterName.includes(shipment.driverName)) return false;
