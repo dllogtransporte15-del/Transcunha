@@ -27,6 +27,25 @@ export interface SystemRelease {
  */
 export const SYSTEM_RELEASES: SystemRelease[] = [
   {
+    id: 'rel_2026_11_17_v2_116_25',
+    version: 'v2.116.25',
+    date: '17/11/2026',
+    title: 'Ajuste Operacional de Pesos de Descarga (Outubro) e Blindagem de Frete',
+    summary: 'Ajustados com sucesso todos os 25 embarques do mês 10/2026 onde o peso de descarga foi lançado maior que o peso de carregamento. O peso de descarga foi equalizado ao peso carregado, mantendo a integridade dos cálculos de frete empresa, frete motorista, margem e conciliação fiscal.',
+    items: [
+      {
+        category: 'fix',
+        title: 'Equalização de Pesos de Descarga do Mês 10',
+        description: 'Corrigidos 25 embarques de Outubro/2026 onde o peso de descarga estava superior ao de saída (incluindo correção de digitação em kg do RAF-676). Os pesos de descarga agora refletem exatamente o peso carregado com log de auditoria no histórico.'
+      },
+      {
+        category: 'improvement',
+        title: 'Blindagem de Cálculos contra Excesso de Peso em Relatórios',
+        description: 'Atualizados os relatórios de Lucro Real e a Conciliação Atua TMS para aplicar teto de peso no carregamento caso o peso de descarga venha superior, impedindo impactos indevidos ou faturamentos irreais.'
+      }
+    ]
+  },
+  {
     id: 'rel_2026_11_17_v2_116_24',
     version: 'v2.116.24',
     date: '17/11/2026',

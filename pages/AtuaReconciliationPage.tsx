@@ -687,7 +687,12 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
         ? Number(s.realProfitData.federalTax)
         : Number(calculatedExpenses.impostoFederal || 0);
 
-      const weight = normalizeWeightTonnage(s.unloadedTonnage || s.loadedTonnage || s.shipmentTonnage || cargo?.totalVolume || 0);
+      // Peso de referência: se peso de descarga for maior que o carregamento, prevalece o de carregamento (sem ganho excedente)
+      const baseLoadedWeight = normalizeWeightTonnage(s.shipmentTonnage || (s as any).loadedTonnage || cargo?.totalVolume || 0);
+      const rawUnloadedWeight = normalizeWeightTonnage(s.unloadedTonnage || (s as any).unloaded_tonnage || 0);
+      const weight = (rawUnloadedWeight > 0 && baseLoadedWeight > 0 && rawUnloadedWeight > baseLoadedWeight)
+        ? baseLoadedWeight
+        : (rawUnloadedWeight > 0 ? rawUnloadedWeight : baseLoadedWeight);
 
       // Tarifa por tonelada no Transcunha
       let companyRatePerTon = 0;

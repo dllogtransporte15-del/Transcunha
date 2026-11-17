@@ -510,7 +510,12 @@ export const RealProfitReport: React.FC<RealProfitReportProps> = ({
         hasOcr: Boolean(s.realProfitData),
         attachmentUrl,
         calculatedExpenses,
-        weight: normalizeWeightTonnage(s.unloadedTonnage || s.loadedTonnage || s.shipmentTonnage || cargo?.totalVolume || 0),
+        weight: (() => {
+          const loaded = normalizeWeightTonnage(s.shipmentTonnage || s.loadedTonnage || cargo?.totalVolume || 0);
+          const unloaded = normalizeWeightTonnage(s.unloadedTonnage || 0);
+          if (unloaded > 0 && loaded > 0 && unloaded > loaded) return loaded;
+          return unloaded > 0 ? unloaded : loaded;
+        })(),
         icms: (() => {
           const isCargoWithoutIcms = Boolean(
             cargo &&
