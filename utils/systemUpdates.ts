@@ -27,6 +27,30 @@ export interface SystemRelease {
  */
 export const SYSTEM_RELEASES: SystemRelease[] = [
   {
+    id: 'rel_2026_11_17_v2_116_26',
+    version: 'v2.116.26',
+    date: '17/11/2026',
+    title: 'Auditoria Atua TMS: Resolução de Pareamento dos 9 CT-es e Equalização do Peso Carregado',
+    summary: 'Corrigido o pareamento na auditoria e conciliação do Atua TMS para os 9 embarques (CT-es 2068, 2091, 28, 35, 36, 37, 38, 44, 51). Blindado o acesso seguro às propriedades de placa do veículo e semirreboques (horsePlate/horse_plate), prevenido o consumo indevido de embarques pela Fase 2 quando o CT-e próprio já consta no relatório, e equalizada a conferência da coluna de Peso Carregado contra o peso emitido no CT-e (eliminando divergências artificiais).',
+    items: [
+      {
+        category: 'fix',
+        title: 'Pareamento Integral dos 9 CT-es na Conciliação Atua TMS',
+        description: 'Os CT-es 2068 (RAF-676), 2091 (MUR-722), 28 (RAF-768), 35 (FEL-809), 36 (RAF-792), 37 (FEL-814), 38 (RAF-793), 44 (RAF-848) e 51 (DIO-878) agora pareiam com sucesso 1:1 com seus respectivos embarques no Transcunha, saindo da lista de "Órfãos Atua" e exibindo a numeração fiscal correspondente.'
+      },
+      {
+        category: 'improvement',
+        title: 'Alinhamento Fidedigno da Coluna "Peso Carregado (t)" com o CT-e',
+        description: 'Na conferência do CT-e, a coluna de Peso Carregado passa a priorizar estritamente o peso emitido no documento fiscal de saída (shipmentTonnage), eliminando diferenças mínimas em relação à pesagem de descarga que acusavam divergência fantasma.'
+      },
+      {
+        category: 'security',
+        title: 'Blindagem de Propriedades e Prevenção de Falso Pareamento por Data',
+        description: 'A Fase 2 de pareamento agora impede expressamente que qualquer embarque seja absorvido por data/placa quando seu próprio número de CT-e estiver presente no relatório do Atua TMS, garantindo a integridade fiscal da conciliação.'
+      }
+    ]
+  },
+  {
     id: 'rel_2026_11_17_v2_116_25',
     version: 'v2.116.25',
     date: '17/11/2026',

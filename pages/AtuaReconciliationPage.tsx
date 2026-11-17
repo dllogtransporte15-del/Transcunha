@@ -687,12 +687,12 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
         ? Number(s.realProfitData.federalTax)
         : Number(calculatedExpenses.impostoFederal || 0);
 
-      // Peso de referência: se peso de descarga for maior que o carregamento, prevalece o de carregamento (sem ganho excedente)
-      const baseLoadedWeight = normalizeWeightTonnage(s.shipmentTonnage || (s as any).loadedTonnage || cargo?.totalVolume || 0);
+      // Peso de referência da emissão do CT-e (Coluna Peso Carregado):
+      // No confronto fiscal do CT-e com o Atua TMS, o CT-e é emitido com o Peso Carregado (shipmentTonnage).
+      // Se não houver peso de carregamento, utiliza a descarga.
+      const baseLoadedWeight = normalizeWeightTonnage(s.shipmentTonnage || (s as any).loadedTonnage || (s as any).shipment_tonnage || cargo?.totalVolume || 0);
       const rawUnloadedWeight = normalizeWeightTonnage(s.unloadedTonnage || (s as any).unloaded_tonnage || 0);
-      const weight = (rawUnloadedWeight > 0 && baseLoadedWeight > 0 && rawUnloadedWeight > baseLoadedWeight)
-        ? baseLoadedWeight
-        : (rawUnloadedWeight > 0 ? rawUnloadedWeight : baseLoadedWeight);
+      const weight = baseLoadedWeight > 0 ? baseLoadedWeight : rawUnloadedWeight;
 
       // Tarifa por tonelada no Transcunha
       let companyRatePerTon = 0;
@@ -739,7 +739,7 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
           federalTax,
           totalExpenses: calculatedExpenses.totalExpenses,
           netProfit: baseNetProfit,
-          plate: normalizePlate(s.horsePlate),
+          plate: normalizePlate(s.horsePlate || (s as any)?.horse_plate),
           date: shipmentEffectiveDate,
           clientName,
           origin: cargo?.origin || '',
@@ -757,7 +757,7 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
           ? cteInfo.list.filter(cteNum => 
               atuaResult.records.some(r => 
                 r.cteNumber.replace(/[^0-9]/g, '') === cteNum && 
-                arePlatesMatching(r.plate, s.horsePlate)
+                arePlatesMatching(r.plate, s.horsePlate || (s as any)?.horse_plate)
               )
             )
           : [];
@@ -785,7 +785,7 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
             federalTax,
             totalExpenses: calculatedExpenses.totalExpenses,
             netProfit: baseNetProfit,
-            plate: normalizePlate(s.horsePlate),
+            plate: normalizePlate(s.horsePlate || (s as any)?.horse_plate),
             date: shipmentEffectiveDate,
             clientName,
             origin: cargo?.origin || '',
@@ -799,7 +799,7 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
           cteInfo.list.forEach((cteNum, idx) => {
             const atuaRecForCte = (atuaResult?.records || []).find(r => 
               r.cteNumber.replace(/[^0-9]/g, '') === cteNum &&
-              arePlatesMatching(r.plate, s.horsePlate)
+              arePlatesMatching(r.plate, s.horsePlate || (s as any)?.horse_plate)
             ) || (atuaResult?.records || []).find(r => r.cteNumber.replace(/[^0-9]/g, '') === cteNum);
           
             let cteWeight = 0;
@@ -861,7 +861,7 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
               federalTax: cteFederalTax,
               totalExpenses: Number((calculatedExpenses.totalExpenses / cteInfo.list.length).toFixed(2)),
               netProfit: cteNetProfit,
-              plate: normalizePlate(s.horsePlate),
+              plate: normalizePlate(s.horsePlate || (s as any)?.horse_plate),
               date: shipmentEffectiveDate,
               clientName,
               origin: cargo?.origin || '',
@@ -902,7 +902,7 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
             federalTax: 0,
             totalExpenses: 0,
             netProfit: stayDiff,
-            plate: normalizePlate(s.horsePlate),
+            plate: normalizePlate(s.horsePlate || (s as any)?.horse_plate),
             date: shipmentEffectiveDate,
             clientName,
             origin: cargo?.origin || '',
@@ -1045,8 +1045,9 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
             // 2. Mesma Placa (veículo confere com o CT-e com suporte a Mercosul/OCR)
             const samePlateMatch = cteCandidates.find(t => 
               arePlatesMatching(t.plate, atuaPlateClean) ||
-              arePlatesMatching(t.shipment?.trailer1Plate, atuaPlateClean) ||
-              arePlatesMatching(t.shipment?.trailer2Plate, atuaPlateClean)
+              arePlatesMatching(t.shipment?.trailer1Plate || (t.shipment as any)?.trailer1_plate, atuaPlateClean) ||
+              arePlatesMatching(t.shipment?.trailer2Plate || (t.shipment as any)?.trailer2_plate, atuaPlateClean) ||
+              arePlatesMatching(t.shipment?.trailer3Plate || (t.shipment as any)?.trailer3_plate, atuaPlateClean)
             );
 
             if (samePlateMatch) {
@@ -1075,13 +1076,23 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
       // Fase 2: Pareamento por Placa Normalizada + Data de Emissão/Embarque (para auditar numeração de CT-e ou ausência de CT-e)
       if (!match && atuaPlateClean) {
         // Busca exata por placa e data (com suporte a placa Mercosul)
-        const exactMatches = enrichedTranscunhaData.filter(t => 
-          !matchedTranscunhaKeys.has(t.key) && 
-          (arePlatesMatching(t.plate, atuaPlateClean) ||
-           arePlatesMatching(t.shipment?.trailer1Plate, atuaPlateClean) ||
-           arePlatesMatching(t.shipment?.trailer2Plate, atuaPlateClean)) && 
-          t.date === atuaDateClean
-        );
+        // NOTA DE PROTEÇÃO: Se o CT-e deste embarque no Transcunha existe no relatório do Atua,
+        // ele NÃO pode ser roubado na Fase 2 por outro CT-e!
+        const exactMatches = enrichedTranscunhaData.filter(t => {
+          if (matchedTranscunhaKeys.has(t.key)) return false;
+          const cteClean = t.cteNumber ? t.cteNumber.replace(/[^0-9]/g, '') : '';
+          if (cteClean && atuaCteClean && cteClean !== atuaCteClean && atuaRecords.some(r => r.cteNumber.replace(/[^0-9]/g, '') === cteClean)) {
+            return false;
+          }
+          if (t.allCteNumbers && atuaCteClean && !t.allCteNumbers.includes(atuaCteClean) && t.allCteNumbers.some(c => atuaRecords.some(r => r.cteNumber.replace(/[^0-9]/g, '') === c))) {
+            return false;
+          }
+          const samePlate = arePlatesMatching(t.plate, atuaPlateClean) ||
+            arePlatesMatching(t.shipment?.trailer1Plate || (t.shipment as any)?.trailer1_plate, atuaPlateClean) ||
+            arePlatesMatching(t.shipment?.trailer2Plate || (t.shipment as any)?.trailer2_plate, atuaPlateClean) ||
+            arePlatesMatching(t.shipment?.trailer3Plate || (t.shipment as any)?.trailer3_plate, atuaPlateClean);
+          return samePlate && t.date === atuaDateClean;
+        });
 
         if (exactMatches.length === 1) {
           match = exactMatches[0];
@@ -1105,9 +1116,17 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
           // Tolerância de data (até 3 dias de diferença entre data do agendamento/embarque e emissão do CT-e)
           const nearDateMatches = enrichedTranscunhaData.filter(t => {
             if (matchedTranscunhaKeys.has(t.key)) return false;
-            const samePlate = (arePlatesMatching(t.plate, atuaPlateClean) ||
-              arePlatesMatching(t.shipment?.trailer1Plate, atuaPlateClean) ||
-              arePlatesMatching(t.shipment?.trailer2Plate, atuaPlateClean));
+            const cteClean = t.cteNumber ? t.cteNumber.replace(/[^0-9]/g, '') : '';
+            if (cteClean && atuaCteClean && cteClean !== atuaCteClean && atuaRecords.some(r => r.cteNumber.replace(/[^0-9]/g, '') === cteClean)) {
+              return false;
+            }
+            if (t.allCteNumbers && atuaCteClean && !t.allCteNumbers.includes(atuaCteClean) && t.allCteNumbers.some(c => atuaRecords.some(r => r.cteNumber.replace(/[^0-9]/g, '') === c))) {
+              return false;
+            }
+            const samePlate = arePlatesMatching(t.plate, atuaPlateClean) ||
+              arePlatesMatching(t.shipment?.trailer1Plate || (t.shipment as any)?.trailer1_plate, atuaPlateClean) ||
+              arePlatesMatching(t.shipment?.trailer2Plate || (t.shipment as any)?.trailer2_plate, atuaPlateClean) ||
+              arePlatesMatching(t.shipment?.trailer3Plate || (t.shipment as any)?.trailer3_plate, atuaPlateClean);
             if (!samePlate) return false;
             if (!t.date || !atuaDateClean) return false;
             const diffDays = Math.abs((new Date(t.date).getTime() - new Date(atuaDateClean).getTime()) / (1000 * 60 * 60 * 24));
@@ -1513,9 +1532,9 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
 
           // 1. Mesma Placa do Cavalo ou Carretas (trailer1Plate, trailer2Plate, trailer3Plate): +40 pontos
           const pendingCavalo = normalizePlate(pending.plate);
-          const trailer1 = normalizePlate(pending.shipment?.trailer1Plate || '');
-          const trailer2 = normalizePlate(pending.shipment?.trailer2Plate || '');
-          const trailer3 = normalizePlate(pending.shipment?.trailer3Plate || '');
+          const trailer1 = normalizePlate(pending.shipment?.trailer1Plate || (pending.shipment as any)?.trailer1_plate || '');
+          const trailer2 = normalizePlate(pending.shipment?.trailer2Plate || (pending.shipment as any)?.trailer2_plate || '');
+          const trailer3 = normalizePlate(pending.shipment?.trailer3Plate || (pending.shipment as any)?.trailer3_plate || '');
 
           const exactPlateMatch = orphanPlate && arePlatesMatching(orphanPlate, pendingCavalo);
           const trailerPlateMatch = orphanPlate && (
