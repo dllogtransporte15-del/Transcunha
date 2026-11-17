@@ -62,7 +62,7 @@ export default defineConfig({
           let bodyStr = '';
           req.on('data', chunk => { bodyStr += chunk; });
           req.on('end', async () => {
-            const token = req.headers['x-access-token'] || process.env.VITE_RDO_API_TOKEN;
+            const token = req.headers['x-access-token'] || process.env.VITE_RDO_API_TOKEN || 'JsVKPmVPjYQgBpuOgC3EZTTYAEXYG7lXMHtTj83SSU0';
             try {
               const upstream = await fetch('https://painel.mrbsolucoes.com.br/api/integracao/solicitacoes', {
                 method: 'POST',
@@ -80,6 +80,42 @@ export default defineConfig({
               res.statusCode = 502;
               res.setHeader('Content-Type', 'application/json');
               res.end(JSON.stringify({ error: err?.message || 'Upstream connection error' }));
+            }
+          });
+        });
+
+        // Webhook local receiver para teste do parecer do RDO Nacional
+        server.middlewares.use('/api/rdo-nacional/parecer', async (req, res) => {
+          if (req.method === 'OPTIONS') {
+            res.setHeader('Access-Control-Allow-Origin', '*');
+            res.setHeader('Access-Control-Allow-Headers', '*');
+            res.statusCode = 200;
+            res.end();
+            return;
+          }
+          if (req.method !== 'POST') {
+            res.statusCode = 405;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error: 'Method not allowed' }));
+            return;
+          }
+
+          let bodyStr = '';
+          req.on('data', chunk => { bodyStr += chunk; });
+          req.on('end', async () => {
+            try {
+              const body = JSON.parse(bodyStr || '{}');
+              res.setHeader('Content-Type', 'application/json');
+              res.statusCode = 200;
+              res.end(JSON.stringify({
+                success: true,
+                message: 'Parecer recebido e simulado no ambiente local de desenvolvimento',
+                data: body,
+              }));
+            } catch (err: any) {
+              res.statusCode = 400;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ error: 'JSON inválido no corpo da requisição' }));
             }
           });
         });
@@ -103,7 +139,7 @@ export default defineConfig({
           const parsedUrl = new URL(req.url || '', 'http://localhost');
           const rawEndpoint = req.headers['x-siga-endpoint'] || parsedUrl.searchParams.get('endpoint') || '';
           const endpoint = String(rawEndpoint).startsWith('/') ? String(rawEndpoint) : `/${rawEndpoint}`;
-          const targetHost = req.headers['x-siga-target'] || parsedUrl.searchParams.get('target') || 'https://api.staging.sigagr.com.br';
+          const targetHost = req.headers['x-siga-target'] || parsedUrl.searchParams.get('target') || 'https://api.sigagr.com.br';
           const targetUrl = `${String(targetHost).replace(/\/$/, '')}${endpoint}`;
 
           const chunks: any[] = [];

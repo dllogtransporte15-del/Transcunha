@@ -121,36 +121,54 @@ export async function submitRdoSolicitacao(
     // Chamada através do proxy local / serverless para evitar problemas de CORS no navegador
     // Se estiver no browser, enviamos via endpoint interno '/api/rdo-nacional/solicitacoes'
     const endpoint = '/api/rdo-nacional/solicitacoes';
+    const targetHost = config.apiUrl || 'https://painel.mrbsolucoes.com.br';
 
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-access-token': config.apiToken.trim(),
-      },
-      body: JSON.stringify(requestBody),
-    });
+    let response: Response;
+    try {
+      response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-access-token': config.apiToken.trim(),
+        },
+        body: JSON.stringify(requestBody),
+      });
+    } catch (proxyErr) {
+      console.warn('[RDO Service] Proxy local falhou, tentando chamada direta ao host:', proxyErr);
+      response = await fetch(`${targetHost.replace(/\/$/, '')}/api/integracao/solicitacoes`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-access-token': config.apiToken.trim(),
+        },
+        body: JSON.stringify(requestBody),
+      });
+    }
 
     const responseData = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-      const errMsg = responseData?.message || responseData?.error || `Erro ${response.status}: ${response.statusText}`;
+      const errMsg = responseData?.message || responseData?.error || responseData?.Mensagem || `Erro ${response.status}: ${response.statusText}`;
       return {
         success: false,
         error: errMsg
       };
     }
 
-    if (!responseData.id) {
+    // A API do RDO Nacional (MRB Soluções) retorna chaves em PascalCase: { "Id": "...", "Codigo": 17383 }
+    const rawId = responseData.id || responseData.Id;
+    const rawCodigo = responseData.codigo !== undefined ? responseData.codigo : responseData.Codigo;
+
+    if (!rawId) {
       return {
         success: false,
-        error: 'Resposta da API do Rdo Nacional não conteve o identificador único (id).'
+        error: responseData?.message || responseData?.Mensagem || 'Resposta da API do Rdo Nacional não conteve o identificador único (id).'
       };
     }
 
     const rdoResponse: RdoSolicitacaoResponse = {
-      id: responseData.id,
-      codigo: Number(responseData.codigo || 0),
+      id: String(rawId),
+      codigo: Number(rawCodigo || 0),
     };
 
     // Registra a solicitação na base de dados
@@ -195,4 +213,88 @@ export async function submitRdoSolicitacao(
  */
 export async function getRdoHistory(): Promise<RdoRequestRecord[]> {
   return fetchRdoRequests();
+}
+
+/**
+ * Testa a conectividade e autenticação com o servidor do RDO Nacional (MRB Soluções)
+ */
+export async function testRdoConnection(customToken?: string, customHost?: string): Promise<{
+  success: boolean;
+  message: string;
+  statusCode?: number;
+  data?: any;
+}> {
+  try {
+    const config = await fetchRdoConfig();
+    const token = (customToken || config.apiToken || '').trim();
+
+    if (!token) {
+      return {
+        success: false,
+        message: 'Token de integração do RDO Nacional não configurado.',
+      };
+    }
+
+    const host = (customHost || config.apiUrl || 'https://painel.mrbsolucoes.com.br').replace(/\/$/, '');
+
+    // Payload de teste para validar o cabeçalho x-access-token
+    const testPayload = {
+      nomeDoCliente: config.clientName || 'TRANSCUNHA TRANSPORTES',
+      cpf: '00000000000',
+      nome: 'TESTE DE CONEXAO SISTEMA TRANSCUNHA',
+    };
+
+    let response: Response;
+    try {
+      response = await fetch('/api/rdo-nacional/solicitacoes', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-access-token': token,
+        },
+        body: JSON.stringify(testPayload),
+      });
+    } catch {
+      response = await fetch(`${host}/api/integracao/solicitacoes`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-access-token': token,
+        },
+        body: JSON.stringify(testPayload),
+      });
+    }
+
+    const data = await response.json().catch(() => ({}));
+
+    if (response.ok && (data.Id || data.id || data.Codigo || data.codigo)) {
+      const cod = data.Codigo || data.codigo || data.Id || data.id;
+      return {
+        success: true,
+        statusCode: response.status,
+        message: `Conexão bem-sucedida! Servidor RDO Nacional ativo e autenticado (Código de teste: #${cod}).`,
+        data,
+      };
+    }
+
+    if (response.status === 401 || response.status === 403) {
+      return {
+        success: false,
+        statusCode: response.status,
+        message: 'Token de Integração inválido ou rejeitado pelo RDO Nacional (HTTP 401/403).',
+      };
+    }
+
+    const err = data.message || data.error || data.Mensagem || `Erro HTTP ${response.status}: ${response.statusText}`;
+    return {
+      success: false,
+      statusCode: response.status,
+      message: err,
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      message: `Falha ao conectar ao servidor do RDO Nacional: ${err?.message || 'Servidor inacessível'}`,
+    };
+  }
 }

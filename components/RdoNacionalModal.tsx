@@ -13,7 +13,8 @@ import {
   cleanDocumentNumber, 
   cleanPlate, 
   fileToBase64, 
-  urlToBase64 
+  urlToBase64,
+  testRdoConnection
 } from '../services/rdoNacionalService';
 import { 
   fetchRdoRequests, 
@@ -137,7 +138,7 @@ interface RdoNacionalModalProps {
   currentUser: User | null;
   initialShipmentId?: string;
   initialDriverId?: string;
-  onSelectApprovedCode?: (code: string) => void;
+  onSelectApprovedCode?: (code: string, shipmentId?: string) => void;
 }
 
 type TabType = 'nova_solicitacao' | 'historico' | 'configuracoes';
@@ -168,6 +169,9 @@ export const RdoNacionalModal: React.FC<RdoNacionalModalProps> = ({
   });
   const [isSavingConfig, setIsSavingConfig] = useState(false);
   const [showTokens, setShowTokens] = useState(false);
+  const [isTestingConnection, setIsTestingConnection] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [connectionMessage, setConnectionMessage] = useState('');
 
   // Histórico
   const [rdoRequests, setRdoRequests] = useState<RdoRequestRecord[]>([]);
@@ -621,6 +625,32 @@ export const RdoNacionalModal: React.FC<RdoNacionalModalProps> = ({
       showToast('Erro ao salvar configurações: ' + err.message, 'error');
     } finally {
       setIsSavingConfig(false);
+    }
+  };
+
+  // Testar Conexão com o RDO Nacional
+  const handleTestConnection = async () => {
+    setIsTestingConnection(true);
+    setConnectionStatus('idle');
+    setConnectionMessage('');
+    try {
+      const res = await testRdoConnection(config.apiToken, config.apiUrl);
+      if (res.success) {
+        setConnectionStatus('success');
+        setConnectionMessage(res.message);
+        showToast(res.message, 'success');
+      } else {
+        setConnectionStatus('error');
+        setConnectionMessage(res.message);
+        showToast(res.message, 'error');
+      }
+    } catch (err: any) {
+      const msg = err?.message || 'Falha ao conectar no servidor do RDO Nacional.';
+      setConnectionStatus('error');
+      setConnectionMessage(msg);
+      showToast(msg, 'error');
+    } finally {
+      setIsTestingConnection(false);
     }
   };
 
@@ -1264,7 +1294,7 @@ export const RdoNacionalModal: React.FC<RdoNacionalModalProps> = ({
                               <button
                                 onClick={() => {
                                   const code = req.codigo ? `RDO-${req.codigo}` : `RDO-${req.id.slice(0, 8).toUpperCase()}`;
-                                  onSelectApprovedCode(code);
+                                  onSelectApprovedCode(code, req.shipmentId || selectedShipmentId);
                                   onClose();
                                 }}
                                 className="px-3 py-1 text-xs font-bold rounded-lg bg-blue-600 hover:bg-blue-700 text-white shadow-xs transition-all"
@@ -1377,7 +1407,7 @@ export const RdoNacionalModal: React.FC<RdoNacionalModalProps> = ({
                   </p>
                 </div>
 
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
                   <button
                     type="button"
                     onClick={() => setShowTokens(prev => !prev)}
@@ -1385,7 +1415,37 @@ export const RdoNacionalModal: React.FC<RdoNacionalModalProps> = ({
                   >
                     {showTokens ? 'Ocultar Tokens' : 'Mostrar Tokens em Texto Claro'}
                   </button>
+
+                  <button
+                    type="button"
+                    onClick={handleTestConnection}
+                    disabled={isTestingConnection || !config.apiToken}
+                    className="px-4 py-2 text-xs font-bold rounded-xl border border-blue-500/30 bg-blue-50/70 hover:bg-blue-100 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 flex items-center gap-1.5 transition-all disabled:opacity-50"
+                  >
+                    {isTestingConnection ? <Loader2 className="w-4 h-4 animate-spin text-blue-600" /> : <RefreshCw className="w-4 h-4" />}
+                    <span>{isTestingConnection ? 'Testando Conexão...' : 'Testar Conexão com RDO Nacional'}</span>
+                  </button>
                 </div>
+
+                {connectionStatus === 'success' && (
+                  <div className="p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 flex items-start gap-2.5 text-xs text-emerald-800 dark:text-emerald-300">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-bold">Comunicação validada com sucesso!</p>
+                      <p className="text-[11px] opacity-90">{connectionMessage}</p>
+                    </div>
+                  </div>
+                )}
+
+                {connectionStatus === 'error' && (
+                  <div className="p-3.5 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 flex items-start gap-2.5 text-xs text-red-800 dark:text-red-300">
+                    <AlertTriangle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-bold">Falha no teste de conexão:</p>
+                      <p className="text-[11px] opacity-90">{connectionMessage}</p>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="flex justify-end pt-4 border-t border-gray-100 dark:border-gray-800">

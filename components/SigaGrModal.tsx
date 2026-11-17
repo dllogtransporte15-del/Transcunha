@@ -84,7 +84,7 @@ interface SigaGrModalProps {
   currentUser?: User | null;
   initialShipmentId?: string;
   initialDriverId?: string;
-  onSelectApprovedCode?: (code: string, processNumber: string) => void;
+  onSelectApprovedCode?: (code: string, processNumber: string, shipmentId?: string) => void;
 }
 
 type TabType = 'nova_solicitacao' | 'historico' | 'detalhes' | 'configuracoes';
@@ -214,6 +214,16 @@ export const SigaGrModal: React.FC<SigaGrModalProps> = ({
 
         const loadedRequests = await fetchSigaRequests();
         setRequests(loadedRequests);
+
+        // Auto-preenchimento ao abrir com initialShipmentId ou initialDriverId
+        if (initialShipmentId) {
+          setSelectedShipmentId(initialShipmentId);
+          handleSelectShipment(initialShipmentId);
+        } else if (initialDriverId) {
+          setSelectedDriverId(initialDriverId);
+          const d = drivers.find(drv => drv.id === initialDriverId);
+          if (d) populateFromDriver(d);
+        }
       } catch (err) {
         console.warn('[SIGA GR Modal] Erro ao carregar dados:', err);
       } finally {
@@ -222,7 +232,7 @@ export const SigaGrModal: React.FC<SigaGrModalProps> = ({
     };
 
     loadData();
-  }, [isOpen]);
+  }, [isOpen, initialShipmentId, initialDriverId]);
 
   // Sincroniza listener de Realtime Hub
   useEffect(() => {
@@ -298,13 +308,11 @@ export const SigaGrModal: React.FC<SigaGrModalProps> = ({
       populateFromDriver(driver);
     }
 
-    // Tenta encontrar o veículo
+    // Tenta encontrar o veículo e define o tipo aceito pelo SIGA GR
     const cleanPlateShipment = cleanPlate(shipment.horsePlate);
     const vehicle = vehicles.find(v => cleanPlate(v.plate) === cleanPlateShipment);
-    if (vehicle) {
-      const mapped = mapVehicleTypeToSiga(vehicle.bodyType || vehicle.setType);
-      setVehicleType(mapped);
-    }
+    const mapped = mapVehicleTypeToSiga(vehicle?.bodyType || vehicle?.setType || (shipment as any)?.truckType || (shipment as any)?.tipo_veiculo);
+    setVehicleType(mapped);
   };
 
   const populateFromDriver = (driver: Driver) => {
@@ -1623,7 +1631,7 @@ export const SigaGrModal: React.FC<SigaGrModalProps> = ({
                           {isFinalApproved && onSelectApprovedCode && (
                             <button
                               onClick={() => {
-                                onSelectApprovedCode(`SIGA-${req.processNumber}`, req.processNumber);
+                                onSelectApprovedCode(`SIGA-${req.processNumber}`, req.processNumber, req.shipmentId || selectedShipmentId);
                                 showToast(`Código de liberação SIGA-${req.processNumber} aplicado!`, 'success');
                                 onClose();
                               }}
@@ -1690,6 +1698,21 @@ export const SigaGrModal: React.FC<SigaGrModalProps> = ({
                     <RefreshCw className={`w-3.5 h-3.5 ${isRefreshingAnalysis ? 'animate-spin' : ''}`} />
                     Atualizar Status
                   </button>
+
+                  {['approved', 'authorized_by_manager'].includes(selectedRecord.state) && onSelectApprovedCode && (
+                    <button
+                      onClick={() => {
+                        onSelectApprovedCode(`SIGA-${selectedRecord.processNumber}`, selectedRecord.processNumber, selectedRecord.shipmentId || selectedShipmentId);
+                        showToast(`Código de liberação SIGA-${selectedRecord.processNumber} aplicado!`, 'success');
+                        onClose();
+                      }}
+                      className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+                      title="Aplicar liberação ao embarque"
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      Aplicar no Embarque
+                    </button>
+                  )}
                 </div>
               </div>
 

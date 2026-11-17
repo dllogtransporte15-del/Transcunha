@@ -584,19 +584,19 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
     // Filtra estritamente embarques EFETIVADOS COM CT-E e que respeitam o período selecionado
     const validShipments = shipments.filter(s => {
       // 1. Ignora embarques cancelados
-      if (s.status === 'Cancelado' || (s as any)?.isCancelled) return false;
+      if (s.status === 'Cancelado' || (s as any)?.isCancelled || (s as any)?.is_cancelled) return false;
 
       // 2. REGRA MANDATÓRIA: Deve ser embarque efetivado COM CT-E emitido
       const cteInfo = extractShipmentCteNumbers(s);
       if (cteInfo.list.length === 0) return false;
 
-      const plate = normalizePlate(s.horsePlate);
+      const plate = normalizePlate(s.horsePlate || (s as any)?.horse_plate);
       if (!plate) return false;
 
       // 3. REGRA ESTRITA DE PERÍODO: O embarque deve estar rigorosamente dentro do intervalo de data determinado
       // Prioriza a data contábil/efetiva da emissão do CT-e sobre a data agendada
       const effectiveDate = getShipmentEffectiveDate(s);
-      const dateStr = normalizeDate(effectiveDate || s.scheduledDate || '');
+      const dateStr = normalizeDate(effectiveDate || s.scheduledDate || (s as any)?.scheduled_date || '');
       if (!dateStr) return false;
 
       if (startDate && dateStr < startDate) return false;
@@ -1136,6 +1136,16 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
         const potentialTwinMatches = enrichedTranscunhaData.filter(t => {
           if (matchedTranscunhaKeys.has(t.key)) return false;
           if (!t.date || !atuaDateClean) return false;
+
+          // Se o CT-e deste embarque no Transcunha já existe no relatório do Atua, ele não deve ser consumido prematuramente na Fase 2.5 por outro CT-e!
+          const cteClean = t.cteNumber ? t.cteNumber.replace(/[^0-9]/g, '') : '';
+          if (cteClean && atuaRecords.some(r => r.cteNumber.replace(/[^0-9]/g, '') === cteClean)) {
+            return false;
+          }
+          if (t.allCteNumbers && t.allCteNumbers.some(c => atuaRecords.some(r => r.cteNumber.replace(/[^0-9]/g, '') === c))) {
+            return false;
+          }
+
           const diffDays = Math.abs((new Date(t.date).getTime() - new Date(atuaDateClean).getTime()) / (1000 * 60 * 60 * 24));
           if (diffDays > 2) return false;
 
@@ -1155,6 +1165,13 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
 
         if (potentialTwinMatches.length === 1) {
           match = potentialTwinMatches[0];
+        } else if (potentialTwinMatches.length > 1) {
+          // Desempate por proximidade de peso
+          match = potentialTwinMatches.reduce((best, cur) => {
+            const diffBest = Math.abs(best.weight - atuaWeight);
+            const diffCur = Math.abs(cur.weight - atuaWeight);
+            return diffCur < diffBest ? cur : best;
+          });
         }
       }
 

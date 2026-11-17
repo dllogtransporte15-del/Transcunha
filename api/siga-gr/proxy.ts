@@ -20,7 +20,7 @@ export default async function handler(req: any, res: any) {
   try {
     const rawEndpoint = req.headers['x-siga-endpoint'] || req.query?.endpoint || '';
     const endpoint = String(rawEndpoint).startsWith('/') ? String(rawEndpoint) : `/${rawEndpoint}`;
-    const targetHost = req.headers['x-siga-target'] || req.query?.target || 'https://api.staging.sigagr.com.br';
+    const targetHost = req.headers['x-siga-target'] || req.query?.target || 'https://api.sigagr.com.br';
     const targetUrl = `${String(targetHost).replace(/\/$/, '')}${endpoint}`;
 
     const headers: Record<string, string> = {

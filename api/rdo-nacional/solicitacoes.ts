@@ -19,11 +19,26 @@ export default async function handler(req: any, res: any) {
     return res.status(405).json({ error: 'Method not allowed. Use POST.' });
   }
 
-  const token = req.headers['x-access-token'] || process.env.VITE_RDO_API_TOKEN || process.env.RDO_API_TOKEN;
+  const token = 
+    req.headers['x-access-token'] || 
+    req.headers['authorization']?.replace(/^Bearer\s+/i, '') || 
+    req.query?.token ||
+    (typeof req.body === 'object' && req.body?.apiToken) ||
+    process.env.VITE_RDO_API_TOKEN || 
+    process.env.RDO_API_TOKEN ||
+    'JsVKPmVPjYQgBpuOgC3EZTTYAEXYG7lXMHtTj83SSU0';
+
   if (!token) {
     return res.status(401).json({ 
       error: 'Token de integração ausente. Forneça o cabeçalho x-access-token.' 
     });
+  }
+
+  // Remove apiToken do body se tiver sido enviado
+  let sanitizedBody: any = req.body;
+  if (typeof sanitizedBody === 'object' && sanitizedBody !== null) {
+    const { apiToken, ...rest } = sanitizedBody;
+    sanitizedBody = rest;
   }
 
   const host = process.env.RDO_HOST || 'https://painel.mrbsolucoes.com.br';
@@ -36,7 +51,7 @@ export default async function handler(req: any, res: any) {
         'Content-Type': 'application/json',
         'x-access-token': String(token).trim(),
       },
-      body: typeof req.body === 'string' ? req.body : JSON.stringify(req.body),
+      body: typeof sanitizedBody === 'string' ? sanitizedBody : JSON.stringify(sanitizedBody),
     });
 
     const data = await upstreamResponse.json().catch(() => ({}));

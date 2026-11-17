@@ -27,6 +27,59 @@ export interface SystemRelease {
  */
 export const SYSTEM_RELEASES: SystemRelease[] = [
   {
+    id: 'rel_2026_11_17_v2_116_24',
+    version: 'v2.116.24',
+    date: '17/11/2026',
+    title: 'Auditoria Atua TMS: Escopo Global de Embarques e Proteção contra Falsos Órfãos',
+    summary: 'Corrigido o problema em que o CT-e 2092 (embarque MUR-723, placa TCI2B89) aparecia indevidamente como "Órfão Atua" na tela de conciliação. A auditoria fiscal agora recebe o escopo irrestrito de todos os embarques da empresa em vez de apenas a visualização segmentada por operador/filial, e a busca heurística de frotas gêmeas foi blindada para nunca consumir antecipadamente embarques cujo CT-e já consta no relatório do Atua.',
+    items: [
+      {
+        category: 'fix',
+        title: 'Escopo Corporativo Global na Conciliação Atua TMS',
+        description: 'Ajustada a rota de conciliação no App.tsx para fornecer o conjunto integral de embarques (shipments) em vez de visibleShipments, garantindo que o confronto de relatórios do Atua TMS enxergue todos os embarques emitidos por qualquer solicitante ou filial da empresa.'
+      },
+      {
+        category: 'fix',
+        title: 'Proteção de Embarques com CT-e Ativo no Pareamento Heurístico',
+        description: 'Impedida a apropriação prematura de embarques na Fase 2.5 (veículos gêmeos): agora, embarques cujo CT-e já está presente no relatório do Atua (como o CT-e 2092 do MUR-723) aguardam obrigatoriamente a Fase 1 de conciliação direta, eliminando falsos órfãos.'
+      },
+      {
+        category: 'improvement',
+        title: 'Resiliência a Propriedades de Embarque (camelCase e snake_case)',
+        description: 'Adicionado suporte tolerante a propriedades em snake_case (horse_plate, scheduled_date) durante os filtros e enriquecimento de dados da auditoria.'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_17_v2_116_23',
+    version: 'v2.116.23',
+    date: '17/11/2026',
+    title: 'Correção Integral das Integrações Externas: RDO Nacional (MRB Soluções) e SIGA GR',
+    summary: 'Identificados e eliminados todos os bloqueios que impediam o funcionamento de ponta a ponta das integrações de Gerenciamento de Risco (RDO Nacional e SIGA GR). Corrigido bug de casing (PascalCase da MRB Soluções), adicionada persistência resiliente em nuvem para histórico de consultas, configurado fallback de simulação local para o SIGA GR diante de instabilidades no staging AWS, suporte completo a envio e sincronização de pareceres, e adicionadas ações de consulta direta por embarque na Gestão de Risco.',
+    items: [
+      {
+        category: 'fix',
+        title: 'Suporte a PascalCase da API RDO Nacional (MRB Soluções)',
+        description: 'Corrigida a leitura das respostas oficiais da API do RDO Nacional que retornam { "Id": "...", "Codigo": ... } em PascalCase. A resposta anterior causava falso erro de id não retornado mesmo com requisição aceita (HTTP 200 OK).'
+      },
+      {
+        category: 'fix',
+        title: 'Persistência Resiliente em Nuvem para RDO e SIGA',
+        description: 'Implementado fallback automático em profile_permissions para armazenamento de rdo_requests e siga_requests. Garante sincronização entre todos os usuários, dispositivos e webhooks mesmo quando as tabelas SQL dedicadas não estiverem previamente criadas no Supabase.'
+      },
+      {
+        category: 'improvement',
+        title: 'Fallback de Simulação e Configuração de Produção no SIGA GR',
+        description: 'Ajustado o host padrão do SIGA GR para o ambiente de produção (api.sigagr.com.br), evitando falhas decorrentes do servidor staging (api.staging.sigagr.com.br - HTTP 503 na AWS). Além disso, o simulador de status agora aplica transições locais caso o upstream esteja inacessível.'
+      },
+      {
+        category: 'feature',
+        title: 'Botões de Consulta Direta por Embarque e Botão de Teste de Conexão RDO',
+        description: 'Adicionados botões rápidos na tabela de Gestão de Risco para disparar triagem RDO Nacional e SIGA GR diretamente para o embarque selecionado, bem como teste de conectividade em tempo real com o token na aba de Configurações.'
+      }
+    ]
+  },
+  {
     id: 'rel_2026_11_17_v2_116_22',
     version: 'v2.116.22',
     date: '17/11/2026',

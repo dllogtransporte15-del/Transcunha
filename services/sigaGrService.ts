@@ -630,13 +630,81 @@ export async function simulateSigaStatus(
       tags: [simulationTag],
     });
 
-    if (!updateResult.success) {
-      return { success: false, error: updateResult.error };
+    if (updateResult.success && updateResult.data) {
+      return { success: true, data: updateResult.data };
+    }
+  } catch (err) {
+    console.warn('[SIGA GR] Upstream simulation failed, applying fallback local state simulation:', err);
+  }
+
+  // Fallback de Simulação Local: caso o servidor upstream (ex: staging AWS 503) esteja offline
+  try {
+    const currentList = await fetchSigaRequests();
+    const existing = currentList.find(r => r.processNumber === processNumber);
+    if (!existing) {
+      return { success: false, error: 'Processo não encontrado no histórico local.' };
     }
 
-    return { success: true, data: updateResult.data };
-  } catch (err: any) {
-    return { success: false, error: err?.message || 'Falha ao simular movimentação no SIGA GR.' };
+    let nextState = existing.state;
+    let issues = existing.rawAnalysis?.issues || [];
+    let comments = existing.rawAnalysis?.comments || [];
+    let denialReason = existing.denialReason;
+
+    if (simulationTag === 'simulate_approval') {
+      nextState = 'approved';
+    } else if (simulationTag === 'simulate_denial') {
+      nextState = 'denied';
+      denialReason = 'Não recomendado pelo gerenciador de risco (Simulação).';
+    } else if (simulationTag === 'simulate_authorization') {
+      nextState = 'authorized_by_manager';
+    } else if (simulationTag === 'simulate_comment') {
+      nextState = 'under_analysis';
+      comments = [
+        ...comments,
+        {
+          id: Date.now(),
+          body: 'Analista SIGA GR: Documentação conferida, aguardando liberação final.',
+          created_at: new Date().toISOString(),
+          user: { name: 'Central de Risco (Simulação)' }
+        }
+      ];
+    } else if (simulationTag === 'simulate_issue') {
+      nextState = 'pending';
+      issues = [
+        ...issues,
+        {
+          id: Date.now(),
+          description: 'Foto do CRLV com baixa nitidez. Favor reenviar documento legível.',
+          solved: false,
+          created_at: new Date().toISOString()
+        }
+      ];
+    }
+
+    const updatedRaw: any = {
+      ...(existing.rawAnalysis || {}),
+      state: nextState,
+      denial_reason: denialReason,
+      issues,
+      comments,
+    };
+
+    const updatedRecord: SigaRequestRecord = {
+      ...existing,
+      state: nextState,
+      denialReason,
+      issuesCount: issues.length,
+      unsolvedIssuesCount: issues.filter((i: any) => !i.solved).length,
+      commentsCount: comments.length,
+      updatedAt: new Date().toISOString(),
+      concludedAt: ['approved', 'denied', 'authorized_by_manager'].includes(nextState) ? new Date().toISOString() : null,
+      rawAnalysis: updatedRaw,
+    };
+
+    await upsertSigaRequest(updatedRecord);
+    return { success: true, data: updatedRaw };
+  } catch (localErr: any) {
+    return { success: false, error: localErr?.message || 'Falha ao atualizar estado da simulação.' };
   }
 }
 

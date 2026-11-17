@@ -153,7 +153,18 @@ const RiskManagementPage: React.FC<RiskManagementPageProps> = ({
   const [activeTab, setActiveTab] = useState<'operational' | 'analytics' | 'query_types'>('operational');
   const [isRdoModalOpen, setIsRdoModalOpen] = useState(false);
   const [isSigaModalOpen, setIsSigaModalOpen] = useState(false);
+  const [targetShipmentForIntegration, setTargetShipmentForIntegration] = useState<Shipment | null>(null);
   const isDemo = isDemoUser(currentUser);
+
+  const handleOpenRdo = (shipment?: Shipment) => {
+    setTargetShipmentForIntegration(shipment || null);
+    setIsRdoModalOpen(true);
+  };
+
+  const handleOpenSiga = (shipment?: Shipment) => {
+    setTargetShipmentForIntegration(shipment || null);
+    setIsSigaModalOpen(true);
+  };
 
   // Global / Quick Filters
   const [searchTerm, setSearchTerm] = useState('');
@@ -908,7 +919,7 @@ const RiskManagementPage: React.FC<RiskManagementPageProps> = ({
 
           {/* Botão RDO Nacional */}
           <button
-            onClick={() => setIsRdoModalOpen(true)}
+            onClick={() => handleOpenRdo()}
             className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-500/20 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
             title="Abrir painel de análise cadastral e triagem do RDO Nacional (MRB Soluções)"
           >
@@ -918,7 +929,7 @@ const RiskManagementPage: React.FC<RiskManagementPageProps> = ({
 
           {/* Botão SIGA GR */}
           <button
-            onClick={() => setIsSigaModalOpen(true)}
+            onClick={() => handleOpenSiga()}
             className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-500/20 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
             title="Abrir painel de integração oficial com a gerenciadora SIGA GR"
           >
@@ -1709,13 +1720,29 @@ const RiskManagementPage: React.FC<RiskManagementPageProps> = ({
                         <td className="px-3.5 py-3 text-center">
                           <div className="flex items-center justify-center gap-1.5">
                             {!isDemo && (
-                              <button
-                                onClick={() => setShipmentToEditRisk(row.shipment)}
-                                className="p-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-600 dark:text-blue-400 transition-colors"
-                                title="Editar modalidade / tipo de consulta"
-                              >
-                                <Edit className="w-3.5 h-3.5" />
-                              </button>
+                              <>
+                                <button
+                                  onClick={() => handleOpenRdo(row.shipment)}
+                                  className="p-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-600 dark:text-blue-400 transition-colors"
+                                  title="Triagem e Análise no RDO Nacional (MRB Soluções)"
+                                >
+                                  <ShieldCheck className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => handleOpenSiga(row.shipment)}
+                                  className="p-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:hover:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 transition-colors"
+                                  title="Consulta e Análise na Gerenciadora SIGA GR"
+                                >
+                                  <ShieldCheck className="w-3.5 h-3.5 text-indigo-500" />
+                                </button>
+                                <button
+                                  onClick={() => setShipmentToEditRisk(row.shipment)}
+                                  className="p-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 transition-colors"
+                                  title="Editar modalidade / tipo de consulta"
+                                >
+                                  <Edit className="w-3.5 h-3.5" />
+                                </button>
+                              </>
                             )}
                             <button
                               onClick={() => setSelectedShipmentForDetails(row.shipment)}
@@ -1942,27 +1969,47 @@ const RiskManagementPage: React.FC<RiskManagementPageProps> = ({
       {/* RDO Nacional Modal */}
       <RdoNacionalModal
         isOpen={isRdoModalOpen}
-        onClose={() => setIsRdoModalOpen(false)}
+        onClose={() => {
+          setIsRdoModalOpen(false);
+          setTargetShipmentForIntegration(null);
+        }}
         shipments={shipments}
         drivers={drivers}
         vehicles={vehicles}
         owners={owners}
         currentUser={currentUser}
+        initialShipmentId={targetShipmentForIntegration?.id || undefined}
+        initialDriverId={targetShipmentForIntegration?.driverId || undefined}
+        onSelectApprovedCode={(code, shipmentId) => {
+          const targetId = shipmentId || targetShipmentForIntegration?.id || shipmentToEditRisk?.id;
+          if (targetId && onUpdateShipmentData) {
+            onUpdateShipmentData(targetId, {
+              riskReleaseCode: code,
+              riskQueryType: 'RDO Nacional',
+            });
+          }
+        }}
       />
 
       {/* SIGA GR Modal */}
       <SigaGrModal
         isOpen={isSigaModalOpen}
-        onClose={() => setIsSigaModalOpen(false)}
+        onClose={() => {
+          setIsSigaModalOpen(false);
+          setTargetShipmentForIntegration(null);
+        }}
         shipments={shipments}
         drivers={drivers}
         vehicles={vehicles}
         currentUser={currentUser}
-        onSelectApprovedCode={(code, procNum) => {
-          if (shipmentToEditRisk && onUpdateShipmentData) {
-            onUpdateShipmentData(shipmentToEditRisk.id, {
+        initialShipmentId={targetShipmentForIntegration?.id || undefined}
+        initialDriverId={targetShipmentForIntegration?.driverId || undefined}
+        onSelectApprovedCode={(code, procNum, shipmentId) => {
+          const targetId = shipmentId || targetShipmentForIntegration?.id || shipmentToEditRisk?.id;
+          if (targetId && onUpdateShipmentData) {
+            onUpdateShipmentData(targetId, {
               riskReleaseCode: code,
-              riskQueryType: shipmentToEditRisk.riskQueryType || 'SIGA GR',
+              riskQueryType: 'SIGA GR',
             });
           }
         }}

@@ -2911,13 +2911,14 @@ export async function saveRdoConfig(config: RdoConfig): Promise<void> {
 }
 
 export async function fetchRdoRequests(): Promise<RdoRequestRecord[]> {
+  // 1. Tenta tabela rdo_requests
   try {
     const { data, error } = await supabase
       .from('rdo_requests')
       .select('*')
       .order('created_at', { ascending: false });
 
-    if (!error && data) {
+    if (!error && data && data.length > 0) {
       const records = data.map(toRdoRequest);
       try {
         localStorage.setItem('transcunha_rdo_requests', JSON.stringify(records));
@@ -2928,7 +2929,26 @@ export async function fetchRdoRequests(): Promise<RdoRequestRecord[]> {
     console.warn('[DB] Could not fetch rdo_requests table:', err);
   }
 
-  // Fallback to localStorage
+  // 2. Tenta profile_permissions (id: 1, permissions.rdo_requests_list) para persistência em nuvem
+  try {
+    const { data, error } = await supabase
+      .from('profile_permissions')
+      .select('permissions')
+      .eq('id', 1)
+      .single();
+
+    if (!error && data?.permissions?.rdo_requests_list && Array.isArray(data.permissions.rdo_requests_list) && data.permissions.rdo_requests_list.length > 0) {
+      const records: RdoRequestRecord[] = data.permissions.rdo_requests_list;
+      try {
+        localStorage.setItem('transcunha_rdo_requests', JSON.stringify(records));
+      } catch {}
+      return records;
+    }
+  } catch (err) {
+    console.warn('[DB] Could not fetch rdo_requests_list from profile_permissions:', err);
+  }
+
+  // 3. Fallback para localStorage
   try {
     const saved = localStorage.getItem('transcunha_rdo_requests');
     if (saved) {
@@ -2940,17 +2960,37 @@ export async function fetchRdoRequests(): Promise<RdoRequestRecord[]> {
 }
 
 export async function upsertRdoRequest(record: RdoRequestRecord): Promise<void> {
+  // 1. Tenta tabela SQL rdo_requests
   try {
     const payload = fromRdoRequest(record);
-    const { error } = await supabase.from('rdo_requests').upsert(payload);
-    if (error) {
-      console.warn('[DB] Warning upserting rdo_requests:', error);
-    }
+    await supabase.from('rdo_requests').upsert(payload);
   } catch (err) {
-    console.warn('[DB] Exception upserting rdo_requests:', err);
+    // Tabela pode não estar criada no Supabase
   }
 
-  // Update local storage
+  // 2. Persiste em nuvem via profile_permissions (id: 1, permissions.rdo_requests_list)
+  try {
+    const { data } = await supabase.from('profile_permissions').select('permissions').eq('id', 1).single();
+    const current = data?.permissions || {};
+    const list: RdoRequestRecord[] = Array.isArray(current.rdo_requests_list) ? [...current.rdo_requests_list] : [];
+    const idx = list.findIndex(r => r.id === record.id);
+    if (idx >= 0) {
+      list[idx] = record;
+    } else {
+      list.unshift(record);
+    }
+    await supabase.from('profile_permissions').upsert({
+      id: 1,
+      permissions: {
+        ...current,
+        rdo_requests_list: list.slice(0, 500),
+      }
+    });
+  } catch (err) {
+    console.warn('[DB] Warning persisting rdo_requests_list to profile_permissions:', err);
+  }
+
+  // 3. Update local storage
   try {
     const current = await fetchRdoRequests();
     const idx = current.findIndex(r => r.id === record.id);
@@ -3019,8 +3059,8 @@ export async function updateRdoRequestParecer(
 // ─────────────────────────────────────────────
 
 export const DEFAULT_SIGA_CONFIG: SigaConfig = {
-  environment: 'staging',
-  apiUrl: 'https://api.staging.sigagr.com.br',
+  environment: 'production',
+  apiUrl: 'https://api.sigagr.com.br',
   email: '',
   password: '',
   requesterEmail: '',
@@ -3077,13 +3117,14 @@ export async function saveSigaConfig(config: SigaConfig): Promise<void> {
 }
 
 export async function fetchSigaRequests(): Promise<SigaRequestRecord[]> {
+  // 1. Tenta tabela SQL siga_requests
   try {
     const { data, error } = await supabase
       .from('siga_requests')
       .select('*')
       .order('created_at', { ascending: false });
 
-    if (!error && data) {
+    if (!error && data && data.length > 0) {
       const records = data.map((r: any): SigaRequestRecord => ({
         id: r.id,
         processNumber: r.process_number,
@@ -3116,10 +3157,29 @@ export async function fetchSigaRequests(): Promise<SigaRequestRecord[]> {
       return records;
     }
   } catch (err) {
-    console.warn('[DB] Could not fetch siga_requests table, falling back to localStorage:', err);
+    console.warn('[DB] Note: siga_requests table not available:', err);
   }
 
-  // Fallback para localStorage
+  // 2. Tenta profile_permissions (id: 1, permissions.siga_requests_list) para persistência em nuvem
+  try {
+    const { data, error } = await supabase
+      .from('profile_permissions')
+      .select('permissions')
+      .eq('id', 1)
+      .single();
+
+    if (!error && data?.permissions?.siga_requests_list && Array.isArray(data.permissions.siga_requests_list) && data.permissions.siga_requests_list.length > 0) {
+      const records: SigaRequestRecord[] = data.permissions.siga_requests_list;
+      try {
+        localStorage.setItem('transcunha_siga_requests', JSON.stringify(records));
+      } catch {}
+      return records;
+    }
+  } catch (err) {
+    console.warn('[DB] Could not fetch siga_requests_list from profile_permissions:', err);
+  }
+
+  // 3. Fallback para localStorage
   try {
     const saved = localStorage.getItem('transcunha_siga_requests');
     if (saved) {
@@ -3131,6 +3191,7 @@ export async function fetchSigaRequests(): Promise<SigaRequestRecord[]> {
 }
 
 export async function upsertSigaRequest(record: SigaRequestRecord): Promise<void> {
+  // 1. Tenta salvar na tabela SQL siga_requests se existir
   try {
     const payload = {
       id: record.id,
@@ -3158,15 +3219,34 @@ export async function upsertSigaRequest(record: SigaRequestRecord): Promise<void
       created_by_name: record.createdByName || null,
       raw_analysis: record.rawAnalysis || null,
     };
-    const { error } = await supabase.from('siga_requests').upsert(payload);
-    if (error) {
-      console.warn('[DB] Note: Could not upsert into siga_requests table (using local/state storage):', error.message);
-    }
+    await supabase.from('siga_requests').upsert(payload);
   } catch (err) {
-    console.warn('[DB] Exception upserting siga_requests:', err);
+    // Tabela pode não estar criada
   }
 
-  // Atualiza local storage
+  // 2. Persiste em nuvem via profile_permissions (id: 1, permissions.siga_requests_list)
+  try {
+    const { data } = await supabase.from('profile_permissions').select('permissions').eq('id', 1).single();
+    const current = data?.permissions || {};
+    const list: SigaRequestRecord[] = Array.isArray(current.siga_requests_list) ? [...current.siga_requests_list] : [];
+    const idx = list.findIndex(r => r.id === record.id || r.processNumber === record.processNumber);
+    if (idx >= 0) {
+      list[idx] = record;
+    } else {
+      list.unshift(record);
+    }
+    await supabase.from('profile_permissions').upsert({
+      id: 1,
+      permissions: {
+        ...current,
+        siga_requests_list: list.slice(0, 500),
+      }
+    });
+  } catch (err) {
+    console.warn('[DB] Warning persisting siga_requests_list to profile_permissions:', err);
+  }
+
+  // 3. Atualiza local storage
   try {
     const current = await fetchSigaRequests();
     const idx = current.findIndex(r => r.id === record.id || r.processNumber === record.processNumber);
