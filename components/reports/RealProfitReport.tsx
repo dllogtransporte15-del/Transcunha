@@ -1476,11 +1476,11 @@ export const RealProfitReport: React.FC<RealProfitReportProps> = ({
                       </td>
 
                       {/* Cliente / Trajeto */}
-                      <td className="py-2.5 px-2 max-w-[140px] xl:max-w-[180px]">
-                        <p className="font-semibold text-gray-900 dark:text-white truncate" title={row.clientName}>
+                      <td className="py-2.5 px-2 max-w-[140px] sm:max-w-[220px] lg:max-w-[320px]">
+                        <p className="font-semibold text-gray-900 dark:text-white truncate sm:overflow-visible sm:whitespace-normal" title={row.clientName}>
                           {row.clientName}
                         </p>
-                        <p className="text-[10px] text-gray-500 dark:text-gray-400 truncate" title={`${row.cargo?.origin || ''} → ${row.cargo?.destination || ''}`}>
+                        <p className="text-[10px] text-gray-500 dark:text-gray-400 truncate sm:overflow-visible sm:whitespace-normal" title={`${row.cargo?.origin || ''} → ${row.cargo?.destination || ''}`}>
                           {row.cargo?.origin || '---'} → {row.cargo?.destination || '---'}
                         </p>
                         {row.cte ? (

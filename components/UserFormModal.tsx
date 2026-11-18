@@ -5,7 +5,7 @@ import { UserProfile } from '../types';
 import { isDeveloperUser, filterVisibleUsers, filterVisibleProfiles } from '../auth';
 import { useToast } from '../hooks/useToast';
 import { autoFormatInput, formatCPF } from '../utils/formatters';
-import { X, Copy, CheckCircle2, Mail, Key, Building2 } from 'lucide-react';
+import { X, Copy, Check, CheckCircle2, Mail, Key, Building2 } from 'lucide-react';
 import { corporateEmailService } from '../services/corporateEmailService';
 
 interface UserFormModalProps {
@@ -61,6 +61,55 @@ const UserFormModal: React.FC<UserFormModalProps> = ({
   const isMotorista = user.profile === UserProfile.Motorista || defaultProfile === UserProfile.Motorista;
   const isExternalClient = user.profile === UserProfile.Cliente || defaultProfile === UserProfile.Cliente;
   const showCorporateFeatures = !isMotorista && !isExternalClient;
+
+  const [copiedInModal, setCopiedInModal] = useState(false);
+
+  const handleCopyAccessInModal = async () => {
+    if (!userToEdit) return;
+    const loginUser = user.email || userToEdit.email || userToEdit.username || userToEdit.id;
+    const loginPassword = user.password || userToEdit.password || 'transcunha2026';
+    const name = (user.name || userToEdit.name || 'Colaborador').trim();
+
+    const message = `Olá, *${name}*! 👋
+
+Seguem seus dados de acesso ao sistema *Transcunha*:
+
+🔗 *Link de Acesso:* https://transcunha.digital
+👤 *Usuário:* ${loginUser}
+🔑 *Senha:* ${loginPassword}
+
+_Recomendamos alterar sua senha no primeiro acesso._
+Qualquer dúvida, estamos à disposição! 🚛💨`;
+
+    let success = false;
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(message);
+        success = true;
+      }
+    } catch {}
+
+    if (!success) {
+      try {
+        const textArea = document.createElement('textarea');
+        textArea.value = message;
+        textArea.style.position = 'fixed';
+        textArea.style.top = '0';
+        textArea.style.left = '-9999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        success = document.execCommand('copy');
+        document.body.removeChild(textArea);
+      } catch {}
+    }
+
+    if (success) {
+      setCopiedInModal(true);
+      showToast('Dados de acesso copiados para a área de transferência!', 'success');
+      setTimeout(() => setCopiedInModal(false), 2500);
+    }
+  };
 
   useEffect(() => {
     if (isOpen) {
@@ -279,9 +328,31 @@ const UserFormModal: React.FC<UserFormModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-1">
-                  Senha de Acesso
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wide">
+                    Senha de Acesso
+                  </label>
+                  {userToEdit && (
+                    <button
+                      type="button"
+                      onClick={handleCopyAccessInModal}
+                      className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 flex items-center gap-1 cursor-pointer transition-colors"
+                      title="Copiar mensagem com link (transcunha.digital), usuário e senha para WhatsApp"
+                    >
+                      {copiedInModal ? (
+                        <>
+                          <Check className="w-3 h-3 text-emerald-600" />
+                          <span>Copiado!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3 h-3 text-emerald-600" />
+                          <span>Copiar Acesso WhatsApp</span>
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
                 <input 
                   name="password" 
                   value={user.password} 

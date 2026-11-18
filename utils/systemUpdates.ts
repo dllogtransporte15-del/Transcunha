@@ -27,6 +27,49 @@ export interface SystemRelease {
  */
 export const SYSTEM_RELEASES: SystemRelease[] = [
   {
+    id: 'rel_2026_11_18_v2_116_30',
+    version: 'v2.116.30',
+    date: '18/11/2026',
+    title: 'Exibição Completa de Cidades em Rotas (Desktop) e Responsividade Mobile',
+    summary: 'Aprimorada a legibilidade dos trajetos e rotas entre Origem e Destino no Quadro de Cargas, Conciliação e Relatórios. Em telas de computador (desktop), os nomes das cidades agora são exibidos por inteiro sem cortes com reticências (ex: "Nova Ponte, MG", "Campina Verde, MG", "Santa Luzia, MG"), mantendo a abreviação compacta em smartphones.',
+    items: [
+      {
+        category: 'improvement',
+        title: 'Nomes Completos de Cidades em Telas Desktop',
+        description: 'Ajustada a largura mínima e a quebra de texto nas colunas de trajeto (Origem → Destino) do Quadro Geral de Cargas (LoadTable), Conciliação Atua e Relatórios. Elimina reticências prematuras e permite visualizar integralmente o nome da cidade e estado sem cortar informações.'
+      },
+      {
+        category: 'improvement',
+        title: 'Design Responsivo Preservado para Mobile',
+        description: 'Em telas menores (smartphones), a abreviação compacta com reticências foi mantida para assegurar que a interface permaneça limpa, sem quebrar o layout das tabelas e cards em dispositivos compactos.'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_18_v2_116_29',
+    version: 'v2.116.29',
+    date: '18/11/2026',
+    title: 'Gestão de Usuários: Botão de Copiar Mensagem de Acesso para WhatsApp (transcunha.digital)',
+    summary: 'Novo recurso prático na Gestão de Usuários e Colaboradores. Permite copiar com 1 clique a mensagem padronizada contendo o link de acesso "https://transcunha.digital", usuário/e-mail e a senha de cadastro para envio via WhatsApp ou qualquer canal de comunicação.',
+    items: [
+      {
+        category: 'feature',
+        title: 'Botão "Copiar Acesso" na Tabela de Usuários',
+        description: 'Adicionado botão dedicado "Copiar Acesso" na coluna Ações de cada usuário. Copia instantaneamente para a área de transferência a mensagem personalizada de boas-vindas com o link https://transcunha.digital, usuário e senha, com feedback visual de confirmação e notificação toast.'
+      },
+      {
+        category: 'feature',
+        title: 'Envio Direto via WhatsApp',
+        description: 'Para usuários que possuem telefone/WhatsApp cadastrado, foi integrado botão de ação rápida que abre diretamente o WhatsApp (Web ou App) com o texto formatado pronto para envio.'
+      },
+      {
+        category: 'improvement',
+        title: 'Atalho no Modal de Cadastro / Edição de Usuário',
+        description: 'Disponibilizado atalho "Copiar Acesso WhatsApp" junto ao campo de Senha no modal de edição de usuário, facilitando o compartilhamento imediato de credenciais logo após o cadastro ou redefinição de senha.'
+      }
+    ]
+  },
+  {
     id: 'rel_2026_11_18_v2_116_28',
     version: 'v2.116.28',
     date: '18/11/2026',

@@ -1,9 +1,10 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import type { User, Client, Branch } from '../types';
 import { UserProfile } from '../types';
 import { WhatsAppIcon } from './icons';
-import { Building2, Smartphone, PhoneOff, Eye, Mail } from 'lucide-react';
+import { Building2, Smartphone, PhoneOff, Eye, Mail, Copy, Check } from 'lucide-react';
+import { useToast } from '../hooks/useToast';
 
 interface UserTableProps {
   users: User[];
@@ -28,6 +29,75 @@ const UserTable: React.FC<UserTableProps> = ({
   showAppOptionColumn = false, 
   onToggleDriverRequests 
 }) => {
+  const [copiedUserId, setCopiedUserId] = useState<string | null>(null);
+
+  let toastApi: ReturnType<typeof useToast> | null = null;
+  try {
+    toastApi = useToast();
+  } catch {}
+
+  const generateAccessMessage = (user: User): string => {
+    const loginUser = user.email || user.username || user.id;
+    const loginPassword = user.password || 'transcunha2026';
+    const name = user.name ? user.name.trim() : 'Colaborador';
+
+    return `Olá, *${name}*! 👋
+
+Seguem seus dados de acesso ao sistema *Transcunha*:
+
+🔗 *Link de Acesso:* https://transcunha.digital
+👤 *Usuário:* ${loginUser}
+🔑 *Senha:* ${loginPassword}
+
+_Recomendamos alterar sua senha no primeiro acesso._
+Qualquer dúvida, estamos à disposição! 🚛💨`;
+  };
+
+  const getWhatsAppShareUrl = (user: User) => {
+    if (!user.phone) return '';
+    const digits = user.phone.replace(/\D/g, '');
+    const finalDigits = (digits.length === 10 || digits.length === 11) ? `55${digits}` : digits;
+    const text = encodeURIComponent(generateAccessMessage(user));
+    return `https://wa.me/${finalDigits}?text=${text}`;
+  };
+
+  const handleCopyAccess = async (user: User) => {
+    const message = generateAccessMessage(user);
+    let success = false;
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(message);
+        success = true;
+      }
+    } catch {}
+
+    if (!success) {
+      try {
+        const textArea = document.createElement('textarea');
+        textArea.value = message;
+        textArea.style.position = 'fixed';
+        textArea.style.top = '0';
+        textArea.style.left = '-9999px';
+        textArea.style.opacity = '0';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        success = document.execCommand('copy');
+        document.body.removeChild(textArea);
+      } catch {}
+    }
+
+    if (success) {
+      setCopiedUserId(user.id);
+      if (toastApi?.showToast) {
+        toastApi.showToast(`Mensagem de acesso de ${user.name} copiada com sucesso!`, 'success');
+      }
+      setTimeout(() => {
+        setCopiedUserId((prev) => (prev === user.id ? null : prev));
+      }, 2500);
+    }
+  };
+
   const getWhatsAppUrl = (phone: string) => {
     const digits = phone.replace(/\D/g, '');
     const finalDigits = (digits.length === 10 || digits.length === 11) ? `55${digits}` : digits;
@@ -59,7 +129,7 @@ const UserTable: React.FC<UserTableProps> = ({
                 </th>
               )}
               {(onEdit || onDelete || onInspectUser) && (
-                <th scope="col" className="w-36 px-3 sm:px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 tracking-wider">Ações</th>
+                <th scope="col" className="w-64 px-3 sm:px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 tracking-wider">Ações</th>
               )}
             </tr>
           </thead>
@@ -221,12 +291,49 @@ const UserTable: React.FC<UserTableProps> = ({
                 )}
                 {(onEdit || onDelete || onInspectUser) && (
                   <td className="px-3 sm:px-4 py-3 whitespace-nowrap text-right text-sm font-medium">
-                    <div className="inline-flex items-center justify-end gap-2.5">
+                    <div className="inline-flex items-center justify-end gap-2">
+                      {/* Botão Copiar Mensagem de Acesso para WhatsApp */}
+                      <button
+                        type="button"
+                        onClick={() => handleCopyAccess(user)}
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-md border transition-all shadow-2xs active:scale-95 cursor-pointer ${
+                          copiedUserId === user.id
+                            ? 'bg-emerald-600 text-white border-emerald-600 dark:bg-emerald-600 dark:text-white'
+                            : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-900/60 border-emerald-200 dark:border-emerald-800'
+                        }`}
+                        title="Copiar mensagem com link (transcunha.digital), usuário e senha para WhatsApp"
+                      >
+                        {copiedUserId === user.id ? (
+                          <>
+                            <Check className="w-3.5 h-3.5 text-white" />
+                            <span>Copiado!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                            <span>Copiar Acesso</span>
+                          </>
+                        )}
+                      </button>
+
+                      {/* Botão Direto para Abrir no WhatsApp se tiver telefone */}
+                      {user.phone && (
+                        <a
+                          href={getWhatsAppShareUrl(user)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center justify-center p-1.5 rounded-md text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800/60 transition-colors"
+                          title="Enviar mensagem de acesso diretamente no WhatsApp deste usuário"
+                        >
+                          <WhatsAppIcon className="w-4 h-4" />
+                        </a>
+                      )}
+
                       {onInspectUser && (
                         <button
                           type="button"
                           onClick={() => onInspectUser(user)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-md bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-900/40 dark:text-blue-300 dark:hover:bg-blue-900/60 border border-blue-200 dark:border-blue-800 transition-all shadow-sm active:scale-95"
+                          className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-md bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-900/40 dark:text-blue-300 dark:hover:bg-blue-900/60 border border-blue-200 dark:border-blue-800 transition-all shadow-sm active:scale-95 cursor-pointer"
                           title="Espelhar e Revisar Acessos do Usuário em Tempo Real"
                         >
                           <Eye className="w-3.5 h-3.5" />
@@ -234,10 +341,10 @@ const UserTable: React.FC<UserTableProps> = ({
                         </button>
                       )}
                       {onEdit && (
-                        <button onClick={() => onEdit(user)} className="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300">Editar</button>
+                        <button onClick={() => onEdit(user)} className="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300 cursor-pointer">Editar</button>
                       )}
                       {onDelete && (
-                        <button onClick={() => onDelete(user.id)} className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300">Excluir</button>
+                        <button onClick={() => onDelete(user.id)} className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 cursor-pointer">Excluir</button>
                       )}
                     </div>
                   </td>

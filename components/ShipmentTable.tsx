@@ -1196,7 +1196,7 @@ const ShipmentTable: React.FC<ShipmentTableProps> = ({ shipments, drivers, cargo
                         href={getCargoMapUrl('origin', cargo) || '#'}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="font-semibold text-gray-800 dark:text-gray-200 hover:text-emerald-600 dark:hover:text-emerald-400 hover:underline truncate"
+                        className="font-semibold text-gray-800 dark:text-gray-200 hover:text-emerald-600 dark:hover:text-emerald-400 hover:underline truncate sm:overflow-visible sm:whitespace-normal"
                         title={`Abrir localização de Origem no Google Maps: ${cargo.origin}${cargo.originLocation ? ` (${cargo.originLocation})` : ''}`}
                       >
                         {cargo.origin}
@@ -1218,7 +1218,7 @@ const ShipmentTable: React.FC<ShipmentTableProps> = ({ shipments, drivers, cargo
                         href={getCargoMapUrl('destination', cargo) || '#'}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="font-semibold text-gray-800 dark:text-gray-200 hover:text-rose-600 dark:hover:text-rose-400 hover:underline truncate"
+                        className="font-semibold text-gray-800 dark:text-gray-200 hover:text-rose-600 dark:hover:text-rose-400 hover:underline truncate sm:overflow-visible sm:whitespace-normal"
                         title={`Abrir localização de Destino no Google Maps: ${cargo.destination}${cargo.destinationLocation ? ` (${cargo.destinationLocation})` : ''}`}
                       >
                         {cargo.destination}

@@ -2901,11 +2901,11 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
                         </td>
 
                         {/* 3. Cliente / Trajeto */}
-                        <td className="py-2.5 px-2 max-w-[130px] xl:max-w-[180px]">
-                          <p className="font-semibold text-slate-900 dark:text-white truncate" title={item.clientName}>
+                        <td className="py-2.5 px-2 max-w-[130px] sm:max-w-[220px] lg:max-w-[320px]">
+                          <p className="font-semibold text-slate-900 dark:text-white truncate sm:overflow-visible sm:whitespace-normal" title={item.clientName}>
                             {item.clientName || '---'}
                           </p>
-                          <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate" title={`${item.origin} → ${item.destination}`}>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate sm:overflow-visible sm:whitespace-normal" title={`${item.origin} → ${item.destination}`}>
                             {item.origin || '---'} → {item.destination || '---'}
                           </p>
                         </td>
