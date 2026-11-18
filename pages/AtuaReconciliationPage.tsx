@@ -23,7 +23,10 @@ import {
   FileSpreadsheet,
   Check,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  FileWarning,
+  Ban,
+  Trash2
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -66,6 +69,38 @@ const VALID_BRAZILIAN_UFS = new Set([
   'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'
 ]);
 
+const detectUfFromLocation = (text: string): string => {
+  if (!text) return '';
+  const clean = text.trim();
+  const match = clean.match(/(?:-|\/|\s|,)\s*([A-Za-z]{2})\s*$/i);
+  if (match) {
+    const uf = match[1].toUpperCase();
+    if (VALID_BRAZILIAN_UFS.has(uf)) {
+      return uf;
+    }
+  }
+  const upper = clean.toUpperCase();
+  if (upper.includes('LUZIANIA') || upper.includes('CRISTALINA') || upper.includes('FORMOSA') || upper.includes('RIO VERDE') || upper.includes('GOIANIA') || upper.includes('ANAPOLIS') || upper.includes('JATAI') || upper.includes('ITUMBIARA') || upper.includes('CATALAO') || upper.includes('MINEIROS')) {
+    return 'GO';
+  }
+  if (upper.includes('CASTILHO') || upper.includes('PONTES GESTAL') || upper.includes('SAO PAULO') || upper.includes('SANTOS') || upper.includes('BARRETOS') || upper.includes('CAMPINAS') || upper.includes('ORLANDIA')) {
+    return 'SP';
+  }
+  if (upper.includes('UBERLANDIA') || upper.includes('UBERABA') || upper.includes('PRATAPOLIS') || upper.includes('CONTAGEM') || upper.includes('ARAGUARI') || upper.includes('PATOS DE MINAS') || upper.includes('NOVA PONTE') || upper.includes('SANTA LUZIA') || upper.includes('MONTE BELO') || upper.includes('ITUIUTABA')) {
+    return 'MG';
+  }
+  if (upper.includes('GURUPI') || upper.includes('PEDRO AFONSO') || upper.includes('PALMAS') || upper.includes('ARAGUAINA')) {
+    return 'TO';
+  }
+  if (upper.includes('RONDONOPOLIS') || upper.includes('CUIABA') || upper.includes('SINOP') || upper.includes('SORRISO') || upper.includes('NOVA MUTUM') || upper.includes('ARUANA')) {
+    return 'MT';
+  }
+  if (upper.includes('PARANAGUA') || upper.includes('CURITIBA') || upper.includes('MARINGA') || upper.includes('LONDRINA')) {
+    return 'PR';
+  }
+  return '';
+};
+
 // Helper para detectar a UF e Filial da emissão fiscal do embarque no Transcunha
 const detectShipmentUf = (
   shipment: Shipment,
@@ -92,7 +127,25 @@ const detectShipmentUf = (
     }
   }
 
-  // 2. Filial vinculada ao embarque ou à carga (branchId)
+  // 2. Origem do Embarque ou da Carga (Regra Tributária Oficial: local de início da prestação define a UF de emissão do CT-e)
+  const originText = (cargo?.origin || (shipment as any).origin || '').trim();
+  if (originText) {
+    const ufFromOrigin = detectUfFromLocation(originText);
+    if (ufFromOrigin) {
+      return { uf: ufFromOrigin, branchName: originText };
+    }
+  }
+
+  // 3. Destino do Embarque ou Carga
+  const destText = (cargo?.destination || (shipment as any).destination || '').trim();
+  if (destText) {
+    const ufFromDest = detectUfFromLocation(destText);
+    if (ufFromDest) {
+      return { uf: ufFromDest, branchName: destText };
+    }
+  }
+
+  // 4. Filial vinculada ao embarque ou à carga (branchId)
   const branchId = shipment.branchId || (shipment as any).filialId || cargo?.branchId;
   if (branchId && branchMap?.has(branchId)) {
     const branch = branchMap.get(branchId);
@@ -104,16 +157,7 @@ const detectShipmentUf = (
     }
   }
 
-  // 3. Origem do Embarque ou da Carga (ex: "UBERLANDIA - MG", "RIO VERDE / GO")
-  const originText = (cargo?.origin || (shipment as any).origin || '').trim();
-  if (originText) {
-    const match = originText.match(/(?:-|\/|\s)\s*([A-Za-z]{2})\s*$/);
-    if (match && VALID_BRAZILIAN_UFS.has(match[1].toUpperCase())) {
-      return { uf: match[1].toUpperCase(), branchName: originText };
-    }
-  }
-
-  // 4. Mapeamento por correspondência de nome ou cidade da filial
+  // 5. Mapeamento por correspondência de nome ou cidade da filial
   if (branchMap && branchMap.size > 0 && originText) {
     const lowerOrigin = originText.toLowerCase();
     for (const b of branchMap.values()) {
@@ -135,14 +179,9 @@ const detectShipmentUf = (
 const detectAtuaRecordUf = (
   rec: AtuaCteRecord
 ): { uf: string; branchName: string; originUf: string } => {
-  let originUf = '';
-  const originCity = (rec.originCity || '').trim();
-  if (originCity) {
-    const match = originCity.match(/\/\s*([A-Za-z]{2})\s*$/) || originCity.match(/-\s*([A-Za-z]{2})\s*$/);
-    if (match && VALID_BRAZILIAN_UFS.has(match[1].toUpperCase())) {
-      originUf = match[1].toUpperCase();
-    }
-  }
+  let originUf = detectUfFromLocation(rec.originCity || '');
+  let destUf = detectUfFromLocation(rec.destinationCity || '');
+  const routeUf = originUf || destUf || '';
 
   // 1. Extração prioritária pelo campo de filial emissora do Atua (rec.branch)
   const branchText = (rec.branch || '').trim();
@@ -150,29 +189,42 @@ const detectAtuaRecordUf = (
     // Procura sigla de UF isolada no texto da filial (ex: "FILIAL MG", "UBERLANDIA-MG")
     const matchUf = branchText.match(/\b([A-Za-z]{2})\b/);
     if (matchUf && VALID_BRAZILIAN_UFS.has(matchUf[1].toUpperCase())) {
-      return { uf: matchUf[1].toUpperCase(), branchName: branchText, originUf };
+      return { uf: matchUf[1].toUpperCase(), branchName: branchText, originUf: routeUf };
     }
     
     // Mapeamento por cidades conhecidas
     const upper = branchText.toUpperCase();
     if (upper.includes('UBERLANDIA') || upper.includes('UBERABA') || upper.includes('CONTAGEM') || upper.includes('MINAS') || upper.includes('ARAGUARI') || upper.includes('PATOS')) {
-      return { uf: 'MG', branchName: branchText, originUf };
+      return { uf: 'MG', branchName: branchText, originUf: routeUf };
     }
-    if (upper.includes('GOIANIA') || upper.includes('RIO VERDE') || upper.includes('ANAPOLIS') || upper.includes('JATAI') || upper.includes('ITUMBIARA')) {
-      return { uf: 'GO', branchName: branchText, originUf };
+    if (upper.includes('GOIANIA') || upper.includes('RIO VERDE') || upper.includes('ANAPOLIS') || upper.includes('JATAI') || upper.includes('ITUMBIARA') || upper.includes('FORMOSA') || upper.includes('CRISTALINA')) {
+      return { uf: 'GO', branchName: branchText, originUf: routeUf };
     }
-    if (upper.includes('SAO PAULO') || upper.includes('SANTOS') || upper.includes('CAMPINAS') || upper.includes('BARRETOS')) {
-      return { uf: 'SP', branchName: branchText, originUf };
+    if (upper.includes('SAO PAULO') || upper.includes('SANTOS') || upper.includes('CAMPINAS') || upper.includes('BARRETOS') || upper.includes('CASTILHO')) {
+      return { uf: 'SP', branchName: branchText, originUf: routeUf };
     }
     if (upper.includes('RONDONOPOLIS') || upper.includes('CUIABA') || upper.includes('SINOP') || upper.includes('SORRISO') || upper.includes('MUTUM')) {
-      return { uf: 'MT', branchName: branchText, originUf };
+      return { uf: 'MT', branchName: branchText, originUf: routeUf };
     }
     if (upper.includes('CURITIBA') || upper.includes('PARANAGUA') || upper.includes('MARINGA') || upper.includes('LONDRINA')) {
-      return { uf: 'PR', branchName: branchText, originUf };
+      return { uf: 'PR', branchName: branchText, originUf: routeUf };
     }
   }
 
-  return { uf: '', branchName: branchText || '', originUf };
+  // 2. Extração pela rota do CTRC (Origem/Destino)
+  if (routeUf) {
+    return { uf: routeUf, branchName: branchText || '', originUf: routeUf };
+  }
+
+  // 3. Fallback: pesquisa no texto bruto da linha (rawLine)
+  if (rec.rawLine) {
+    const ufFromRaw = detectUfFromLocation(rec.rawLine);
+    if (ufFromRaw) {
+      return { uf: ufFromRaw, branchName: branchText || '', originUf: ufFromRaw };
+    }
+  }
+
+  return { uf: '', branchName: branchText || '', originUf: '' };
 };
 
 interface AtuaReconciliationPageProps {
@@ -190,6 +242,17 @@ interface AtuaReconciliationPageProps {
 }
 
 export type ReconciliationStatus = 'CONCILIATED' | 'DIVERGENT' | 'ORPHAN_ATUA' | 'PENDING_ATUA';
+
+export interface InformedDisagreement {
+  cteNumber: string;
+  plate?: string;
+  date?: string;
+  reason: string;
+  substituteCte?: string;
+  notes?: string;
+  informedAt: string;
+  informedBy?: string;
+}
 
 export interface SimilarityMatchInfo {
   targetId: string;
@@ -209,6 +272,7 @@ export interface ReconciliationItem {
   cteNumber: string; // Exibição principal (Atua ou Transcunha)
   cteNumberTrans: string;
   cteNumberAtua: string;
+  allCteNumbers?: string[];
   isCteDivergent: boolean;
   shipmentId?: string;
   shipment?: Shipment;
@@ -223,6 +287,10 @@ export interface ReconciliationItem {
   destination?: string;
   status: ReconciliationStatus;
   divergenceReasons: string[];
+
+  // Informação de desacordo comercial formalizado
+  informedDisagreement?: InformedDisagreement;
+  isInformedDisagreement?: boolean;
 
   // Informação de similaridade / possível reemissão ou desacordo comercial
   similarMatch?: SimilarityMatchInfo;
@@ -289,6 +357,44 @@ export interface ReconciliationItem {
   };
 }
 
+const findDisagreement = (
+  item: ReconciliationItem,
+  disagreements: Record<string, InformedDisagreement>
+): InformedDisagreement | undefined => {
+  if (!disagreements || Object.keys(disagreements).length === 0) return undefined;
+
+  const candidates: string[] = [
+    item.cteNumberAtua,
+    item.cteNumberTrans,
+    item.cteNumber,
+    ...(item.allCteNumbers || [])
+  ]
+    .filter(Boolean)
+    .map(c => String(c).trim().replace(/^0+/, ''))
+    .filter(c => c && c !== '---' && !c.toLowerCase().includes('s/ ct-e'));
+
+  const normPlate = normalizePlate(item.plate || '');
+
+  for (const c of candidates) {
+    if (normPlate && disagreements[`${c}_${normPlate}`]) {
+      return disagreements[`${c}_${normPlate}`];
+    }
+    if (disagreements[c]) {
+      return disagreements[c];
+    }
+  }
+
+  if (normPlate && item.date) {
+    const byPlate = Object.values(disagreements).find(d => 
+      normalizePlate(d.plate || '') === normPlate && 
+      (d.date ? normalizeDate(d.date) === normalizeDate(item.date!) : true)
+    );
+    if (byPlate) return byPlate;
+  }
+
+  return undefined;
+};
+
 const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
   currentUser,
   shipments,
@@ -315,11 +421,81 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
   const [tolerance, setTolerance] = useState<number>(0.50); // Tolerância padrão de centavos R$ 0,50
   const [rateTolerance, setRateTolerance] = useState<number>(0.10); // Tolerância padrão de tarifa R$ 0,10 / ton
   const [weightTolerance, setWeightTolerance] = useState<number>(0.05); // Tolerância de peso padrão 0.05 t
-  const [filterStatus, setFilterStatus] = useState<ReconciliationStatus | 'ALL' | 'SIMILAR'>('ALL');
+  const [filterStatus, setFilterStatus] = useState<ReconciliationStatus | 'ALL' | 'SIMILAR' | 'DISAGREEMENT'>('ALL');
   const [filterDivergenceType, setFilterDivergenceType] = useState<string>('ALL');
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [viewMode, setViewMode] = useState<'compact' | 'side-by-side'>('side-by-side');
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
+
+  // Modal e Gestão de Desacordo Comercial
+  const [selectedDisagreementItem, setSelectedDisagreementItem] = useState<ReconciliationItem | null>(null);
+  const [informedDisagreements, setInformedDisagreements] = useState<Record<string, InformedDisagreement>>(() => {
+    try {
+      const saved = localStorage.getItem('atua_reconciliation_disagreements');
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (err) {
+      console.warn('Erro ao ler desacordos do localStorage:', err);
+    }
+    // Inicializa com o desacordo informado pelo usuário para o CT-e 2089 (Placa TCI2C30, 17/10/2026)
+    return {
+      '2089': {
+        cteNumber: '2089',
+        plate: 'TCI2C30',
+        date: '2026-10-17',
+        reason: 'Prestação de serviço em desacordo (SEFAZ)',
+        substituteCte: '',
+        notes: 'Desacordo comercial formalizado para o CT-e 2089',
+        informedAt: '2026-10-17T12:00:00.000Z',
+        informedBy: 'Operacional'
+      }
+    };
+  });
+
+  const handleSaveDisagreement = (data: InformedDisagreement) => {
+    const normCte = String(data.cteNumber || '').trim().replace(/^0+/, '');
+    if (!normCte) return;
+
+    const key = normCte;
+    const updated = {
+      ...informedDisagreements,
+      [key]: {
+        ...data,
+        cteNumber: normCte,
+        informedAt: data.informedAt || new Date().toISOString(),
+        informedBy: currentUser?.name || currentUser?.email || 'Usuário'
+      }
+    };
+
+    setInformedDisagreements(updated);
+    try {
+      localStorage.setItem('atua_reconciliation_disagreements', JSON.stringify(updated));
+    } catch (err) {
+      console.warn('Erro ao salvar desacordo no localStorage:', err);
+    }
+    setSelectedDisagreementItem(null);
+  };
+
+  const handleRemoveDisagreement = (cteNumber: string) => {
+    const normCte = String(cteNumber || '').trim().replace(/^0+/, '');
+    const updated = { ...informedDisagreements };
+    delete updated[normCte];
+
+    Object.keys(updated).forEach(k => {
+      if (k === normCte || k.startsWith(`${normCte}_`)) {
+        delete updated[k];
+      }
+    });
+
+    setInformedDisagreements(updated);
+    try {
+      localStorage.setItem('atua_reconciliation_disagreements', JSON.stringify(updated));
+    } catch (err) {
+      console.warn('Erro ao remover desacordo do localStorage:', err);
+    }
+    setSelectedDisagreementItem(null);
+  };
 
   // Modal de colar texto
   const [isPasteModalOpen, setIsPasteModalOpen] = useState(false);
@@ -472,17 +648,21 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
   // Função auxiliar para extração estrita de todos os números de CT-e do embarque
   // NOTA CRÍTICA: Suporta múltiplos CT-es (ex: "2112/2111", bi-trem/múltiplas NFs)
   // e trata com precisão substituições de cancelamento (ex: 36 cancelado substituído pelo ativo 40).
-  const extractShipmentCteNumbers = (s: Shipment): { raw: string; list: string[]; cancelledList: string[] } => {
-    if (!s) return { raw: '', list: [], cancelledList: [] };
+  const extractShipmentCteNumbers = (s: Shipment): { raw: string; list: string[]; activeList: string[]; cancelledList: string[] } => {
+    if (!s) return { raw: '', list: [], activeList: [], cancelledList: [] };
     const numbersFound = new Set<string>();
     const cancelledList: string[] = [];
 
-    // Extrai lista de CT-es cancelados, se houver
+    // Extrai lista de CT-es cancelados e substitutos, se houver
     if (Array.isArray(s.documents?.cancelled_ctes)) {
       for (const c of s.documents.cancelled_ctes) {
         const cNum = String(c?.cteNumber || '').trim().replace(/[^0-9]/g, '');
         if (cNum && !cancelledList.includes(cNum)) {
           cancelledList.push(cNum);
+        }
+        const subNum = String(c?.substituteCteNumber || '').trim().replace(/[^0-9]/g, '');
+        if (subNum) {
+          numbersFound.add(subNum);
         }
       }
     }
@@ -498,20 +678,13 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
       }
     };
 
-    // Se houver active_cte_number explícito (caso de reemissão fiscal após cancelamento)
+    // 1. Número explícito ativo de CT-e (caso de reemissão fiscal após cancelamento)
     const activeDirect = s.documents?.active_cte_number || (s as any)?.activeCteNumber;
     if (activeDirect && String(activeDirect).trim() !== '' && String(activeDirect).trim() !== '-') {
-      const cleanActive = String(activeDirect).trim().replace(/[^0-9]/g, '');
-      if (cleanActive) {
-        return {
-          raw: cleanActive,
-          list: [cleanActive],
-          cancelledList
-        };
-      }
+      addCandidatesFromText(activeDirect);
     }
 
-    // 1. Número explícito de CT-e cadastrado no embarque
+    // 2. Número explícito de CT-e cadastrado no embarque
     const direct = s.cteNumber || s.documents?.cte_number || s.documents?.cteNumber;
     let rawStr = '';
     if (direct !== undefined && direct !== null) {
@@ -522,14 +695,14 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
       }
     }
 
-    // 2. Extração via função oficial getShipmentCte (com tratamento de anexos)
+    // 3. Extração via função oficial getShipmentCte (com tratamento de anexos)
     const helperVal = getShipmentCte(s);
     if (helperVal && helperVal !== '-' && helperVal !== '0') {
       if (!rawStr) rawStr = helperVal.trim();
       addCandidatesFromText(helperVal);
     }
 
-    // 3. Extração de nomes de arquivos anexos
+    // 4. Extração de nomes de arquivos anexos
     const cteDocs = s.documents?.['CT-e'] || s.documents?.['CT-E'] || s.documents?.['cte'] || s.documents?.['Cte'] || s.documents?.['DACTE'];
     if (Array.isArray(cteDocs)) {
       for (const item of cteDocs) {
@@ -553,25 +726,36 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
       }
     }
 
-    // Se houver CT-es cancelados registrados, remove da lista de ativos para não desmembrar carga nem gerar órfão fantasma
-    let activeCandidates = Array.from(numbersFound);
-    if (cancelledList.length > 0) {
-      const nonCancelled = activeCandidates.filter(n => !cancelledList.includes(n));
-      if (nonCancelled.length > 0) {
-        activeCandidates = nonCancelled;
-        rawStr = nonCancelled.join('/');
-      }
+    // Preserva tanto números ativos quanto históricos/cancelados em 'list' para busca e conciliação perfeita
+    cancelledList.forEach(c => numbersFound.add(c));
+
+    const allCandidates = Array.from(numbersFound);
+    const preferredActive = allCandidates.filter(n => !cancelledList.includes(n));
+    if (!rawStr) {
+      rawStr = preferredActive.length > 0 ? preferredActive.join('/') : allCandidates.join('/');
     }
 
     return {
-      raw: rawStr || activeCandidates.join('/'),
-      list: activeCandidates,
+      raw: rawStr,
+      list: allCandidates,
+      activeList: preferredActive.length > 0 ? preferredActive : allCandidates,
       cancelledList
     };
   };
 
   const extractShipmentCteClean = (s: Shipment): string => {
     return extractShipmentCteNumbers(s).raw;
+  };
+
+  const getShipmentCteEmissionDate = (s: Shipment): string => {
+    return String(
+      s.cteEmissionDate ||
+      (s as any)?.cte_emission_date ||
+      s.documents?.cteEmissionDate ||
+      s.documents?.cte_emission_date ||
+      s.documents?.emissionDate ||
+      ''
+    );
   };
 
   // 1. Enriquecimento dos Embarques do Transcunha no Período Selecionado
@@ -593,15 +777,27 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
       const plate = normalizePlate(s.horsePlate || (s as any)?.horse_plate);
       if (!plate) return false;
 
-      // 3. REGRA ESTRITA DE PERÍODO: O embarque deve estar rigorosamente dentro do intervalo de data determinado
-      // Prioriza a data contábil/efetiva da emissão do CT-e sobre a data agendada
+      // 3. REGRA REFINADA DE PERÍODO: O embarque deve estar dentro do intervalo determinado
+      // Considera data contábil/efetiva, agendamento, emissão de CT-e ou cruzamento com relatório Atua no período
       const effectiveDate = getShipmentEffectiveDate(s);
       const dateStr = normalizeDate(effectiveDate || s.scheduledDate || (s as any)?.scheduled_date || '');
-      if (!dateStr) return false;
+      const schedDateStr = normalizeDate(s.scheduledDate || (s as any)?.scheduled_date || '');
+      const cteEmissionDateStr = normalizeDate(getShipmentCteEmissionDate(s) || '');
 
-      if (startDate && dateStr < startDate) return false;
-      if (endDate && dateStr > endDate) return false;
-      return true;
+      if (!startDate && !endDate) return true;
+
+      const isDateIn = (d: string) => Boolean(d && (!startDate || d >= startDate) && (!endDate || d <= endDate));
+      if (isDateIn(dateStr) || isDateIn(schedDateStr) || isDateIn(cteEmissionDateStr)) return true;
+
+      // Se o relatório do Atua contiver este CT-e e placa emitido dentro do período selecionado
+      const hasAtuaInPeriod = (atuaResult?.records || []).some(r => {
+        const atuaCte = r.cteNumber.replace(/[^0-9]/g, '');
+        const rDate = normalizeDate(r.emissionDate || '');
+        return arePlatesMatching(r.plate, plate) && cteInfo.list.includes(atuaCte) && isDateIn(rDate);
+      });
+      if (hasAtuaInPeriod) return true;
+
+      return false;
     });
 
     const items: Array<{
@@ -763,9 +959,10 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
           : [];
 
         const hasExplicitSubCtes = Array.isArray(s.subCtes) && s.subCtes.length > 1;
+        const isCancelledReissue = cteInfo.cancelledList.length > 0;
 
-        if (!hasExplicitSubCtes && matchingCtesInAtua.length === 1) {
-          const singleCte = matchingCtesInAtua[0];
+        if (isCancelledReissue || (!hasExplicitSubCtes && matchingCtesInAtua.length <= 1)) {
+          const singleCte = matchingCtesInAtua[0] || (cteInfo.activeList && cteInfo.activeList[0]) || cteInfo.list[0];
           items.push({
             key: `${s.id}-base-${singleCte}`,
             cteNumber: singleCte,
@@ -984,12 +1181,24 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
   const reconciliationItems: ReconciliationItem[] = useMemo(() => {
     if (!atuaResult && enrichedTranscunhaData.length === 0) return [];
 
-    // Filtra registros do Atua estritamente pelo período selecionado caso informado
+    // Filtra registros do Atua pelo período selecionado caso informado
     const atuaRecords = (atuaResult?.records || []).filter(r => {
       const atuaDateClean = normalizeDate(r.emissionDate || '');
-      if (startDate && atuaDateClean && atuaDateClean < startDate) return false;
-      if (endDate && atuaDateClean && atuaDateClean > endDate) return false;
-      return true;
+      if (!startDate && !endDate) return true;
+
+      const isDateIn = (d: string) => Boolean(d && (!startDate || d >= startDate) && (!endDate || d <= endDate));
+      if (isDateIn(atuaDateClean)) return true;
+
+      // Tolerância de fronteira: se a emissão do Atua corresponder a um embarque que está no confronto no período
+      const atuaCteClean = r.cteNumber.replace(/[^0-9]/g, '');
+      const matchingShipmentInPeriod = enrichedTranscunhaData.some(t => {
+        const cteMatches = (t.cteNumber && (t.cteNumber === atuaCteClean || parseInt(t.cteNumber, 10) === parseInt(atuaCteClean, 10))) ||
+                           (t.allCteNumbers && t.allCteNumbers.some(c => c === atuaCteClean || parseInt(c, 10) === parseInt(atuaCteClean, 10)));
+        if (!cteMatches) return false;
+        return arePlatesMatching(t.plate, r.plate);
+      });
+
+      return matchingShipmentInPeriod;
     });
 
     const matchedTranscunhaKeys = new Set<string>();
@@ -1034,24 +1243,36 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
 
         if (cteCandidates.length > 0) {
           // 1. Prioridade máxima: Mesma Placa E Mesma UF
-          const exactMatch = cteCandidates.find(t => 
+          const exactMatches = cteCandidates.filter(t => 
             arePlatesMatching(t.plate, atuaPlateClean) && 
             atuaUf && t.branchUf && atuaUf === t.branchUf
           );
 
-          if (exactMatch) {
-            match = exactMatch;
+          if (exactMatches.length === 1) {
+            match = exactMatches[0];
+          } else if (exactMatches.length > 1) {
+            match = exactMatches.reduce((best, cur) => {
+              const diffBest = Math.abs(best.weight - atuaWeight) + Math.abs(best.companyFreight - atuaRec.companyFreight) / 1000;
+              const diffCur = Math.abs(cur.weight - atuaWeight) + Math.abs(cur.companyFreight - atuaRec.companyFreight) / 1000;
+              return diffCur < diffBest ? cur : best;
+            });
           } else {
             // 2. Mesma Placa (veículo confere com o CT-e com suporte a Mercosul/OCR)
-            const samePlateMatch = cteCandidates.find(t => 
+            const samePlateCandidates = cteCandidates.filter(t => 
               arePlatesMatching(t.plate, atuaPlateClean) ||
               arePlatesMatching(t.shipment?.trailer1Plate || (t.shipment as any)?.trailer1_plate, atuaPlateClean) ||
               arePlatesMatching(t.shipment?.trailer2Plate || (t.shipment as any)?.trailer2_plate, atuaPlateClean) ||
               arePlatesMatching(t.shipment?.trailer3Plate || (t.shipment as any)?.trailer3_plate, atuaPlateClean)
             );
 
-            if (samePlateMatch) {
-              match = samePlateMatch;
+            if (samePlateCandidates.length === 1) {
+              match = samePlateCandidates[0];
+            } else if (samePlateCandidates.length > 1) {
+              match = samePlateCandidates.reduce((best, cur) => {
+                const diffBest = Math.abs(best.weight - atuaWeight) + Math.abs(best.companyFreight - atuaRec.companyFreight) / 1000;
+                const diffCur = Math.abs(cur.weight - atuaWeight) + Math.abs(cur.companyFreight - atuaRec.companyFreight) / 1000;
+                return diffCur < diffBest ? cur : best;
+              });
             } else if (cteCandidates.length === 1) {
               // Apenas 1 candidato no período com este número de CT-e -> Match direto!
               match = cteCandidates[0];
@@ -1314,6 +1535,7 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
           cteNumber: atuaRec.cteNumber || match.cteNumber,
           cteNumberTrans: transCte,
           cteNumberAtua: atuaCteClean,
+          allCteNumbers: match.allCteNumbers || [match.cteNumber],
           isCteDivergent,
           shipmentId: match.shipment.id,
           shipment: match.shipment,
@@ -1390,6 +1612,7 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
           cteNumber: atuaRec.cteNumber,
           cteNumberTrans: '',
           cteNumberAtua: atuaCteClean,
+          allCteNumbers: [atuaCteClean],
           isCteDivergent: true,
           isComplementary: atuaRec.isComplementary,
           plate: atuaRec.plate,
@@ -1450,6 +1673,7 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
           cteNumber: t.cteNumber,
           cteNumberTrans: t.displayCte || t.cteNumber,
           cteNumberAtua: '',
+          allCteNumbers: t.allCteNumbers || [t.cteNumber],
           isCteDivergent: true,
           shipmentId: t.shipment.id,
           shipment: t.shipment,
@@ -1673,33 +1897,46 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
       });
     }
 
+    // Passo 4: Cruzamento com Desacordos Comerciais Informados
+    results.forEach(item => {
+      const match = findDisagreement(item, informedDisagreements);
+      if (match) {
+        item.informedDisagreement = match;
+        item.isInformedDisagreement = true;
+      }
+    });
+
     return results;
-  }, [atuaResult, enrichedTranscunhaData, tolerance, rateTolerance, weightTolerance]);
+  }, [atuaResult, enrichedTranscunhaData, tolerance, rateTolerance, weightTolerance, informedDisagreements]);
 
   // Totais e KPIs da Conciliação
   const kpis = useMemo(() => {
     const total = reconciliationItems.length;
-    const conciliated = reconciliationItems.filter(i => i.status === 'CONCILIATED').length;
-    const divergent = reconciliationItems.filter(i => i.status === 'DIVERGENT').length;
-    const orphanAtua = reconciliationItems.filter(i => i.status === 'ORPHAN_ATUA').length;
-    const pendingAtua = reconciliationItems.filter(i => i.status === 'PENDING_ATUA').length;
-    const similarCount = reconciliationItems.filter(i => Boolean(i.similarMatch?.isLikelyReissueOrDisagreement)).length;
+    const disagreementCount = reconciliationItems.filter(i => i.isInformedDisagreement).length;
+    const conciliated = reconciliationItems.filter(i => i.status === 'CONCILIATED' && !i.isInformedDisagreement).length;
+    const divergent = reconciliationItems.filter(i => i.status === 'DIVERGENT' && !i.isInformedDisagreement).length;
+    const orphanAtua = reconciliationItems.filter(i => i.status === 'ORPHAN_ATUA' && !i.isInformedDisagreement).length;
+    const pendingAtua = reconciliationItems.filter(i => i.status === 'PENDING_ATUA' && !i.isInformedDisagreement).length;
+    const similarCount = reconciliationItems.filter(i => Boolean(i.similarMatch?.isLikelyReissueOrDisagreement) && !i.isInformedDisagreement).length;
 
-    // Subtotais de tipos de divergência
-    const divergentCte = reconciliationItems.filter(i => i.status === 'DIVERGENT' && i.isCteDivergent).length;
-    const divergentCompanyFreight = reconciliationItems.filter(i => i.status === 'DIVERGENT' && (i.isCompanyFreightDivergent || i.isCompanyRateDivergent)).length;
-    const divergentDriverFreight = reconciliationItems.filter(i => i.status === 'DIVERGENT' && (i.isDriverFreightDivergent || i.isDriverRateDivergent)).length;
-    const divergentWeight = reconciliationItems.filter(i => i.status === 'DIVERGENT' && i.isWeightDivergent).length;
-    const divergentToll = reconciliationItems.filter(i => i.status === 'DIVERGENT' && i.isTollDivergent).length;
-    const divergentIcms = reconciliationItems.filter(i => i.status === 'DIVERGENT' && i.isIcmsDivergent).length;
+    // Subtotais de tipos de divergência (apenas itens ativos sem desacordo informado)
+    const divergentCte = reconciliationItems.filter(i => !i.isInformedDisagreement && i.status === 'DIVERGENT' && i.isCteDivergent).length;
+    const divergentCompanyFreight = reconciliationItems.filter(i => !i.isInformedDisagreement && i.status === 'DIVERGENT' && (i.isCompanyFreightDivergent || i.isCompanyRateDivergent)).length;
+    const divergentDriverFreight = reconciliationItems.filter(i => !i.isInformedDisagreement && i.status === 'DIVERGENT' && (i.isDriverFreightDivergent || i.isDriverRateDivergent)).length;
+    const divergentWeight = reconciliationItems.filter(i => !i.isInformedDisagreement && i.status === 'DIVERGENT' && i.isWeightDivergent).length;
+    const divergentToll = reconciliationItems.filter(i => !i.isInformedDisagreement && i.status === 'DIVERGENT' && i.isTollDivergent).length;
+    const divergentIcms = reconciliationItems.filter(i => !i.isInformedDisagreement && i.status === 'DIVERGENT' && i.isIcmsDivergent).length;
 
-    const sumDeltaCompany = reconciliationItems.reduce((acc, i) => acc + (i.delta.companyFreight || 0), 0);
-    const sumDeltaDriver = reconciliationItems.reduce((acc, i) => acc + (i.delta.driverFreight || 0), 0);
-    const sumDeltaResult = reconciliationItems.reduce((acc, i) => acc + (i.delta.netProfit || 0), 0);
-    const sumDeltaToll = reconciliationItems.reduce((acc, i) => acc + (i.delta.toll || 0), 0);
+    // Fretes e deltas desconsiderando CT-es com desacordo comercial registrado
+    const sumDeltaCompany = reconciliationItems.filter(i => !i.isInformedDisagreement).reduce((acc, i) => acc + (i.delta.companyFreight || 0), 0);
+    const sumDeltaDriver = reconciliationItems.filter(i => !i.isInformedDisagreement).reduce((acc, i) => acc + (i.delta.driverFreight || 0), 0);
+    const sumDeltaResult = reconciliationItems.filter(i => !i.isInformedDisagreement).reduce((acc, i) => acc + (i.delta.netProfit || 0), 0);
+    const sumDeltaToll = reconciliationItems.filter(i => !i.isInformedDisagreement).reduce((acc, i) => acc + (i.delta.toll || 0), 0);
+    const sumDisagreementFreight = reconciliationItems.filter(i => i.isInformedDisagreement).reduce((acc, i) => acc + (i.atua?.companyFreight || i.transcunha?.companyFreight || 0), 0);
 
     return {
       total,
+      disagreementCount,
       conciliated,
       divergent,
       orphanAtua,
@@ -1715,7 +1952,8 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
       sumDeltaCompany,
       sumDeltaDriver,
       sumDeltaResult,
-      sumDeltaToll
+      sumDeltaToll,
+      sumDisagreementFreight
     };
   }, [reconciliationItems]);
 
@@ -1723,10 +1961,13 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
   const filteredItems = useMemo(() => {
     return reconciliationItems.filter(item => {
       // Filtro de Status
-      if (filterStatus === 'SIMILAR') {
+      if (filterStatus === 'DISAGREEMENT') {
+        if (!item.isInformedDisagreement) return false;
+      } else if (filterStatus === 'SIMILAR') {
         if (!item.similarMatch?.isLikelyReissueOrDisagreement) return false;
-      } else if (filterStatus !== 'ALL' && item.status !== filterStatus) {
-        return false;
+      } else if (filterStatus !== 'ALL') {
+        if (item.isInformedDisagreement) return false;
+        if (item.status !== filterStatus) return false;
       }
 
       // Filtro por tipo de divergência
@@ -1744,12 +1985,20 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
       // Filtro de busca
       if (searchTerm.trim()) {
         const term = searchTerm.toLowerCase();
-        const matchesCte = item.cteNumber.toLowerCase().includes(term) || item.cteNumberTrans.toLowerCase().includes(term) || item.cteNumberAtua.toLowerCase().includes(term);
+        const matchesCte = item.cteNumber.toLowerCase().includes(term) || 
+                           item.cteNumberTrans.toLowerCase().includes(term) || 
+                           item.cteNumberAtua.toLowerCase().includes(term) ||
+                           (item.allCteNumbers && item.allCteNumbers.some(c => c.toLowerCase().includes(term)));
         const matchesPlate = item.plate.toLowerCase().includes(term);
         const matchesShipment = item.shipmentId?.toLowerCase().includes(term);
         const matchesDriver = item.driverName?.toLowerCase().includes(term);
         const matchesClient = item.clientName?.toLowerCase().includes(term);
-        if (!matchesCte && !matchesPlate && !matchesShipment && !matchesDriver && !matchesClient) {
+        const matchesDisagreement = item.isInformedDisagreement && (
+          item.informedDisagreement?.reason.toLowerCase().includes(term) ||
+          item.informedDisagreement?.substituteCte?.toLowerCase().includes(term) ||
+          item.informedDisagreement?.notes?.toLowerCase().includes(term)
+        );
+        if (!matchesCte && !matchesPlate && !matchesShipment && !matchesDriver && !matchesClient && !matchesDisagreement) {
           return false;
         }
       }
@@ -1790,11 +2039,13 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
     ];
 
     const tableData = filteredItems.map(item => {
-      let statusText = item.status === 'CONCILIATED' ? '100% OK (Conciliado)' :
-                       item.status === 'DIVERGENT' ? 'Divergente' :
-                       item.status === 'ORPHAN_ATUA' ? 'Órfão no Atua' : 'Pendente Atua';
+      let statusText = item.isInformedDisagreement
+        ? `Desacordo Comercial${item.informedDisagreement?.substituteCte ? ` (Subst: ${item.informedDisagreement.substituteCte})` : ''}`
+        : item.status === 'CONCILIATED' ? '100% OK (Conciliado)' :
+          item.status === 'DIVERGENT' ? 'Divergente' :
+          item.status === 'ORPHAN_ATUA' ? 'Órfão no Atua' : 'Pendente Atua';
 
-      if (item.similarMatch && item.similarMatch.similarityScore >= 60) {
+      if (!item.isInformedDisagreement && item.similarMatch && item.similarMatch.similarityScore >= 60) {
         statusText += ` (Desacordo ${item.similarMatch.similarityScore}%)`;
       }
 
@@ -1859,7 +2110,10 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
 
           // 4. Status Auditoria
           if (colIdx === 4) {
-            if (item.status === 'DIVERGENT') {
+            if (item.isInformedDisagreement) {
+              data.cell.styles.textColor = [126, 34, 206]; // purple
+              data.cell.styles.fontStyle = 'bold';
+            } else if (item.status === 'DIVERGENT') {
               data.cell.styles.textColor = [185, 28, 28]; // red
               data.cell.styles.fontStyle = 'bold';
             } else if (item.status === 'CONCILIATED') {
@@ -1875,40 +2129,41 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
             return;
           }
 
-          // Apenas destacar em vermelho as células cujo campo possui divergência real apurada
+          // Apenas destacar em vermelho as células cujo campo possui divergência real apurada (se não for desacordo formalizado)
           let isCellDivergent = false;
-
-          // 2 e 3: CT-e Atua e CT-e Trans
-          if ((colIdx === 2 || colIdx === 3) && item.isCteDivergent) {
-            isCellDivergent = true;
-          }
-          // 5 e 6: Frete Empresa (Trans) e Frete Empresa (Atua)
-          else if ((colIdx === 5 || colIdx === 6) && item.isCompanyFreightDivergent) {
-            isCellDivergent = true;
-          }
-          // 7: Tarifa Empresa (Trans/Atua)
-          else if (colIdx === 7 && item.isCompanyRateDivergent) {
-            isCellDivergent = true;
-          }
-          // 8 e 9: Frete Motorista (Trans) e Frete Motorista (Atua)
-          else if ((colIdx === 8 || colIdx === 9) && item.isDriverFreightDivergent) {
-            isCellDivergent = true;
-          }
-          // 10: Tarifa Motorista (Trans/Atua)
-          else if (colIdx === 10 && item.isDriverRateDivergent) {
-            isCellDivergent = true;
-          }
-          // 11 e 12: Peso Trans (t) e Peso Atua (t)
-          else if ((colIdx === 11 || colIdx === 12) && item.isWeightDivergent) {
-            isCellDivergent = true;
-          }
-          // 13: Pedágio (Trans/Atua)
-          else if (colIdx === 13 && item.isTollDivergent) {
-            isCellDivergent = true;
-          }
-          // 14: ICMS (Trans/Atua)
-          else if (colIdx === 14 && item.isIcmsDivergent) {
-            isCellDivergent = true;
+          if (!item.isInformedDisagreement) {
+            // 2 e 3: CT-e Atua e CT-e Trans
+            if ((colIdx === 2 || colIdx === 3) && item.isCteDivergent) {
+              isCellDivergent = true;
+            }
+            // 5 e 6: Frete Empresa (Trans) e Frete Empresa (Atua)
+            else if ((colIdx === 5 || colIdx === 6) && item.isCompanyFreightDivergent) {
+              isCellDivergent = true;
+            }
+            // 7: Tarifa Empresa (Trans/Atua)
+            else if (colIdx === 7 && item.isCompanyRateDivergent) {
+              isCellDivergent = true;
+            }
+            // 8 e 9: Frete Motorista (Trans) e Frete Motorista (Atua)
+            else if ((colIdx === 8 || colIdx === 9) && item.isDriverFreightDivergent) {
+              isCellDivergent = true;
+            }
+            // 10: Tarifa Motorista (Trans/Atua)
+            else if (colIdx === 10 && item.isDriverRateDivergent) {
+              isCellDivergent = true;
+            }
+            // 11 e 12: Peso Trans (t) e Peso Atua (t)
+            else if ((colIdx === 11 || colIdx === 12) && item.isWeightDivergent) {
+              isCellDivergent = true;
+            }
+            // 13: Pedágio (Trans/Atua)
+            else if (colIdx === 13 && item.isTollDivergent) {
+              isCellDivergent = true;
+            }
+            // 14: ICMS (Trans/Atua)
+            else if (colIdx === 14 && item.isIcmsDivergent) {
+              isCellDivergent = true;
+            }
           }
 
           if (isCellDivergent) {
@@ -1975,9 +2230,11 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
         ? `Sim (Desacordo ${item.similarMatch.similarityScore}% com ${item.similarMatch.targetCte || item.similarMatch.targetPlate} - ${item.similarMatch.similarityReasons.join('; ')})`
         : 'Nao';
 
-      const statusText = item.status === 'CONCILIATED' ? '100% OK (Conciliado)' :
-                         item.status === 'DIVERGENT' ? 'Divergente' :
-                         item.status === 'ORPHAN_ATUA' ? 'Orfao no Atua' : 'Pendente Atua';
+      const statusText = item.isInformedDisagreement
+        ? `Desacordo Comercial${item.informedDisagreement?.substituteCte ? ` (Subst: ${item.informedDisagreement.substituteCte})` : ''} - ${item.informedDisagreement?.reason || ''}`
+        : item.status === 'CONCILIATED' ? '100% OK (Conciliado)' :
+          item.status === 'DIVERGENT' ? 'Divergente' :
+          item.status === 'ORPHAN_ATUA' ? 'Orfao no Atua' : 'Pendente Atua';
 
       const row = [
         item.plate,
@@ -2287,7 +2544,7 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
               <span className="text-[10px] font-normal text-slate-400 ml-1">não cadastrados</span>
             </p>
             <p className="text-[9px] text-purple-500 dark:text-purple-400 mt-1 truncate">
-              Ausentes no Transcunha
+              {kpis.disagreementCount > 0 ? `${kpis.disagreementCount} em desacordo comercial` : 'Ausentes no Transcunha'}
             </p>
           </div>
 
@@ -2508,6 +2765,22 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
             Pendentes Atua ({kpis.pendingAtua})
           </button>
 
+          {kpis.disagreementCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setFilterStatus(filterStatus === 'DISAGREEMENT' ? 'ALL' : 'DISAGREEMENT')}
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                filterStatus === 'DISAGREEMENT'
+                  ? 'bg-purple-700 text-white shadow-xs'
+                  : 'bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 hover:bg-purple-100 border border-purple-200/50'
+              }`}
+              title="CT-es com desacordo comercial formalizado"
+            >
+              <FileWarning className="w-3 h-3 text-purple-600 dark:text-purple-400" />
+              Desacordo Comercial ({kpis.disagreementCount})
+            </button>
+          )}
+
           {kpis.similarCount > 0 && (
             <button
               type="button"
@@ -2639,7 +2912,24 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
 
                         {/* 4. Status */}
                         <td className="py-2.5 px-2 text-center whitespace-nowrap">
-                          {item.status === 'CONCILIATED' ? (
+                          {item.isInformedDisagreement ? (
+                            <div className="flex flex-col items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => setSelectedDisagreementItem(item)}
+                                className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-black bg-purple-100 text-purple-900 dark:bg-purple-900/60 dark:text-purple-200 border border-purple-300 dark:border-purple-700 hover:bg-purple-200 transition-colors cursor-pointer shadow-xs"
+                                title={`Desacordo Comercial Registrado: ${item.informedDisagreement?.reason}. Clique para gerenciar.`}
+                              >
+                                <FileWarning className="w-2.5 h-2.5 text-amber-500" />
+                                Desacordo Comercial
+                              </button>
+                              {item.informedDisagreement?.substituteCte && (
+                                <span className="text-[8.5px] font-bold text-slate-500 dark:text-slate-400">
+                                  Subst: CT-e {item.informedDisagreement.substituteCte}
+                                </span>
+                              )}
+                            </div>
+                          ) : item.status === 'CONCILIATED' ? (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
                               <CheckCircle2 className="w-2.5 h-2.5" /> 100% OK (Conciliado)
                             </span>
@@ -2806,17 +3096,35 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
                             <button
                               type="button"
                               onClick={() => setExpandedItemId(isExpanded ? null : item.id)}
-                              className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 hover:text-slate-800 transition-colors"
+                              className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
                               title="Expandir auditoria dos 6 pilares"
                             >
                               {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                            </button>
+
+                            {/* Botão Informar / Gerenciar Desacordo Comercial */}
+                            <button
+                              type="button"
+                              onClick={() => setSelectedDisagreementItem(item)}
+                              className={`p-1 rounded-lg transition-colors cursor-pointer ${
+                                item.isInformedDisagreement
+                                  ? 'bg-purple-100 text-purple-900 dark:bg-purple-900/60 dark:text-purple-200 border border-purple-300 dark:border-purple-700 shadow-xs'
+                                  : 'bg-slate-100 hover:bg-purple-50 text-slate-500 hover:text-purple-700 dark:bg-slate-700 dark:hover:bg-purple-950/40 dark:hover:text-purple-300'
+                              }`}
+                              title={
+                                item.isInformedDisagreement
+                                  ? `Desacordo Comercial informado: ${item.informedDisagreement?.reason}. Clique para gerenciar.`
+                                  : 'Informar Desacordo Comercial para este CT-e'
+                              }
+                            >
+                              <FileWarning className="w-4 h-4" />
                             </button>
 
                             {item.shipment && onOpenShipmentDetail && (
                               <button
                                 type="button"
                                 onClick={() => onOpenShipmentDetail(item.shipment!)}
-                                className="p-1 rounded-lg bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 transition-colors"
+                                className="p-1 rounded-lg bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 transition-colors cursor-pointer"
                                 title="Abrir dados do embarque no Transcunha"
                               >
                                 <Eye className="w-4 h-4" />
@@ -2832,19 +3140,62 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
                           <td colSpan={10} className="p-4 border-l-4 border-l-indigo-500">
                             <div className="space-y-4">
                               {/* Título e Identificação */}
-                              <div className="flex flex-wrap items-center justify-between border-b dark:border-slate-700 pb-2">
+                              <div className="flex flex-wrap items-center justify-between border-b dark:border-slate-700 pb-2 gap-2">
                                 <div className="flex items-center gap-2">
                                   <FileText className="w-4 h-4 text-indigo-600" />
                                   <span className="font-bold text-slate-800 dark:text-slate-100">
                                     Auditoria Detalhada de Valores: Placa {item.plate} ({item.date || 's/ data'})
                                   </span>
                                 </div>
-                                <div className="text-[11px] text-slate-500 flex items-center gap-3">
-                                  <span>ID Embarque: <strong>{item.shipmentId || '---'}</strong></span>
-                                  <span>Motorista: <strong>{item.driverName || '---'}</strong></span>
-                                  <span>Cliente: <strong>{item.clientName || '---'}</strong></span>
+                                <div className="flex flex-wrap items-center gap-3">
+                                  <button
+                                    type="button"
+                                    onClick={() => setSelectedDisagreementItem(item)}
+                                    className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer ${
+                                      item.isInformedDisagreement
+                                        ? 'bg-purple-700 hover:bg-purple-800 text-white'
+                                        : 'bg-slate-200 hover:bg-purple-100 text-slate-800 dark:bg-slate-700 dark:hover:bg-purple-900/50 dark:text-slate-100'
+                                    }`}
+                                  >
+                                    <FileWarning className="w-3.5 h-3.5 text-amber-400" />
+                                    {item.isInformedDisagreement ? 'Gerenciar Desacordo Comercial' : 'Informar Desacordo Comercial'}
+                                  </button>
+                                  <div className="text-[11px] text-slate-500 flex items-center gap-3">
+                                    <span>ID Embarque: <strong>{item.shipmentId || '---'}</strong></span>
+                                    <span>Motorista: <strong>{item.driverName || '---'}</strong></span>
+                                    <span>Cliente: <strong>{item.clientName || '---'}</strong></span>
+                                  </div>
                                 </div>
                               </div>
+
+                              {/* BANNER DE DESACORDO COMERCIAL FORMALIZADO */}
+                              {item.isInformedDisagreement && item.informedDisagreement && (
+                                <div className="p-3.5 rounded-xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800">
+                                  <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
+                                    <div className="flex items-center gap-2">
+                                      <FileWarning className="w-4 h-4 text-purple-700 dark:text-purple-300" />
+                                      <span className="font-bold text-xs text-purple-950 dark:text-purple-100">
+                                        Desacordo Comercial Formalizado no Sistema
+                                      </span>
+                                    </div>
+                                    <span className="text-[10px] text-purple-700 dark:text-purple-300 font-medium">
+                                      Informado em {new Date(item.informedDisagreement.informedAt).toLocaleDateString('pt-BR')} por {item.informedDisagreement.informedBy || 'Usuário'}
+                                    </span>
+                                  </div>
+                                  <div className="text-xs text-purple-900 dark:text-purple-200 space-y-1">
+                                    <p><strong>Motivo:</strong> {item.informedDisagreement.reason}</p>
+                                    {item.informedDisagreement.substituteCte && (
+                                      <p><strong>CT-e Substituto / Reemitido:</strong> CT-e {item.informedDisagreement.substituteCte}</p>
+                                    )}
+                                    {item.informedDisagreement.notes && (
+                                      <p><strong>Observações:</strong> {item.informedDisagreement.notes}</p>
+                                    )}
+                                    <p className="text-[10.5px] text-purple-700 dark:text-purple-400 italic pt-1">
+                                      ✓ Este CT-e não gera pendência financeira de frete ou pedágio pois foi contestado comercialmente.
+                                    </p>
+                                  </div>
+                                </div>
+                              )}
 
                               {/* ALERTA DE SEMELHANÇA HEURÍSTICA / POSSÍVEL DESACORDO DE CT-E */}
                               {item.similarMatch && (
@@ -3076,6 +3427,218 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
           </div>
         </div>
       )}
+
+      {/* MODAL DE INFORMAR / EDITAR DESACORDO COMERCIAL */}
+      {selectedDisagreementItem && (
+        <DisagreementModal
+          item={selectedDisagreementItem}
+          onClose={() => setSelectedDisagreementItem(null)}
+          onSave={handleSaveDisagreement}
+          onRemove={handleRemoveDisagreement}
+          currentUserName={currentUser?.name || currentUser?.email || 'Usuário'}
+        />
+      )}
+    </div>
+  );
+};
+
+interface DisagreementModalProps {
+  item: ReconciliationItem;
+  onClose: () => void;
+  onSave: (data: InformedDisagreement) => void;
+  onRemove: (cteNumber: string) => void;
+  currentUserName: string;
+}
+
+const DisagreementModal: React.FC<DisagreementModalProps> = ({
+  item,
+  onClose,
+  onSave,
+  onRemove,
+  currentUserName
+}) => {
+  const existing = item.informedDisagreement;
+  const initialCte = item.cteNumberAtua || item.cteNumberTrans || item.cteNumber;
+
+  const [cteNumber, setCteNumber] = useState(existing?.cteNumber || initialCte || '');
+  const [reason, setReason] = useState(existing?.reason || 'Prestação de serviço em desacordo (SEFAZ)');
+  const [substituteCte, setSubstituteCte] = useState(existing?.substituteCte || item.similarMatch?.targetCte || '');
+  const [notes, setNotes] = useState(existing?.notes || '');
+  const [date, setDate] = useState(existing?.date || item.date || new Date().toISOString().split('T')[0]);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!cteNumber.trim()) return;
+
+    onSave({
+      cteNumber: cteNumber.trim(),
+      plate: item.plate,
+      date: date || item.date,
+      reason,
+      substituteCte: substituteCte.trim(),
+      notes: notes.trim(),
+      informedAt: existing?.informedAt || new Date().toISOString(),
+      informedBy: existing?.informedBy || currentUserName
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 max-w-lg w-full p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-150">
+        <div className="flex items-center justify-between border-b dark:border-slate-700 pb-3">
+          <div className="flex items-center gap-2">
+            <div className="p-2 rounded-xl bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300">
+              <FileWarning className="w-5 h-5 text-amber-500" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                {existing ? 'Editar Desacordo Comercial' : 'Informar Desacordo Comercial'}
+              </h3>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                Formalize a manifestação de desacordo / recusa fiscal deste CT-e
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-lg cursor-pointer"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Card Resumo do CT-e */}
+        <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 text-xs space-y-1.5">
+          <div className="flex justify-between items-center">
+            <span className="text-slate-500 font-medium">CT-e / Placa:</span>
+            <span className="font-mono font-bold text-slate-900 dark:text-white">
+              CT-e {initialCte} • Placa {item.plate}
+            </span>
+          </div>
+          <div className="flex justify-between items-center">
+            <span className="text-slate-500 font-medium">Data / Filial:</span>
+            <span className="font-medium text-slate-800 dark:text-slate-200">
+              {item.date ? new Date(item.date + 'T00:00:00').toLocaleDateString('pt-BR') : 's/ data'} • {item.atuaBranch || item.transBranch || 'Filial'}
+            </span>
+          </div>
+          <div className="flex justify-between items-center">
+            <span className="text-slate-500 font-medium">Trajeto:</span>
+            <span className="font-medium text-slate-800 dark:text-slate-200 truncate max-w-[260px]" title={`${item.origin} → ${item.destination}`}>
+              {item.origin} → {item.destination}
+            </span>
+          </div>
+          <div className="flex justify-between items-center pt-1 border-t border-slate-200/60 dark:border-slate-700/60">
+            <span className="text-slate-500 font-medium">Frete Empresa / Pedágio:</span>
+            <span className="font-mono font-bold text-slate-900 dark:text-white">
+              R$ {(item.atua?.companyFreight ?? item.transcunha?.companyFreight ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              {Boolean(item.atua?.toll || item.transcunha?.toll) && (
+                <span className="text-slate-400 font-normal"> + Pedágio R$ {(item.atua?.toll ?? item.transcunha?.toll ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+              )}
+            </span>
+          </div>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-3.5">
+          {/* CT-e Número */}
+          <div>
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+              Número do CT-e com Desacordo:
+            </label>
+            <input
+              type="text"
+              required
+              value={cteNumber}
+              onChange={(e) => setCteNumber(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl text-xs font-mono font-bold bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 focus:outline-hidden focus:ring-2 focus:ring-purple-500"
+              placeholder="Ex: 2089"
+            />
+          </div>
+
+          {/* Motivo do Desacordo */}
+          <div>
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+              Motivo do Desacordo Comercial:
+            </label>
+            <select
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl text-xs bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-medium focus:outline-hidden focus:ring-2 focus:ring-purple-500"
+            >
+              <option value="Prestação de serviço em desacordo (SEFAZ)">Prestação de serviço em desacordo (SEFAZ)</option>
+              <option value="CT-e cancelado fora do prazo fiscal">CT-e cancelado fora do prazo fiscal</option>
+              <option value="CT-e substituído por nova numeração">CT-e substituído por nova numeração</option>
+              <option value="Erro de emissão / Reemitido no Atua">Erro de emissão / Reemitido no Atua</option>
+              <option value="Carga recusada pelo tomador / cliente">Carga recusada pelo tomador / cliente</option>
+              <option value="Outro motivo">Outro motivo</option>
+            </select>
+          </div>
+
+          {/* CT-e Substituto (se houver) */}
+          <div>
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center justify-between">
+              <span>CT-e Substituto / Novo CT-e: <span className="text-[10px] font-normal text-slate-400">(Opcional)</span></span>
+            </label>
+            <input
+              type="text"
+              value={substituteCte}
+              onChange={(e) => setSubstituteCte(e.target.value)}
+              placeholder="Ex: 2091 ou 2092"
+              className="w-full px-3 py-2 rounded-xl text-xs font-mono bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 focus:outline-hidden focus:ring-2 focus:ring-purple-500"
+            />
+            <p className="text-[10px] text-slate-400 mt-0.5">
+              Informe o número do novo CT-e emitido para substituir esta operação, se aplicável.
+            </p>
+          </div>
+
+          {/* Observações */}
+          <div>
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+              Observações / Justificativa: <span className="text-[10px] font-normal text-slate-400">(Opcional)</span>
+            </label>
+            <textarea
+              rows={2}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Ex: Manifestação realizada na SEFAZ pelo tomador..."
+              className="w-full p-2.5 rounded-xl text-xs bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 focus:outline-hidden focus:ring-2 focus:ring-purple-500"
+            />
+          </div>
+
+          {/* Ações */}
+          <div className="flex items-center justify-between pt-3 border-t dark:border-slate-700">
+            {existing ? (
+              <button
+                type="button"
+                onClick={() => onRemove(cteNumber)}
+                className="px-3 py-2 rounded-xl text-xs font-bold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-rose-200 dark:border-rose-800 flex items-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Remover Desacordo
+              </button>
+            ) : (
+              <div />
+            )}
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-purple-700 hover:bg-purple-800 text-white shadow-md flex items-center gap-1.5 cursor-pointer transition-all"
+              >
+                <Check className="w-3.5 h-3.5" />
+                Salvar Desacordo
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
     </div>
   );
 };

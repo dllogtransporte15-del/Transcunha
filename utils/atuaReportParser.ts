@@ -502,7 +502,7 @@ export const parseTranscunhaTextReport = (fullText: string): AtuaReportParseResu
         docType: 'CT',
         isCanceled: false,
         emissionDate: date,
-        branch: 'Transcunha',
+        branch: branch || 'Transcunha',
         payer: clientName,
         plate,
         weight,
@@ -632,8 +632,12 @@ const extractAtuaFromCoordinates = (allPagesItems: any[][]): AtuaCteRecord[] => 
         }
       }
 
-      // Pagador / Tomador do Frete (X entre 130 e 270, antecede a placa)
-      const payerItem = validItems.find(it => it.transform[4] >= 130 && it.transform[4] < 270 && !/^\d+$/.test(it.str.trim()) && !/\d{2}\/\d{2}/.test(it.str));
+      // Filial / Unidade emissora do Atua (X entre 120 e 165, ex: "1 / MATRI", "4 / AGEN")
+      const branchItem = validItems.find(it => it.transform[4] >= 120 && it.transform[4] <= 165 && /^\d+\s*\//.test(it.str.trim()));
+      const branch = branchItem ? branchItem.str.trim() : 'Transcunha';
+
+      // Pagador / Tomador do Frete (X entre 160 e 285, antecede a placa)
+      const payerItem = validItems.find(it => it.transform[4] >= 160 && it.transform[4] < 285 && !/^\d+$/.test(it.str.trim()) && !/\d{2}\/\d{2}/.test(it.str));
       const payer = payerItem ? payerItem.str.trim() : '';
 
       // Data de Emissão (X entre 60 e 130)
@@ -741,7 +745,7 @@ const extractAtuaFromCoordinates = (allPagesItems: any[][]): AtuaCteRecord[] => 
         isCanceled,
         cancelDate,
         emissionDate,
-        branch: 'Transcunha',
+        branch: branch || 'Transcunha',
         payer,
         plate,
         weight,

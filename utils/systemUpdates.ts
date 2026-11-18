@@ -27,6 +27,54 @@ export interface SystemRelease {
  */
 export const SYSTEM_RELEASES: SystemRelease[] = [
   {
+    id: 'rel_2026_11_18_v2_116_28',
+    version: 'v2.116.28',
+    date: '18/11/2026',
+    title: 'Auditoria Atua TMS: Botão e Gestão Formal de Desacordo Comercial de CT-e (SEFAZ / TMS)',
+    summary: 'Novo recurso na tela de Auditoria e Conciliação Atua TMS vs Transcunha permitindo registrar, gerenciar e documentar formalmente o Desacordo Comercial de CT-e (Manifestação de Desacordo SEFAZ, cancelamento fora do prazo ou reemissão fiscal, como ocorrido no CT-e 2089). Elimina cobranças indevidas de passivos órfãos nos cálculos contábeis e disponibiliza filtro e exportação específicos de desacordos comerciais.',
+    items: [
+      {
+        category: 'feature',
+        title: 'Botão "Informar Desacordo Comercial" nas Ações e Detalhes da Linha',
+        description: 'Disponibilizado botão dedicado com ícone de alerta fiscal na coluna "AÇÕES" de cada linha da auditoria e dentro do painel expandido dos 6 pilares. Permite abrir modal interativo para registrar motivo do desacordo (ex: Prestação em desacordo SEFAZ, erro de emissão, CT-e substituído), informar novo CT-e emitido, justificativa e data.'
+      },
+      {
+        category: 'improvement',
+        title: 'Isenção Contábil Automática de Passivos e Dívidas em Desacordo',
+        description: 'CT-es com desacordo informado (como o CT-e 2089 na placa TCI2C30 com frete de R$ 9.629,20 e pedágio de R$ 543,79) deixam de inflar negativamente o saldo de pendências financeiras e de órfãos não cadastrados, passando para o status formal "Desacordo Comercial".'
+      },
+      {
+        category: 'feature',
+        title: 'Filtro Rápido e Exportação (PDF / CSV) de CT-es em Desacordo',
+        description: 'Adicionada aba de filtro rápido "Desacordo Comercial" na barra de status da conciliação e integração com relatórios em PDF e planilhas CSV/Excel, documentando os motivos e CT-es substitutos para prestação de contas com o cliente e tomador do serviço.'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_18_v2_116_27',
+    version: 'v2.116.27',
+    date: '18/11/2026',
+    title: 'Auditoria Atua TMS: Refinamento de Busca por Período e Resolução do CT-e 50 / CT-e 45',
+    summary: 'Refinamento do motor de auditoria e busca por período no confronto Atua TMS vs Transcunha. Identificação precisa de UF por rota/cidade garantindo o pareamento fidedigno do CT-e 45 de Goiás (FEL-838, placa NJO7G33, 50,00 t) e CT-e 45 de São Paulo (RAF-841, placa BWY6A52, 36,33 t), além do CT-e 50 (FEL-873), eliminando qualquer status de "Órfão Atua" ou "Pendente Atua" com desacordo em qualquer período selecionado.',
+    items: [
+      {
+        category: 'fix',
+        title: 'Desambiguação e Pareamento Correto dos CT-es 45 (GO) e 45 (SP)',
+        description: 'Implementado mapeamento automático de UF por cidades de origem e trajeto (Luziânia/Cristalina -> GO e Castilho/Pontes Gestal -> SP). O CT-e 45 do GO (FEL-838, 50,00 t / R$ 3.750,00) e o CT-e 45 de SP (RAF-841, 36,33 t / R$ 4.541,25) agora pareiam perfeitamente 1:1 com seus respectivos CTRCs no Atua TMS, eliminando falsos órfãos e desacordos comerciais.'
+      },
+      {
+        category: 'improvement',
+        title: 'Tolerância e Resolução Inteligente de Períodos Contábeis',
+        description: 'O filtro de período agora considera a data efetiva, agendamento, emissão fiscal e registros correspondentes no Atua TMS, evitando que embarques ou CT-es autorizados na SEFAZ com 1 a 3 dias de diferença da data de carregamento sejam cortados nas bordas do período e fiquem órfãos ou pendentes.'
+      },
+      {
+        category: 'feature',
+        title: 'Busca Unificada e Multicritério por CT-e e Documentos Fiscais',
+        description: 'O campo de busca da tela de auditoria agora pesquisa de forma instantânea em todos os números de CT-e vinculados ao embarque (ativos, reemitidos ou complementares), placa, motorista, cliente e ID do embarque.'
+      }
+    ]
+  },
+  {
     id: 'rel_2026_11_17_v2_116_26',
     version: 'v2.116.26',
     date: '17/11/2026',
@@ -1469,7 +1517,7 @@ export const SYSTEM_RELEASES: SystemRelease[] = [
         description: 'O botão de avanço permanece visualmente desabilitado enquanto houver documentos pendentes ou arquivos com incompatibilidade de tipo, exibindo tooltip explicativo com a lista do que precisa ser corrigido.'
       }
     ]
-  },  {
+  }, {
     id: 'rel_2026_10_29_v2_88_7',
     version: 'v2.88.7',
     date: '29/10/2026',
@@ -1521,7 +1569,7 @@ export const SYSTEM_RELEASES: SystemRelease[] = [
         description: 'O novo embarque herda automaticamente dados do motorista, placas, ANTT e dados bancários para o status inicial de Ag. Carregamento, preservando intacto o embarque em andamento.'
       }
     ]
-  },  {
+  }, {
     id: 'rel_2026_10_29_v2_88_5',
     version: 'v2.88.5',
     date: '29/10/2026',
