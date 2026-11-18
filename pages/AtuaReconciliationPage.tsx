@@ -778,16 +778,17 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
       if (!plate) return false;
 
       // 3. REGRA REFINADA DE PERÍODO: O embarque deve estar dentro do intervalo determinado
-      // Considera data contábil/efetiva, agendamento, emissão de CT-e ou cruzamento com relatório Atua no período
+      // Prioridade mandatória de confrontamento fiscal:
+      // a) Se houver cruzamento direto com CT-e emitido no relatório Atua dentro do período, inclui
+      // b) Se o CT-e possui data de emissão explícita (cteEmissionDateStr), ela é a data fiscal mandatória e deve estar no período
+      // c) Se não houver data de emissão de CT-e preenchida, utiliza a data contábil/efetiva ou agendamento
       const effectiveDate = getShipmentEffectiveDate(s);
       const dateStr = normalizeDate(effectiveDate || s.scheduledDate || (s as any)?.scheduled_date || '');
-      const schedDateStr = normalizeDate(s.scheduledDate || (s as any)?.scheduled_date || '');
       const cteEmissionDateStr = normalizeDate(getShipmentCteEmissionDate(s) || '');
 
       if (!startDate && !endDate) return true;
 
       const isDateIn = (d: string) => Boolean(d && (!startDate || d >= startDate) && (!endDate || d <= endDate));
-      if (isDateIn(dateStr) || isDateIn(schedDateStr) || isDateIn(cteEmissionDateStr)) return true;
 
       // Se o relatório do Atua contiver este CT-e e placa emitido dentro do período selecionado
       const hasAtuaInPeriod = (atuaResult?.records || []).some(r => {
@@ -797,7 +798,13 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
       });
       if (hasAtuaInPeriod) return true;
 
-      return false;
+      // Se o CT-e possui data de emissão explícita no Transcunha, ela é a referência fiscal definitiva
+      if (cteEmissionDateStr) {
+        return isDateIn(cteEmissionDateStr);
+      }
+
+      // Caso não tenha data de emissão de CT-e preenchida, utiliza a data efetiva / agendamento
+      return isDateIn(dateStr);
     });
 
     const items: Array<{
@@ -913,6 +920,15 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
 
       const shipmentEffectiveDate = normalizeDate(getShipmentEffectiveDate(s) || s.scheduledDate || '');
 
+      const isShipmentComp = Boolean(
+        (s as any)?.isComplementar || 
+        (s as any)?.is_complementar || 
+        (s as any)?.complementarOriginType ||
+        (s as any)?.complementar_origin_type ||
+        (s as any)?.id?.endsWith('-COMP') ||
+        (weight === 0 && baseCompanyFreight > 0)
+      );
+
       // Linha Principal do Embarque (suporta múltiplos CT-es como 2112/2111)
       if (cteInfo.list.length <= 1) {
         const singleCte = cteInfo.list[0] || (cte ? cte.replace(/[^0-9]/g, '') : '');
@@ -923,7 +939,7 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
           allCteNumbers: cteInfo.list.length > 0 ? cteInfo.list : (singleCte ? [singleCte] : []),
           shipment: s,
           cargo,
-          isComplementary: false,
+          isComplementary: isShipmentComp,
           weight,
           companyFreight: baseCompanyFreight,
           companyRatePerTon,
@@ -970,7 +986,7 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
             allCteNumbers: cteInfo.list.length > 0 ? cteInfo.list : [singleCte],
             shipment: s,
             cargo,
-            isComplementary: false,
+            isComplementary: isShipmentComp,
             weight,
             companyFreight: baseCompanyFreight,
             companyRatePerTon,
@@ -1046,7 +1062,7 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
               allCteNumbers: cteInfo.list,
               shipment: s,
               cargo,
-              isComplementary: false,
+              isComplementary: isShipmentComp,
               weight: cteWeight,
               companyFreight: cteCompanyFreight,
               companyRatePerTon,
@@ -1424,6 +1440,18 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
         matchedTranscunhaKeys.add(match.key);
         matchedAtuaIndexes.add(atuaIdx);
 
+        // Identificação refinada de CT-e ou Embarque Complementar
+        const isComplementary = Boolean(
+          match.isComplementary || 
+          atuaRec.isComplementary || 
+          (match.shipment as any)?.isComplementar || 
+          (match.shipment as any)?.is_complementar ||
+          (match.weight === 0 && match.companyFreight > 0) ||
+          (atuaRec.weight === 0 && atuaRec.companyFreight > 0) ||
+          (atuaRec.docType && String(atuaRec.docType).toUpperCase().includes('COMP')) ||
+          (atuaRec.rawLine && (atuaRec.rawLine.toLowerCase().includes('complement') || atuaRec.rawLine.toLowerCase().includes('estadia') || atuaRec.rawLine.toLowerCase().includes('diária')))
+        );
+
         // 1. Auditoria do CT-e
         const transCte = match.displayCte || match.cteNumber;
         const isCteMatch = Boolean(
@@ -1447,12 +1475,13 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
         const isCompanyFreightDivergent = directDiffCompany > tolerance && !isCompanyFreightReconciledByToll;
         const deltaCompanyFreight = isCompanyFreightReconciledByToll ? 0 : rawDeltaCompanyFreight;
 
+        // REGRA DE EMBARQUE COMPLEMENTAR: Em complementares, compara APENAS o frete total, NÃO o R$/ton
         const rawDeltaCompanyRate = Number((match.companyRatePerTon - atuaCompanyRate).toFixed(2));
         const directDiffCompanyRate = Math.abs(rawDeltaCompanyRate);
         const diffCompanyRateWithToll = Math.abs(directDiffCompanyRate - tollPerTon);
         const isCompanyRateReconciledByToll = isCompanyFreightReconciledByToll || (tollPerTon > 0 && diffCompanyRateWithToll <= rateTolerance);
-        const isCompanyRateDivergent = directDiffCompanyRate > rateTolerance && !isCompanyRateReconciledByToll;
-        const deltaCompanyRate = isCompanyRateReconciledByToll ? 0 : rawDeltaCompanyRate;
+        const isCompanyRateDivergent = !isComplementary && (directDiffCompanyRate > rateTolerance && !isCompanyRateReconciledByToll);
+        const deltaCompanyRate = (isComplementary || isCompanyRateReconciledByToll) ? 0 : rawDeltaCompanyRate;
 
         // 3. Auditoria do Frete Motorista (com conciliação inteligente de pedágio incluso vs destacado)
         const rawDeltaDriverFreight = Number((match.driverFreight - atuaRec.driverFreight).toFixed(2));
@@ -1465,16 +1494,19 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
         const isDriverFreightDivergent = directDiffDriver > tolerance && !isDriverFreightReconciledByToll;
         const deltaDriverFreight = isDriverFreightReconciledByToll ? 0 : rawDeltaDriverFreight;
 
+        // REGRA DE EMBARQUE COMPLEMENTAR: Em complementares, compara APENAS o frete total, NÃO o R$/ton
         const rawDeltaDriverRate = Number((match.driverRatePerTon - atuaDriverRate).toFixed(2));
         const directDiffDriverRate = Math.abs(rawDeltaDriverRate);
         const diffDriverRateWithToll = Math.abs(directDiffDriverRate - tollPerTon);
         const isDriverRateReconciledByToll = isDriverFreightReconciledByToll || (tollPerTon > 0 && diffDriverRateWithToll <= rateTolerance);
-        const isDriverRateDivergent = directDiffDriverRate > rateTolerance && !isDriverRateReconciledByToll;
-        const deltaDriverRate = isDriverRateReconciledByToll ? 0 : rawDeltaDriverRate;
+        const isDriverRateDivergent = !isComplementary && (directDiffDriverRate > rateTolerance && !isDriverRateReconciledByToll);
+        const deltaDriverRate = (isComplementary || isDriverRateReconciledByToll) ? 0 : rawDeltaDriverRate;
 
         // 4. Auditoria do Peso Carregado
-        const deltaWeight = Number((match.weight - atuaRec.weight).toFixed(2));
-        const isWeightDivergent = Math.abs(deltaWeight) > weightTolerance;
+        // Em embarques complementares o peso fiscal é financeiro ou zero, portanto não gera divergência de peso
+        const rawDeltaWeight = Number((match.weight - atuaRec.weight).toFixed(2));
+        const isWeightDivergent = !isComplementary && (Math.abs(rawDeltaWeight) > weightTolerance);
+        const deltaWeight = isComplementary ? 0 : rawDeltaWeight;
 
         // 5. Auditoria do Pedágio
         const deltaToll = Number((match.toll - atuaRec.toll).toFixed(2));
@@ -1540,7 +1572,7 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
           shipmentId: match.shipment.id,
           shipment: match.shipment,
           cargo: match.cargo,
-          isComplementary: match.isComplementary || atuaRec.isComplementary,
+          isComplementary,
           plate: match.plate || atuaRec.plate,
           driverName: match.driverName,
           clientName: (match.clientName && match.clientName !== '---') ? match.clientName : (atuaRec.payer || atuaRec.shipper || '---'),
@@ -1668,6 +1700,13 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
     // Passo 2: Pendentes no Atua (Constam no Transcunha mas placa/data não foi achada no Atua)
     enrichedTranscunhaData.forEach(t => {
       if (!matchedTranscunhaKeys.has(t.key)) {
+        // Garantia de período estrita: se não foi conciliado com o Atua, a data do embarque Transcunha DEVE respeitar o período filtrado
+        if (startDate || endDate) {
+          const tDate = normalizeDate(t.date || '');
+          if (startDate && tDate && tDate < startDate) return;
+          if (endDate && tDate && tDate > endDate) return;
+        }
+
         results.push({
           id: `transcunha-pending-${t.key}`,
           cteNumber: t.cteNumber,
@@ -2891,6 +2930,11 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
                                   [{item.transUf}]
                                 </span>
                               )}
+                              {item.isComplementary && (
+                                <span className="text-[8px] font-black px-1.5 py-0.2 rounded bg-purple-100 text-purple-800 dark:bg-purple-900/60 dark:text-purple-200 border border-purple-200 dark:border-purple-700" title="CT-e de Complemento de Frete">
+                                  Compl.
+                                </span>
+                              )}
                             </div>
                             {item.isCteDivergent && item.status !== 'ORPHAN_ATUA' && item.status !== 'PENDING_ATUA' && (
                               <span className="inline-block text-[8px] font-extrabold px-1.5 py-0.2 rounded bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-300">
@@ -2983,11 +3027,15 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
                               {item.atua ? `${item.atua.weight.toFixed(2)} t` : '---'}
                             </span>
                           </div>
-                          {item.isWeightDivergent && (
+                          {item.isWeightDivergent ? (
                             <p className="text-[9px] font-bold text-rose-600">
                               Δ {item.delta.weight > 0 ? '+' : ''}{item.delta.weight.toFixed(2)} t
                             </p>
-                          )}
+                          ) : item.isComplementary ? (
+                            <p className="text-[8.5px] font-semibold text-purple-600 dark:text-purple-400">
+                              Complementar
+                            </p>
+                          ) : null}
                         </td>
 
                         {/* 6. Frete Empresa (Total e R$/ton) */}
@@ -3005,10 +3053,18 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
                           </div>
                           {/* Tarifas */}
                           <div className="text-[10px] text-slate-500">
-                            <span className="text-[9px] text-slate-400 mr-1">R$/t:</span>
-                            <span>{item.transcunha?.companyRatePerTon ? `R$ ${item.transcunha.companyRatePerTon.toFixed(2)}` : '---'}</span>
-                            <span className="text-slate-400 mx-0.5">/</span>
-                            <span>{item.atua?.companyRatePerTon ? `R$ ${item.atua.companyRatePerTon.toFixed(2)}` : '---'}</span>
+                            {item.isComplementary ? (
+                              <span className="text-[8.5px] font-semibold text-purple-600 dark:text-purple-400">
+                                Complementar (Valor Fixo)
+                              </span>
+                            ) : (
+                              <>
+                                <span className="text-[9px] text-slate-400 mr-1">R$/t:</span>
+                                <span>{item.transcunha?.companyRatePerTon ? `R$ ${item.transcunha.companyRatePerTon.toFixed(2)}` : '---'}</span>
+                                <span className="text-slate-400 mx-0.5">/</span>
+                                <span>{item.atua?.companyRatePerTon ? `R$ ${item.atua.companyRatePerTon.toFixed(2)}` : '---'}</span>
+                              </>
+                            )}
                           </div>
                           {(item.isCompanyFreightDivergent || item.isCompanyRateDivergent) ? (
                             <p className="text-[9px] font-bold text-rose-600">
@@ -3018,6 +3074,10 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
                           ) : item.isCompanyFreightReconciledByToll ? (
                             <p className="text-[9px] font-medium text-emerald-600 dark:text-emerald-400">
                               ✓ Conciliado c/ Pedágio
+                            </p>
+                          ) : item.isComplementary ? (
+                            <p className="text-[9px] font-medium text-emerald-600 dark:text-emerald-400">
+                              ✓ Frete Total Conciliado
                             </p>
                           ) : null}
                         </td>
@@ -3037,10 +3097,18 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
                           </div>
                           {/* Tarifas */}
                           <div className="text-[10px] text-slate-500">
-                            <span className="text-[9px] text-slate-400 mr-1">R$/t:</span>
-                            <span>{item.transcunha?.driverRatePerTon ? `R$ ${item.transcunha.driverRatePerTon.toFixed(2)}` : '---'}</span>
-                            <span className="text-slate-400 mx-0.5">/</span>
-                            <span>{item.atua?.driverRatePerTon ? `R$ ${item.atua.driverRatePerTon.toFixed(2)}` : '---'}</span>
+                            {item.isComplementary ? (
+                              <span className="text-[8.5px] font-semibold text-purple-600 dark:text-purple-400">
+                                Complementar (Valor Fixo)
+                              </span>
+                            ) : (
+                              <>
+                                <span className="text-[9px] text-slate-400 mr-1">R$/t:</span>
+                                <span>{item.transcunha?.driverRatePerTon ? `R$ ${item.transcunha.driverRatePerTon.toFixed(2)}` : '---'}</span>
+                                <span className="text-slate-400 mx-0.5">/</span>
+                                <span>{item.atua?.driverRatePerTon ? `R$ ${item.atua.driverRatePerTon.toFixed(2)}` : '---'}</span>
+                              </>
+                            )}
                           </div>
                           {(item.isDriverFreightDivergent || item.isDriverRateDivergent) ? (
                             <p className="text-[9px] font-bold text-rose-600">
@@ -3050,6 +3118,10 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
                           ) : item.isDriverFreightReconciledByToll ? (
                             <p className="text-[9px] font-medium text-emerald-600 dark:text-emerald-400">
                               ✓ Conciliado c/ Pedágio
+                            </p>
+                          ) : item.isComplementary ? (
+                            <p className="text-[9px] font-medium text-emerald-600 dark:text-emerald-400">
+                              ✓ Frete Total Conciliado
                             </p>
                           ) : null}
                         </td>

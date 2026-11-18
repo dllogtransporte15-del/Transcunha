@@ -27,6 +27,49 @@ export interface SystemRelease {
  */
 export const SYSTEM_RELEASES: SystemRelease[] = [
   {
+    id: 'rel_2026_11_18_v2_116_32',
+    version: 'v2.116.32',
+    date: '18/11/2026',
+    title: 'Auditoria Atua: Confronto Estrito de Frete Total em Embarques Complementares',
+    summary: 'Ajustada a regra de auditoria da Conciliação Atua para embarques e CT-es complementares (como CT-e de complemento de frete e estadias). O sistema agora compara exclusivamente o valor total do frete (empresa e motorista), dispensando a conferência por tarifa unitária (R$/ton) e peso fictício/zero.',
+    items: [
+      {
+        category: 'improvement',
+        title: 'Auditoria Exclusiva de Frete Total em Complementares',
+        description: 'Em CT-es complementares, a conferência de frete empresa e frete motorista foca estritamente nos valores totais em reais (R$). A comparação da tarifa unitária (R$/ton) é desativada nesses casos para evitar falsas divergências causadas por CT-es emitidos com valor fixo ou sem divisão proporcional por tonelada.'
+      },
+      {
+        category: 'fix',
+        title: 'Desconsideração de Divergência de Peso em CT-e Complementar',
+        description: 'Como o CT-e complementar é uma emissão de ajuste financeiro (frequentemente emitido com peso 0,00 t no TMS), o motor de conciliação não acusa mais divergência de peso entre o registro operacional e o documento complementar, sinalizando o status como Conciliado quando os fretes conferem.'
+      },
+      {
+        category: 'improvement',
+        title: 'Identificação Visual de CT-e Complementar',
+        description: 'Adicionada etiqueta roxa "Compl." no número do CT-e e indicação clara de "Frete Complementar (Valor Fixo)" nas colunas de frete e peso da tabela de conciliação.'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_18_v2_116_31',
+    version: 'v2.116.31',
+    date: '18/11/2026',
+    title: 'Auditoria Atua: Correção do Filtro de Período para Embarques Pendentes',
+    summary: 'Corrigido o filtro de período na Conciliação Atua CTRC. Embarques cujos CT-es foram emitidos fora do período auditado (ex: emitidos em agosto, setembro ou novembro) não são mais indevidamente incluídos na auditoria de outubro apenas por agendamento prévio, eliminando falsos positivos na aba "Pendentes Atua".',
+    items: [
+      {
+        category: 'fix',
+        title: 'Prioridade Mandatória da Data de Emissão do CT-e',
+        description: 'A data de emissão do CT-e agora é tratada como a referência fiscal definitiva do embarque. Casos em que a data do agendamento operacional estava no mês auditado mas o CT-e foi efetivamente emitido em outro mês deixam de ser arrastados para a conciliação, salvo se constarem no relatório Atua carregado.'
+      },
+      {
+        category: 'fix',
+        title: 'Bloqueio Estrito de Período em "Pendentes Atua"',
+        description: 'Adicionada trava rigorosa no motor de confrontamento garantindo que nenhum embarque fora do intervalo de datas selecionado seja classificado como "Pendente Atua".'
+      }
+    ]
+  },
+  {
     id: 'rel_2026_11_18_v2_116_30',
     version: 'v2.116.30',
     date: '18/11/2026',
@@ -7835,65 +7878,4 @@ export const isUserExcludedFromRelease = (release: SystemRelease, user?: User | 
   }
 
   // Papéis de agência excluídos (ex: operadores de embarque)
-  if (release.excludeAgencyRoles && user.agencyRole && release.excludeAgencyRoles.includes(user.agencyRole)) {
-    return true;
-  }
-
-  // Perfis alvos específicos (se configurado, apenas os perfis listados visualizam)
-  if (release.targetProfiles && release.targetProfiles.length > 0) {
-    if (!release.targetProfiles.includes(user.profile)) {
-      return true;
-    }
-  }
-
-  return false;
-};
-
-/**
- * Retorna os lançamentos visíveis para o usuário considerando as restrições de perfil
- */
-export const getReleasesForUser = (user?: User | null): SystemRelease[] => {
-  if (!user) return SYSTEM_RELEASES;
-  return SYSTEM_RELEASES.filter(release => !isUserExcludedFromRelease(release, user));
-};
-
-/**
- * Retorna o lançamento mais recente visível para o usuário
- */
-export const getLatestReleaseForUser = (user?: User | null): SystemRelease => {
-  const visible = getReleasesForUser(user);
-  return visible[0] || SYSTEM_RELEASES[0];
-};
-
-/**
- * Verifica se o modal de novidades deve ser exibido para o usuário.
- * Retorna true apenas no primeiro acesso após uma nova atualização aplicável ao perfil do usuário.
- */
-export const shouldShowUpdateModal = (userOrId?: User | string | null): boolean => {
-  if (!userOrId) return false;
-  const userId = typeof userOrId === 'string' ? userOrId : userOrId.id;
-  const user = typeof userOrId === 'string' ? null : userOrId;
-  if (!userId) return false;
-
-  try {
-    const latestRelease = getLatestReleaseForUser(user);
-    const key = `${STORAGE_PREFIX}${userId}`;
-    const lastSeenId = localStorage.getItem(key);
-    return lastSeenId !== latestRelease.id;
-  } catch {
-    return false;
-  }
-};
-
-/**
- * Marca a versão atual como visualizada pelo usuário para não reabrir automaticamente.
- */
-export const markUpdateAsSeen = (userId?: string, releaseId: string = LATEST_SYSTEM_RELEASE.id): void => {
-  if (!userId) return;
-  try {
-    const key = `${STORAGE_PREFIX}${userId}`;
-    localStorage.setItem(key, releaseId);
-  } catch (err) {
-    console.warn('Erro ao salvar status de visualização de atualização:', err);
-  }
-};
+... [truncated for diff preview]
