@@ -189,21 +189,31 @@ export const arePlatesMatching = (p1?: string | null, p2?: string | null): boole
 };
 
 /**
- * Normaliza data DD/MM/YY ou DD/MM/YYYY para YYYY-MM-DD
+ * Normaliza data DD/MM/YY ou DD/MM/YYYY ou YYYY-MM-DD para estritamente YYYY-MM-DD
  */
 export const normalizeDate = (dateStr: string): string => {
   if (!dateStr) return '';
-  const match = dateStr.trim().match(/^(\d{2})\/(\d{2})\/(\d{2,4})/);
-  if (match) {
-    let year = match[3];
+  const trimmed = dateStr.trim();
+  // DD/MM/YYYY or DD/MM/YY (com ou sem hora)
+  const dmy = trimmed.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
+  if (dmy) {
+    let year = dmy[3];
     if (year.length === 2) {
       year = '20' + year;
     }
-    const month = match[2].padStart(2, '0');
-    const day = match[1].padStart(2, '0');
+    const month = dmy[2].padStart(2, '0');
+    const day = dmy[1].padStart(2, '0');
     return `${year}-${month}-${day}`;
   }
-  return dateStr;
+  // YYYY-MM-DD ou ISO timestamp (com ou sem hora)
+  const ymd = trimmed.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+  if (ymd) {
+    const year = ymd[1];
+    const month = ymd[2].padStart(2, '0');
+    const day = ymd[3].padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+  return dateStr.substring(0, 10);
 };
 
 /**
@@ -394,7 +404,7 @@ export const parseAtuaTextReport = (fullText: string): AtuaReportParseResult => 
 
   // Tenta extrair período do cabeçalho
   // "Emissão CTRC: 01/10/26 à 27/10/26"
-  const periodMatch = fullText.match(/Emiss[ãa]o\s+CTRC:\s*(\d{2}\/\d{2}\/\d{2,4})\s*(?:[àa]|at[ée])\s*(\d{2}\/\d{2}\/\d{2,4})/i);
+  const periodMatch = fullText.match(/(?:Emiss[ãa]o\s*(?:CTRC|CT-?e|Documentos)?|Per[íi]odo|Periodo|Data(?:\s+de\s+Emiss[ãa]o)?)\s*:\s*(\d{1,2}\/\d{1,2}\/\d{2,4})\s*(?:[àa]|at[ée]|\-)\s*(\d{1,2}\/\d{1,2}\/\d{2,4})/i);
   if (periodMatch) {
     startDate = normalizeDate(periodMatch[1]);
     endDate = normalizeDate(periodMatch[2]);
@@ -409,6 +419,21 @@ export const parseAtuaTextReport = (fullText: string): AtuaReportParseResult => 
       }
     } catch (e: any) {
       errors.push(`Erro na linha: ${line.slice(0, 50)}... -> ${e?.message}`);
+    }
+  }
+
+  // Se não encontrou período no cabeçalho, detecta pelos próprios registros do arquivo
+  if ((!startDate || !endDate) && records.length > 0) {
+    const allDates = records
+      .map(r => normalizeDate(r.emissionDate || ''))
+      .filter(d => Boolean(d && d.length === 10))
+      .sort();
+    if (allDates.length > 0) {
+      if (!startDate) startDate = allDates[0];
+      if (!endDate) endDate = allDates[allDates.length - 1];
+      if (!periodText) {
+        periodText = `${startDate.split('-').reverse().join('/')} a ${endDate.split('-').reverse().join('/')}`;
+      }
     }
   }
 
@@ -502,7 +527,7 @@ export const parseTranscunhaTextReport = (fullText: string): AtuaReportParseResu
         docType: 'CT',
         isCanceled: false,
         emissionDate: date,
-        branch: branch || 'Transcunha',
+        branch: 'Transcunha',
         payer: clientName,
         plate,
         weight,
@@ -891,11 +916,26 @@ export const parseAtuaPdfFile = async (file: File): Promise<AtuaReportParseResul
     let startDate = '';
     let endDate = '';
 
-    const periodMatch = fullText.match(/Emiss[ãa]o\s+CTRC:\s*(\d{2}\/\d{2}\/\d{2,4})\s*(?:[àa]|at[ée])\s*(\d{2}\/\d{2}\/\d{2,4})/i);
+    const periodMatch = fullText.match(/(?:Emiss[ãa]o\s*(?:CTRC|CT-?e|Documentos)?|Per[íi]odo|Periodo|Data(?:\s+de\s+Emiss[ãa]o)?)\s*:\s*(\d{1,2}\/\d{1,2}\/\d{2,4})\s*(?:[àa]|at[ée]|\-)\s*(\d{1,2}\/\d{1,2}\/\d{2,4})/i);
     if (periodMatch) {
       startDate = normalizeDate(periodMatch[1]);
       endDate = normalizeDate(periodMatch[2]);
       periodText = `${periodMatch[1]} a ${periodMatch[2]}`;
+    }
+
+    // Se não encontrou período no cabeçalho do PDF, detecta pelos próprios registros consolidados
+    if ((!startDate || !endDate) && combinedRecords.length > 0) {
+      const allDates = combinedRecords
+        .map(r => normalizeDate(r.emissionDate || ''))
+        .filter(d => Boolean(d && d.length === 10))
+        .sort();
+      if (allDates.length > 0) {
+        if (!startDate) startDate = allDates[0];
+        if (!endDate) endDate = allDates[allDates.length - 1];
+        if (!periodText) {
+          periodText = `${startDate.split('-').reverse().join('/')} a ${endDate.split('-').reverse().join('/')}`;
+        }
+      }
     }
 
     return {

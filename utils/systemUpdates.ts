@@ -27,6 +27,68 @@ export interface SystemRelease {
  */
 export const SYSTEM_RELEASES: SystemRelease[] = [
   {
+    id: 'rel_2026_11_18_v2_116_35',
+    version: 'v2.116.35',
+    date: '18/11/2026',
+    title: 'Auditoria Atua: Indicadores de Faturamento Empresa, Motorista e Peso (Atua x Transcunha)',
+    summary: 'Substituição dos cartões superiores de auditoria pelos comparativos executivos de Faturamento Total Frete Empresa, Faturamento Frete Motorista e Peso Total Carregado confrontando Atua x Transcunha com deltas e conciliação.',
+    items: [
+      {
+        category: 'feature',
+        title: 'Totais Comparativos Atua x Transcunha no Topo da Auditoria',
+        description: 'Os cards superiores agora destacam diretamente o Faturamento Frete Empresa, Faturamento Frete Motorista e Peso Total Carregado, exibindo lado a lado os valores do Atua TMS versus Transcunha e a diferença (Δ) resultante.'
+      },
+      {
+        category: 'improvement',
+        title: 'Painel Executivo de Conciliação e Resultado',
+        description: 'Integrados em cards dedicados o índice percentual de conciliação com barra de progresso, contagem de divergências/pendências e o impacto consolidado do resultado líquido.'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_18_v2_116_34',
+    version: 'v2.116.34',
+    date: '18/11/2026',
+    title: 'Auditoria Atua: Correção nos Detalhes de Frete e Integridade de Tipagens',
+    summary: 'Ajustados os cards de auditoria expandida para embarques complementares, eliminando exibições indevidas de tarifa unitária (R$/ton) quando o valor é fixo ou complementar, e restaurando a integridade das tipagens de conciliação.',
+    items: [
+      {
+        category: 'fix',
+        title: 'Exibição de Frete e Peso em Complementares no Painel Detalhado',
+        description: 'Os cards de detalhes expandidos de Frete Empresa, Frete Motorista e Peso agora reconhecem CT-es complementares e de estadia, sinalizando "Frete Total Conciliado" e "Complementar" em vez de calcular tarifas por tonelada irrelevantes.'
+      },
+      {
+        category: 'fix',
+        title: 'Integridade de Compilação do Sistema',
+        description: 'Corrigidas definições de variáveis e fechamento estrutural no histórico de atualizações e parser de relatórios, garantindo compilação limpa sem erros.'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_18_v2_116_33',
+    version: 'v2.116.33',
+    date: '18/11/2026',
+    title: 'Auditoria Atua: Correção do Mecanismo de Busca Estrita por Período de Emissão de CT-e',
+    summary: 'Aprimorado o mecanismo de busca e filtro de período na auditoria de conciliação com o Atua TMS. O sistema agora detecta e aplica de forma rigorosa as datas de início e fim da auditoria, normalizando estritamente as datas fiscais de emissão e garantindo que embarques emitidos fora do período filtrado (como agosto, setembro ou novembro) não apareçam indevidamente como "Pendentes Atua".',
+    items: [
+      {
+        category: 'fix',
+        title: 'Detecção e Aplicação Rigorosa do Período de Início e Fim',
+        description: 'A conciliação agora extrai com precisão a faixa de datas (início e fim) do relatório do Atua TMS (inclusive por consolidação direta de datas dos CT-es caso não conste no cabeçalho), sincronizando os inputs de data e garantindo que todas as etapas de busca respeitem estritamente esse período.'
+      },
+      {
+        category: 'fix',
+        title: 'Normalização Rigorosa de Datas Fiscais (YYYY-MM-DD)',
+        description: 'Todas as datas fiscais de emissão de CT-e agora são estritamente padronizadas para YYYY-MM-DD com extração precisa de carimbos de data/hora (ex: DACTE e anexos), eliminando erros de comparação de strings com hora (ISO timestamps) no limite do período.'
+      },
+      {
+        category: 'improvement',
+        title: 'Prioridade Fiscal da Emissão sobre Agendamento Operacional',
+        description: 'Na seleção de embarques do Transcunha, a data fiscal de emissão do CT-e tem prioridade mandatória sobre o agendamento prévio, impedindo que embarques agendados em um mês mas faturados em outro apareçam como pendências indevidas.'
+      }
+    ]
+  },
+  {
     id: 'rel_2026_11_18_v2_116_32',
     version: 'v2.116.32',
     date: '18/11/2026',
@@ -7878,4 +7940,65 @@ export const isUserExcludedFromRelease = (release: SystemRelease, user?: User | 
   }
 
   // Papéis de agência excluídos (ex: operadores de embarque)
-... [truncated for diff preview]
+  if (release.excludeAgencyRoles && user.agencyRole && release.excludeAgencyRoles.includes(user.agencyRole)) {
+    return true;
+  }
+
+  // Perfis alvos específicos (se configurado, apenas os perfis listados visualizam)
+  if (release.targetProfiles && release.targetProfiles.length > 0) {
+    if (!release.targetProfiles.includes(user.profile)) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
+/**
+ * Retorna os lançamentos visíveis para o usuário considerando as restrições de perfil
+ */
+export const getReleasesForUser = (user?: User | null): SystemRelease[] => {
+  if (!user) return SYSTEM_RELEASES;
+  return SYSTEM_RELEASES.filter(release => !isUserExcludedFromRelease(release, user));
+};
+
+/**
+ * Retorna o lançamento mais recente visível para o usuário
+ */
+export const getLatestReleaseForUser = (user?: User | null): SystemRelease => {
+  const visible = getReleasesForUser(user);
+  return visible[0] || SYSTEM_RELEASES[0];
+};
+
+/**
+ * Verifica se o modal de novidades deve ser exibido para o usuário.
+ * Retorna true apenas no primeiro acesso após uma nova atualização aplicável ao perfil do usuário.
+ */
+export const shouldShowUpdateModal = (userOrId?: User | string | null): boolean => {
+  if (!userOrId) return false;
+  const userId = typeof userOrId === 'string' ? userOrId : userOrId.id;
+  const user = typeof userOrId === 'string' ? null : userOrId;
+  if (!userId) return false;
+
+  try {
+    const latestRelease = getLatestReleaseForUser(user);
+    const key = `${STORAGE_PREFIX}${userId}`;
+    const lastSeenId = localStorage.getItem(key);
+    return lastSeenId !== latestRelease.id;
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Marca a versão atual como visualizada pelo usuário para não reabrir automaticamente.
+ */
+export const markUpdateAsSeen = (userId?: string, releaseId: string = LATEST_SYSTEM_RELEASE.id): void => {
+  if (!userId) return;
+  try {
+    const key = `${STORAGE_PREFIX}${userId}`;
+    localStorage.setItem(key, releaseId);
+  } catch (err) {
+    console.warn('Erro ao salvar status de visualização de atualização:', err);
+  }
+};

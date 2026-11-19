@@ -26,7 +26,9 @@ import {
   ChevronUp,
   FileWarning,
   Ban,
-  Trash2
+  Trash2,
+  Building2,
+  Truck
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -35,6 +37,7 @@ import { UserProfile, FreightCalculationType } from '../types';
 import { 
   getShipmentCte, 
   getShipmentEffectiveDate, 
+  getShipmentCteEmissionDate as getUtilsCteEmissionDate,
   isStayForShipment, 
   normalizeWeightTonnage,
   hasCteAttached
@@ -530,8 +533,8 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
         setUploadedTranscunhaRecords(tRecords);
         setTranscunhaFileName(file.name);
         setUploadedFileName('');
-        if (result.startDate && !startDate) setStartDate(result.startDate);
-        if (result.endDate && !endDate) setEndDate(result.endDate);
+        if (result.startDate) setStartDate(result.startDate);
+        if (result.endDate) setEndDate(result.endDate);
 
         setParseError(
           `Arquivo identificado: "Relatório: Lucro Real da Operação de Embarque" da Transcunha (${tRecords.length} embarques importados com sucesso). Para realizar o confronto, selecione agora o "Relatório Detalhado do CTRC" gerado no Atua TMS.`
@@ -546,11 +549,11 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
       setAtuaResult(result);
       setUploadedFileName(file.name);
 
-      // Auto-preenche o período se detectado no arquivo
-      if (result.startDate && !startDate) {
+      // Auto-preenche o período detectado no arquivo
+      if (result.startDate) {
         setStartDate(result.startDate);
       }
-      if (result.endDate && !endDate) {
+      if (result.endDate) {
         setEndDate(result.endDate);
       }
     } catch (err: any) {
@@ -601,8 +604,8 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
         throw new Error('Nenhum registro de embarque identificado neste arquivo.');
       }
 
-      if (result.startDate && !startDate) setStartDate(result.startDate);
-      if (result.endDate && !endDate) setEndDate(result.endDate);
+      if (result.startDate) setStartDate(result.startDate);
+      if (result.endDate) setEndDate(result.endDate);
     } catch (err: any) {
       setParseError(err?.message || 'Falha ao processar arquivo da Transcunha.');
     } finally {
@@ -622,8 +625,8 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
         setTranscunhaFileName('Texto Lucro Real');
         setIsPasteModalOpen(false);
         setPasteText('');
-        if (result.startDate && !startDate) setStartDate(result.startDate);
-        if (result.endDate && !endDate) setEndDate(result.endDate);
+        if (result.startDate) setStartDate(result.startDate);
+        if (result.endDate) setEndDate(result.endDate);
         setParseError(`Identificado como Relatório de Lucro Real Transcunha (${tRecords.length} embarques). Agora envie o CTRC do Atua TMS.`);
         return;
       }
@@ -636,8 +639,8 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
       setIsPasteModalOpen(false);
       setPasteText('');
 
-      if (result.startDate && !startDate) setStartDate(result.startDate);
-      if (result.endDate && !endDate) setEndDate(result.endDate);
+      if (result.startDate) setStartDate(result.startDate);
+      if (result.endDate) setEndDate(result.endDate);
     } catch (err: any) {
       setParseError(err?.message || 'Falha ao processar texto.');
     } finally {
@@ -754,9 +757,14 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
       s.documents?.cteEmissionDate ||
       s.documents?.cte_emission_date ||
       s.documents?.emissionDate ||
+      getUtilsCteEmissionDate(s) ||
       ''
     );
   };
+
+  // Período ativo da auditoria: prioriza filtro selecionado pelo usuário na tela, ou período detectado do Atua TMS
+  const activeStartDate = startDate || atuaResult?.startDate || '';
+  const activeEndDate = endDate || atuaResult?.endDate || '';
 
   // 1. Enriquecimento dos Embarques do Transcunha no Período Selecionado
   const enrichedTranscunhaData = useMemo(() => {
@@ -786,15 +794,20 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
       const dateStr = normalizeDate(effectiveDate || s.scheduledDate || (s as any)?.scheduled_date || '');
       const cteEmissionDateStr = normalizeDate(getShipmentCteEmissionDate(s) || '');
 
-      if (!startDate && !endDate) return true;
+      if (!activeStartDate && !activeEndDate) return true;
 
-      const isDateIn = (d: string) => Boolean(d && (!startDate || d >= startDate) && (!endDate || d <= endDate));
+      const isDateIn = (d: string) => {
+        const norm = normalizeDate(d);
+        if (!norm) return false;
+        if (activeStartDate && norm < activeStartDate) return false;
+        if (activeEndDate && norm > activeEndDate) return false;
+        return true;
+      };
 
       // Se o relatório do Atua contiver este CT-e e placa emitido dentro do período selecionado
       const hasAtuaInPeriod = (atuaResult?.records || []).some(r => {
         const atuaCte = r.cteNumber.replace(/[^0-9]/g, '');
-        const rDate = normalizeDate(r.emissionDate || '');
-        return arePlatesMatching(r.plate, plate) && cteInfo.list.includes(atuaCte) && isDateIn(rDate);
+        return arePlatesMatching(r.plate, plate) && cteInfo.list.includes(atuaCte) && isDateIn(r.emissionDate || '');
       });
       if (hasAtuaInPeriod) return true;
 
@@ -918,7 +931,8 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
         driverRatePerTon = Number((baseDriverFreight / weight).toFixed(2));
       }
 
-      const shipmentEffectiveDate = normalizeDate(getShipmentEffectiveDate(s) || s.scheduledDate || '');
+      const cteEmissionDateStr = normalizeDate(getShipmentCteEmissionDate(s) || '');
+      const shipmentEffectiveDate = normalizeDate(cteEmissionDateStr || getShipmentEffectiveDate(s) || s.scheduledDate || '');
 
       const isShipmentComp = Boolean(
         (s as any)?.isComplementar || 
@@ -1140,8 +1154,8 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
         const dateNorm = normalizeDate(tr.date);
 
         // Aplica rigorosamente o filtro de período nas linhas do arquivo
-        if (startDate && dateNorm && dateNorm < startDate) return;
-        if (endDate && dateNorm && dateNorm > endDate) return;
+        if (activeStartDate && dateNorm && dateNorm < activeStartDate) return;
+        if (activeEndDate && dateNorm && dateNorm > activeEndDate) return;
 
         // Se já está nos itens pelo banco de dados (mesma placa e data), não duplica
         const exists = items.some(it => it.plate === plateNorm && it.date === dateNorm);
@@ -1191,7 +1205,7 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
     }
 
     return items;
-  }, [shipments, cargos, cargoMap, clientMap, branchMap, stays, startDate, endDate, uploadedTranscunhaRecords, atuaResult]);
+  }, [shipments, cargos, cargoMap, clientMap, branchMap, stays, activeStartDate, activeEndDate, uploadedTranscunhaRecords, atuaResult]);
 
   // 2. Motor de Reconciliação / Auditoria Cruzada baseado em CT-E e PLACA + DATA DO EMBARQUE
   const reconciliationItems: ReconciliationItem[] = useMemo(() => {
@@ -1200,9 +1214,15 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
     // Filtra registros do Atua pelo período selecionado caso informado
     const atuaRecords = (atuaResult?.records || []).filter(r => {
       const atuaDateClean = normalizeDate(r.emissionDate || '');
-      if (!startDate && !endDate) return true;
+      if (!activeStartDate && !activeEndDate) return true;
 
-      const isDateIn = (d: string) => Boolean(d && (!startDate || d >= startDate) && (!endDate || d <= endDate));
+      const isDateIn = (d: string) => {
+        const norm = normalizeDate(d);
+        if (!norm) return false;
+        if (activeStartDate && norm < activeStartDate) return false;
+        if (activeEndDate && norm > activeEndDate) return false;
+        return true;
+      };
       if (isDateIn(atuaDateClean)) return true;
 
       // Tolerância de fronteira: se a emissão do Atua corresponder a um embarque que está no confronto no período
@@ -1701,10 +1721,10 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
     enrichedTranscunhaData.forEach(t => {
       if (!matchedTranscunhaKeys.has(t.key)) {
         // Garantia de período estrita: se não foi conciliado com o Atua, a data do embarque Transcunha DEVE respeitar o período filtrado
-        if (startDate || endDate) {
+        if (activeStartDate || activeEndDate) {
           const tDate = normalizeDate(t.date || '');
-          if (startDate && tDate && tDate < startDate) return;
-          if (endDate && tDate && tDate > endDate) return;
+          if (activeStartDate && tDate && tDate < activeStartDate) return;
+          if (activeEndDate && tDate && tDate > activeEndDate) return;
         }
 
         results.push({
@@ -1946,7 +1966,7 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
     });
 
     return results;
-  }, [atuaResult, enrichedTranscunhaData, tolerance, rateTolerance, weightTolerance, informedDisagreements]);
+  }, [atuaResult, enrichedTranscunhaData, tolerance, rateTolerance, weightTolerance, informedDisagreements, activeStartDate, activeEndDate]);
 
   // Totais e KPIs da Conciliação
   const kpis = useMemo(() => {
@@ -1966,11 +1986,25 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
     const divergentToll = reconciliationItems.filter(i => !i.isInformedDisagreement && i.status === 'DIVERGENT' && i.isTollDivergent).length;
     const divergentIcms = reconciliationItems.filter(i => !i.isInformedDisagreement && i.status === 'DIVERGENT' && i.isIcmsDivergent).length;
 
-    // Fretes e deltas desconsiderando CT-es com desacordo comercial registrado
-    const sumDeltaCompany = reconciliationItems.filter(i => !i.isInformedDisagreement).reduce((acc, i) => acc + (i.delta.companyFreight || 0), 0);
-    const sumDeltaDriver = reconciliationItems.filter(i => !i.isInformedDisagreement).reduce((acc, i) => acc + (i.delta.driverFreight || 0), 0);
-    const sumDeltaResult = reconciliationItems.filter(i => !i.isInformedDisagreement).reduce((acc, i) => acc + (i.delta.netProfit || 0), 0);
-    const sumDeltaToll = reconciliationItems.filter(i => !i.isInformedDisagreement).reduce((acc, i) => acc + (i.delta.toll || 0), 0);
+    // Totais Atua x Transcunha desconsiderando desacordos comerciais registrados
+    const activeItems = reconciliationItems.filter(i => !i.isInformedDisagreement);
+
+    const totalCompanyFreightAtua = activeItems.reduce((acc, i) => acc + (i.atua?.companyFreight || 0), 0);
+    const totalCompanyFreightTrans = activeItems.reduce((acc, i) => acc + (i.transcunha?.companyFreight || 0), 0);
+    const sumDeltaCompany = totalCompanyFreightTrans - totalCompanyFreightAtua;
+
+    const totalDriverFreightAtua = activeItems.reduce((acc, i) => acc + (i.atua?.driverFreight || 0), 0);
+    const totalDriverFreightTrans = activeItems.reduce((acc, i) => acc + (i.transcunha?.driverFreight || 0), 0);
+    const sumDeltaDriver = totalDriverFreightTrans - totalDriverFreightAtua;
+
+    const totalWeightAtua = activeItems.reduce((acc, i) => acc + (i.atua?.weight || 0), 0);
+    const totalWeightTrans = activeItems.reduce((acc, i) => acc + (i.transcunha?.weight || 0), 0);
+    const sumDeltaWeight = totalWeightTrans - totalWeightAtua;
+
+    const totalNetProfitAtua = activeItems.reduce((acc, i) => acc + (i.atua?.netProfit || 0), 0);
+    const totalNetProfitTrans = activeItems.reduce((acc, i) => acc + (i.transcunha?.netProfit || 0), 0);
+    const sumDeltaResult = totalNetProfitTrans - totalNetProfitAtua;
+    const sumDeltaToll = activeItems.reduce((acc, i) => acc + (i.delta.toll || 0), 0);
     const sumDisagreementFreight = reconciliationItems.filter(i => i.isInformedDisagreement).reduce((acc, i) => acc + (i.atua?.companyFreight || i.transcunha?.companyFreight || 0), 0);
 
     return {
@@ -1988,8 +2022,17 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
       divergentWeight,
       divergentToll,
       divergentIcms,
+      totalCompanyFreightAtua,
+      totalCompanyFreightTrans,
       sumDeltaCompany,
+      totalDriverFreightAtua,
+      totalDriverFreightTrans,
       sumDeltaDriver,
+      totalWeightAtua,
+      totalWeightTrans,
+      sumDeltaWeight,
+      totalNetProfitAtua,
+      totalNetProfitTrans,
       sumDeltaResult,
       sumDeltaToll,
       sumDisagreementFreight
@@ -2056,7 +2099,7 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
 
     doc.setFontSize(9);
     doc.setFont('helvetica', 'normal');
-    const periodStr = startDate && endDate ? `${startDate} a ${endDate}` : 'Todos os períodos';
+    const periodStr = activeStartDate && activeEndDate ? `${activeStartDate} a ${activeEndDate}` : 'Todos os períodos';
     doc.text(`Período: ${periodStr} | Gerado em: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}`, 14, 21);
 
     const headRow = [
@@ -2526,95 +2569,179 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
         </div>
       )}
 
-      {/* PAINEL DE KPIS DA AUDITORIA */}
+      {/* PAINEL DE KPIS DA AUDITORIA - ATUA X TRANSCUNHA */}
       {reconciliationItems.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          {/* Total */}
-          <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-2xs">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Analisado</p>
-            <p className="text-xl font-black text-slate-900 dark:text-white mt-1">
-              {kpis.total}
-              <span className="text-[10px] font-normal text-slate-400 ml-1">conhecimentos</span>
-            </p>
-            <div className="w-full bg-slate-100 dark:bg-slate-700 h-1.5 rounded-full mt-2 overflow-hidden">
-              <div className="bg-indigo-600 h-full rounded-full" style={{ width: '100%' }} />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+          {/* Card 1: Faturamento Total Frete Empresa */}
+          <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-800 border border-blue-200 dark:border-blue-900/50 shadow-2xs flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 flex items-center gap-1.5">
+                  <Building2 className="w-3.5 h-3.5 text-blue-500" />
+                  Frete Empresa
+                </p>
+                <span className="text-[9px] px-1.5 py-0.5 rounded font-semibold bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-900/50">
+                  Atua x Trans
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 mt-2">
+                <div className="bg-slate-50 dark:bg-slate-900/50 p-2 rounded-xl">
+                  <span className="text-[9px] uppercase font-bold text-slate-400 block">Atua</span>
+                  <span className="text-xs sm:text-sm font-black text-slate-900 dark:text-white truncate block">
+                    R$ {kpis.totalCompanyFreightAtua.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </div>
+                <div className="bg-slate-50 dark:bg-slate-900/50 p-2 rounded-xl">
+                  <span className="text-[9px] uppercase font-bold text-slate-400 block">Transcunha</span>
+                  <span className="text-xs sm:text-sm font-black text-slate-900 dark:text-white truncate block">
+                    R$ {kpis.totalCompanyFreightTrans.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </div>
+              </div>
             </div>
-          </div>
-
-          {/* Conciliados */}
-          <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-800 border border-emerald-200 dark:border-emerald-900/50 shadow-2xs">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-              <CheckCircle2 className="w-3 h-3" /> Conciliados (100% OK)
-            </p>
-            <p className="text-xl font-black text-emerald-600 dark:text-emerald-400 mt-1">
-              {kpis.conciliated}
-              <span className="text-[10px] font-semibold text-emerald-500/80 ml-1">
-                ({kpis.conciliatedPercent.toFixed(1)}%)
+            <div className="pt-2 mt-2 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between text-[11px]">
+              <span className="text-slate-400 font-medium">Diferença (Δ):</span>
+              <span className={`font-bold ${
+                Math.abs(kpis.sumDeltaCompany) < 0.01 ? 'text-emerald-500' :
+                kpis.sumDeltaCompany > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
+              }`}>
+                {kpis.sumDeltaCompany >= 0 ? '+' : ''}R$ {kpis.sumDeltaCompany.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </span>
-            </p>
-            <div className="w-full bg-emerald-100 dark:bg-emerald-950/60 h-1.5 rounded-full mt-2 overflow-hidden">
-              <div className="bg-emerald-500 h-full rounded-full" style={{ width: `${kpis.conciliatedPercent}%` }} />
             </div>
           </div>
 
-          {/* Divergentes */}
-          <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-800 border border-rose-200 dark:border-rose-900/50 shadow-2xs">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400 flex items-center gap-1">
-              <AlertTriangle className="w-3 h-3" /> Divergentes
-            </p>
-            <p className="text-xl font-black text-rose-600 dark:text-rose-400 mt-1">
-              {kpis.divergent}
-              <span className="text-[10px] font-semibold text-rose-500/80 ml-1">
-                ({kpis.total > 0 ? ((kpis.divergent / kpis.total) * 100).toFixed(1) : 0}%)
+          {/* Card 2: Faturamento Total Frete Motorista */}
+          <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-800 border border-amber-200 dark:border-amber-900/50 shadow-2xs flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+                  <Truck className="w-3.5 h-3.5 text-amber-500" />
+                  Frete Motorista
+                </p>
+                <span className="text-[9px] px-1.5 py-0.5 rounded font-semibold bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-900/50">
+                  Atua x Trans
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 mt-2">
+                <div className="bg-slate-50 dark:bg-slate-900/50 p-2 rounded-xl">
+                  <span className="text-[9px] uppercase font-bold text-slate-400 block">Atua</span>
+                  <span className="text-xs sm:text-sm font-black text-slate-900 dark:text-white truncate block">
+                    R$ {kpis.totalDriverFreightAtua.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </div>
+                <div className="bg-slate-50 dark:bg-slate-900/50 p-2 rounded-xl">
+                  <span className="text-[9px] uppercase font-bold text-slate-400 block">Transcunha</span>
+                  <span className="text-xs sm:text-sm font-black text-slate-900 dark:text-white truncate block">
+                    R$ {kpis.totalDriverFreightTrans.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div className="pt-2 mt-2 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between text-[11px]">
+              <span className="text-slate-400 font-medium">Diferença (Δ):</span>
+              <span className={`font-bold ${
+                Math.abs(kpis.sumDeltaDriver) < 0.01 ? 'text-emerald-500' :
+                kpis.sumDeltaDriver > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
+              }`}>
+                {kpis.sumDeltaDriver >= 0 ? '+' : ''}R$ {kpis.sumDeltaDriver.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </span>
-            </p>
-            <div className="w-full bg-rose-100 dark:bg-rose-950/60 h-1.5 rounded-full mt-2 overflow-hidden">
-              <div className="bg-rose-500 h-full rounded-full" style={{ width: `${kpis.total > 0 ? (kpis.divergent / kpis.total) * 100 : 0}%` }} />
             </div>
           </div>
 
-          {/* Órfãos Atua */}
-          <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-800 border border-purple-200 dark:border-purple-900/50 shadow-2xs">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-purple-600 dark:text-purple-400 flex items-center gap-1" title="Consta no relatório do Atua mas não foi achado no Transcunha">
-              <AlertCircle className="w-3 h-3" /> Órfãos no Atua
-            </p>
-            <p className="text-xl font-black text-purple-600 dark:text-purple-400 mt-1">
-              {kpis.orphanAtua}
-              <span className="text-[10px] font-normal text-slate-400 ml-1">não cadastrados</span>
-            </p>
-            <p className="text-[9px] text-purple-500 dark:text-purple-400 mt-1 truncate">
-              {kpis.disagreementCount > 0 ? `${kpis.disagreementCount} em desacordo comercial` : 'Ausentes no Transcunha'}
-            </p>
+          {/* Card 3: Peso Total Carregado */}
+          <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-800 border border-purple-200 dark:border-purple-900/50 shadow-2xs flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-purple-600 dark:text-purple-400 flex items-center gap-1.5">
+                  <Scale className="w-3.5 h-3.5 text-purple-500" />
+                  Peso Carregado
+                </p>
+                <span className="text-[9px] px-1.5 py-0.5 rounded font-semibold bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-900/50">
+                  Atua x Trans
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 mt-2">
+                <div className="bg-slate-50 dark:bg-slate-900/50 p-2 rounded-xl">
+                  <span className="text-[9px] uppercase font-bold text-slate-400 block">Atua</span>
+                  <span className="text-xs sm:text-sm font-black text-slate-900 dark:text-white truncate block">
+                    {kpis.totalWeightAtua.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} t
+                  </span>
+                </div>
+                <div className="bg-slate-50 dark:bg-slate-900/50 p-2 rounded-xl">
+                  <span className="text-[9px] uppercase font-bold text-slate-400 block">Transcunha</span>
+                  <span className="text-xs sm:text-sm font-black text-slate-900 dark:text-white truncate block">
+                    {kpis.totalWeightTrans.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} t
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div className="pt-2 mt-2 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between text-[11px]">
+              <span className="text-slate-400 font-medium">Diferença (Δ):</span>
+              <span className={`font-bold ${
+                Math.abs(kpis.sumDeltaWeight) < 0.01 ? 'text-emerald-500' :
+                kpis.sumDeltaWeight > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
+              }`}>
+                {kpis.sumDeltaWeight >= 0 ? '+' : ''}{kpis.sumDeltaWeight.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} t
+              </span>
+            </div>
           </div>
 
-          {/* Pendentes Atua */}
-          <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-800 border border-amber-200 dark:border-amber-900/50 shadow-2xs">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 flex items-center gap-1" title="Cadastrado no Transcunha mas ausente no Atua">
-              <HelpCircle className="w-3 h-3" /> Pendentes Atua
-            </p>
-            <p className="text-xl font-black text-amber-600 dark:text-amber-400 mt-1">
-              {kpis.pendingAtua}
-              <span className="text-[10px] font-normal text-slate-400 ml-1">sem retorno</span>
-            </p>
-            <p className="text-[9px] text-amber-500 dark:text-amber-400 mt-1 truncate">
-              Não constam no Atua
-            </p>
+          {/* Card 4: Conciliação Geral */}
+          <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-800 border border-emerald-200 dark:border-emerald-900/50 shadow-2xs flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                  Conciliação
+                </p>
+                <span className="text-[9px] px-1.5 py-0.5 rounded font-semibold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/50">
+                  {kpis.conciliatedPercent.toFixed(1)}% OK
+                </span>
+              </div>
+              <div className="mt-2">
+                <div className="flex items-baseline justify-between">
+                  <span className="text-lg font-black text-emerald-600 dark:text-emerald-400">
+                    {kpis.conciliated}
+                    <span className="text-xs font-normal text-slate-400 ml-1">/ {kpis.total} CT-es</span>
+                  </span>
+                </div>
+                <div className="w-full bg-emerald-100 dark:bg-emerald-950/60 h-1.5 rounded-full mt-2 overflow-hidden">
+                  <div className="bg-emerald-500 h-full rounded-full transition-all duration-500" style={{ width: `${kpis.conciliatedPercent}%` }} />
+                </div>
+              </div>
+            </div>
+            <div className="pt-2 mt-2 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400">
+              <span className="text-rose-600 dark:text-rose-400 font-semibold">{kpis.divergent} div.</span>
+              <span className="text-purple-600 dark:text-purple-400 font-semibold">{kpis.orphanAtua} órfãos</span>
+              <span className="text-amber-600 dark:text-amber-400 font-semibold">{kpis.pendingAtua} pend.</span>
+            </div>
           </div>
 
-          {/* Impacto Financeiro Líquido */}
-          <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-800 border border-indigo-200 dark:border-indigo-900/50 shadow-2xs">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 flex items-center gap-1">
-              <DollarSign className="w-3 h-3" /> Δ Lucro / Resultado
-            </p>
-            <p className={`text-base font-black mt-1 ${
-              kpis.sumDeltaResult > 0 ? 'text-emerald-600 dark:text-emerald-400' :
-              kpis.sumDeltaResult < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-700 dark:text-slate-300'
-            }`}>
-              {kpis.sumDeltaResult >= 0 ? '+' : ''}R$ {kpis.sumDeltaResult.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </p>
-            <p className="text-[9px] text-slate-400 mt-1" title="Diferença total de Frete Empresa">
-              Δ Frete: R$ {kpis.sumDeltaCompany.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-            </p>
+          {/* Card 5: Δ Lucro / Resultado Líquido */}
+          <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-800 border border-indigo-200 dark:border-indigo-900/50 shadow-2xs flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 flex items-center gap-1.5">
+                  <DollarSign className="w-3.5 h-3.5 text-indigo-500" />
+                  Δ Lucro / Resultado
+                </p>
+                <span className="text-[9px] px-1.5 py-0.5 rounded font-semibold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-900/50">
+                  Líquido
+                </span>
+              </div>
+              <div className="mt-2">
+                <p className={`text-base sm:text-lg font-black truncate ${
+                  kpis.sumDeltaResult > 0 ? 'text-emerald-600 dark:text-emerald-400' :
+                  kpis.sumDeltaResult < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-700 dark:text-slate-300'
+                }`}>
+                  {kpis.sumDeltaResult >= 0 ? '+' : ''}R$ {kpis.sumDeltaResult.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </p>
+              </div>
+            </div>
+            <div className="pt-2 mt-2 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400">
+              <span title="Lucro Real Transcunha">Trans: R$ {kpis.totalNetProfitTrans.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
+              <span title="Resultado Atua">Atua: R$ {kpis.totalNetProfitAtua.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
+            </div>
           </div>
         </div>
       )}
@@ -3332,18 +3459,24 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
                                   <p className="text-[9px] uppercase font-bold text-slate-400">2. Frete Empresa</p>
                                   <p className="text-[10px] font-mono mt-1">
                                     <span className="text-slate-500">Trans:</span> R$ {item.transcunha?.companyFreight.toFixed(2) || '0.00'}
-                                    <br /><span className="text-[9px] text-slate-400 font-sans">({item.transcunha?.companyRatePerTon.toFixed(2) || '0.00'}/t)</span>
+                                    {!item.isComplementary && (
+                                      <><br /><span className="text-[9px] text-slate-400 font-sans">({item.transcunha?.companyRatePerTon.toFixed(2) || '0.00'}/t)</span></>
+                                    )}
                                   </p>
                                   <p className="text-[10px] font-mono mt-0.5">
                                     <span className="text-slate-500">Atua:</span> R$ {item.atua?.companyFreight.toFixed(2) || '0.00'}
-                                    <br /><span className="text-[9px] text-slate-400 font-sans">({item.atua?.companyRatePerTon.toFixed(2) || '0.00'}/t)</span>
+                                    {!item.isComplementary && (
+                                      <><br /><span className="text-[9px] text-slate-400 font-sans">({item.atua?.companyRatePerTon.toFixed(2) || '0.00'}/t)</span></>
+                                    )}
                                   </p>
                                   <p className={`text-[10px] font-bold mt-1 ${(item.isCompanyFreightDivergent || item.isCompanyRateDivergent) ? 'text-rose-600' : 'text-emerald-600'}`}>
                                     {(item.isCompanyFreightDivergent || item.isCompanyRateDivergent) 
                                       ? `Δ R$ ${item.delta.companyFreight.toFixed(2)}` 
                                       : item.isCompanyFreightReconciledByToll 
                                         ? '✓ Conciliado c/ Pedágio' 
-                                        : '✓ Confere'}
+                                        : item.isComplementary
+                                          ? '✓ Frete Total Conciliado'
+                                          : '✓ Confere'}
                                   </p>
                                 </div>
 
@@ -3352,18 +3485,24 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
                                   <p className="text-[9px] uppercase font-bold text-slate-400">3. Frete Motorista</p>
                                   <p className="text-[10px] font-mono mt-1">
                                     <span className="text-slate-500">Trans:</span> R$ {item.transcunha?.driverFreight.toFixed(2) || '0.00'}
-                                    <br /><span className="text-[9px] text-slate-400 font-sans">({item.transcunha?.driverRatePerTon.toFixed(2) || '0.00'}/t)</span>
+                                    {!item.isComplementary && (
+                                      <><br /><span className="text-[9px] text-slate-400 font-sans">({item.transcunha?.driverRatePerTon.toFixed(2) || '0.00'}/t)</span></>
+                                    )}
                                   </p>
                                   <p className="text-[10px] font-mono mt-0.5">
                                     <span className="text-slate-500">Atua:</span> R$ {item.atua?.driverFreight.toFixed(2) || '0.00'}
-                                    <br /><span className="text-[9px] text-slate-400 font-sans">({item.atua?.driverRatePerTon.toFixed(2) || '0.00'}/t)</span>
+                                    {!item.isComplementary && (
+                                      <><br /><span className="text-[9px] text-slate-400 font-sans">({item.atua?.driverRatePerTon.toFixed(2) || '0.00'}/t)</span></>
+                                    )}
                                   </p>
                                   <p className={`text-[10px] font-bold mt-1 ${(item.isDriverFreightDivergent || item.isDriverRateDivergent) ? 'text-rose-600' : 'text-emerald-600'}`}>
                                     {(item.isDriverFreightDivergent || item.isDriverRateDivergent) 
                                       ? `Δ R$ ${item.delta.driverFreight.toFixed(2)}` 
                                       : item.isDriverFreightReconciledByToll 
                                         ? '✓ Conciliado c/ Pedágio' 
-                                        : '✓ Confere'}
+                                        : item.isComplementary
+                                          ? '✓ Frete Total Conciliado'
+                                          : '✓ Confere'}
                                   </p>
                                 </div>
 
@@ -3377,7 +3516,11 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
                                     <span className="text-slate-500">Atua:</span> {item.atua?.weight.toFixed(2) || '0.00'} t
                                   </p>
                                   <p className={`text-[10px] font-bold mt-1 ${item.isWeightDivergent ? 'text-rose-600' : 'text-emerald-600'}`}>
-                                    {item.isWeightDivergent ? `Δ ${item.delta.weight.toFixed(2)} t` : '✓ Confere'}
+                                    {item.isWeightDivergent 
+                                      ? `Δ ${item.delta.weight.toFixed(2)} t` 
+                                      : item.isComplementary
+                                        ? '✓ Complementar'
+                                        : '✓ Confere'}
                                   </p>
                                 </div>
 
