@@ -27,6 +27,96 @@ export interface SystemRelease {
  */
 export const SYSTEM_RELEASES: SystemRelease[] = [
   {
+    id: 'rel_2026_11_19_v2_116_40',
+    version: 'v2.116.40',
+    date: '19/11/2026',
+    title: 'Relatório de Supervisão: Painel e Extrato Individual de Operadores por Agência',
+    summary: 'Novo botão "Exibir Operadores" nas agências com equipe, permitindo expandir e auditar em tempo real o resultado de cada Agenciador de Embarque (embarques com CT-e, lucro real e comissão individual a receber), com opções dedicadas para visualização detalhada em tela e download de extrato em PDF por operador.',
+    items: [
+      {
+        category: 'feature',
+        title: 'Botão "Exibir Operadores" e Subpainel Integrado',
+        description: 'Adicionado botão de ação rápida para expandir inline a equipe de operadores vinculados à agência selecionada, exibindo o número de embarques com CT-e, lucro real gerado e comissão apurada de cada agenciador de embarque.'
+      },
+      {
+        category: 'feature',
+        title: 'Extrato Individual e Relatório PDF por Operador',
+        description: 'Disponibilizados botões de "Listagem" detalhada e geração de "PDF" individual para cada operador de embarque, permitindo emitir o extrato de produção e comissão de forma independente.'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_19_v2_116_39',
+    version: 'v2.116.39',
+    date: '19/11/2026',
+    title: 'Relatório de Supervisão: Otimização de Layout e Visualização Expandida',
+    summary: 'Otimização dos espaçamentos e ampliação do modal de detalhamento de embarques da agência, permitindo visualização fluida de todas as colunas sem rolagem horizontal excessiva, com datas formatadas em DD/MM/AAAA e rotas compactas.',
+    items: [
+      {
+        category: 'improvement',
+        title: 'Modal Panorâmico de Embarques',
+        description: 'Ampliada a largura útil do modal de detalhes para até 97vw (e até 1600px em telas amplas), permitindo acomodar confortavelmente todas as 11 colunas de conferência.'
+      },
+      {
+        category: 'improvement',
+        title: 'Formatação de Datas e Rotas Otimizadas',
+        description: 'Ajustada a exibição das datas para o padrão brasileiro (DD/MM/AAAA), rotas de origem/destino compactadas com marcadores visuais de fácil leitura e padding otimizado nas células.'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_19_v2_116_38',
+    version: 'v2.116.38',
+    date: '19/11/2026',
+    title: 'Chamados & Atendimento: Refinamento Visual de Espaços e Correção de Áudio WebM',
+    summary: 'Otimização dos espaçamentos na visualização de chamados e mensagens, correção da duração de áudio WebM (eliminando exibição de Infinity:NaN) e adição de atalho de contato rápido via WhatsApp.',
+    items: [
+      {
+        category: 'fix',
+        title: 'Correção de Duração no Player de Áudio',
+        description: 'Corrigido o tratamento de streams WebM/MediaRecorder para calcular a duração real, eliminando o erro visual "Infinity:NaN" e garantindo scrubber funcional com tempo preciso.'
+      },
+      {
+        category: 'improvement',
+        title: 'Otimização de Espaços e Ação Direta no WhatsApp',
+        description: 'Refinada a disposição visual da descrição e do player de voz, compactando margens ociosas e incluindo detecção automática de telefone com botão "Chamar no WhatsApp" com um clique.'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_19_v2_116_37',
+    version: 'v2.116.37',
+    date: '19/11/2026',
+    title: 'Auditoria Atua: Exibição Condicional Estrita Pós-Importação',
+    summary: 'A auditoria, os indicadores e a tabela de registros agora só são gerados e exibidos após a importação efetiva do relatório do Atua TMS, eliminando a exibição antecipada de registros pendentes antes de haver um arquivo para confrontar.',
+    items: [
+      {
+        category: 'improvement',
+        title: 'Exibição de Linhas Apenas Após Importação',
+        description: 'Os dados do confronto e a listagem de registros agora aguardam a importação do relatório Atua TMS. Sem o arquivo, a tela exibe apenas o painel inicial limpo para seleção do documento, sem listar embarques prematuramente como "Pendente Atua".'
+      },
+      {
+        category: 'improvement',
+        title: 'Integridade Absoluta das Regras de Confronto',
+        description: 'Todas as regras de pareamento (CT-e, placa, data, embarques complementares, tolerâncias, conciliação com pedágio e desacordo comercial) permanecem 100% preservadas e operacionais assim que o arquivo é carregado.'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_19_v2_116_36',
+    version: 'v2.116.36',
+    date: '19/11/2026',
+    title: 'Auditoria Atua: Simplificação das Ações de Importação',
+    summary: 'Removidos os botões redundantes de importação manual de lucro real e colagem de texto na tela de auditoria, mantendo o fluxo direto e ágil de upload do relatório do Atua TMS.',
+    items: [
+      {
+        category: 'improvement',
+        title: 'Interface Mais Limpa e Focada',
+        description: 'Retiradas as opções de "Importar Lucro Real Transcunha (Opcional)" e "Colar Texto", simplificando a barra de cabeçalho e a tela inicial para focar exclusivamente na seleção do arquivo do Atua TMS.'
+      }
+    ]
+  },
+  {
     id: 'rel_2026_11_18_v2_116_35',
     version: 'v2.116.35',
     date: '18/11/2026',

@@ -768,6 +768,8 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
 
   // 1. Enriquecimento dos Embarques do Transcunha no Período Selecionado
   const enrichedTranscunhaData = useMemo(() => {
+    if (!atuaResult && !uploadedTranscunhaRecords) return [];
+
     // Conjunto de CT-es presentes no relatório Atua carregado
     const atuaCteSet = new Set(
       (atuaResult?.records || []).map(r => r.cteNumber.replace(/[^0-9]/g, '')).filter(Boolean)
@@ -1209,7 +1211,8 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
 
   // 2. Motor de Reconciliação / Auditoria Cruzada baseado em CT-E e PLACA + DATA DO EMBARQUE
   const reconciliationItems: ReconciliationItem[] = useMemo(() => {
-    if (!atuaResult && enrichedTranscunhaData.length === 0) return [];
+    // Apenas executa a auditoria e gera linhas após o relatório do Atua ser importado
+    if (!atuaResult || atuaResult.records.length === 0) return [];
 
     // Filtra registros do Atua pelo período selecionado caso informado
     const atuaRecords = (atuaResult?.records || []).filter(r => {
@@ -2422,39 +2425,6 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
             className="hidden"
           />
 
-          <button
-            type="button"
-            onClick={() => transcunhaFileInputRef.current?.click()}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer"
-            title="Importar Relatório de Lucro Real da Transcunha em PDF/Excel (Opcional)"
-          >
-            <Upload className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-            <span>
-              {uploadedTranscunhaRecords ? `Lucro Real Carregado (${uploadedTranscunhaRecords.length})` : 'Importar Lucro Real Transcunha (Opcional)'}
-            </span>
-          </button>
-          <input
-            ref={transcunhaFileInputRef}
-            type="file"
-            accept=".pdf,.xlsx,.xls,.csv"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) handleTranscunhaFileUpload(file);
-              e.target.value = '';
-            }}
-            className="hidden"
-          />
-
-          <button
-            type="button"
-            onClick={() => setIsPasteModalOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold border border-slate-200 dark:border-slate-700 transition-colors"
-            title="Colar texto do relatório do Atua"
-          >
-            <FileText className="w-4 h-4" />
-            <span>Colar Texto</span>
-          </button>
-
           {reconciliationItems.length > 0 && (
             <>
               <button
@@ -2548,22 +2518,6 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
             >
               <Upload className="w-4 h-4" />
               Selecionar Arquivo Atua (.pdf / .xlsx / .csv)
-            </button>
-            <button
-              type="button"
-              onClick={() => transcunhaFileInputRef.current?.click()}
-              className="px-4 py-2.5 rounded-xl bg-white hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold border border-slate-300 dark:border-slate-700 shadow-sm cursor-pointer inline-flex items-center gap-2"
-            >
-              <Upload className="w-4 h-4 text-emerald-600" />
-              Importar Lucro Real Transcunha (Opcional)
-            </button>
-            <button
-              type="button"
-              onClick={() => setIsPasteModalOpen(true)}
-              className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold border border-slate-200 dark:border-slate-700"
-            >
-              <FileText className="w-4 h-4" />
-              Colar Texto Manualmente
             </button>
           </div>
         </div>
@@ -2746,8 +2700,11 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
         </div>
       )}
 
-      {/* BARRA DE FILTROS E CONTROLES */}
-      <div className="p-4 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-2xs space-y-4">
+      {/* SEÇÃO DA AUDITORIA (EXIBIDA APENAS APÓS IMPORTAR O RELATÓRIO DO ATUA) */}
+      {Boolean(atuaResult) && (
+        <>
+          {/* BARRA DE FILTROS E CONTROLES */}
+          <div className="p-4 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-2xs space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           {/* Busca Rápida */}
           <div className="relative min-w-[240px] flex-1 max-w-sm">
@@ -3591,6 +3548,8 @@ const AtuaReconciliationPage: React.FC<AtuaReconciliationPageProps> = ({
           </table>
         </div>
       </div>
+      </>
+      )}
 
       {/* MODAL PARA COLAR TEXTO MANUALMENTE */}
       {isPasteModalOpen && (
