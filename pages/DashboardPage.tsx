@@ -1262,7 +1262,15 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
         </div>
         <div className="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="space-y-6">
-            <DonutChartCard title="Distribuição de Cargas por Status" data={cargoStatusData} />
+            <DonutChartCard 
+              title="Distribuição de Cargas por Status" 
+              data={cargoStatusData} 
+              badge={{
+                label: `Tons Efetivadas (${periodLabel})`,
+                value: `${dashboardStats.monthlyEffectiveTonnage.toLocaleString('pt-BR')} t`,
+                icon: <TruckIcon className="w-4 h-4 text-white" />
+              }}
+            />
             <DonutChartCard 
               title={`Volume Carregado por Cliente (${periodLabel})`} 
               data={clientVolumeData} 
@@ -2217,44 +2225,17 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
               />
             </div>
           )}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <Card
-              title="Embarques Ativos"
-              value={activeShipments.toString()}
-              icon={<TruckIcon className="w-6 h-6 text-white" />}
-              colorClass="bg-primary"
-            />
-            <Card
-              title="Cargas em Andamento"
-              value={pendingLoads.toString()}
-              icon={<PackageIcon className="w-6 h-6 text-white" />}
-              colorClass="bg-secondary"
-            />
-            <Card
-              title={`Tons Efetivadas (${periodLabel})`}
-              value={`${dashboardStats.monthlyEffectiveTonnage.toLocaleString('pt-BR')} t`}
-              icon={<TruckIcon className="w-6 h-6 text-white" />}
-              colorClass="bg-green-500"
-            />
-            {dashboardStats.canViewCommission ? (
-              <Card
-                title={`Comissão (${periodLabel})`}
-                value={new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(dashboardStats.monthlyCommission)}
-                icon={<DollarSignIcon className="w-6 h-6 text-white" />}
-                colorClass="bg-accent"
-              />
-            ) : (
-              <Card
-                title="Clientes Ativos"
-                value="0"
-                icon={<ClientsIcon className="w-6 h-6 text-white" />}
-                colorClass="bg-gray-400"
-              />
-            )}
-          </div>
-          <div className="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="mt-2 sm:mt-4 grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="space-y-6">
-                <DonutChartCard title="Distribuição de Cargas por Status" data={cargoStatusData} />
+                <DonutChartCard 
+                  title="Distribuição de Cargas por Status" 
+                  data={cargoStatusData} 
+                  badge={{
+                    label: `Tons Efetivadas (${periodLabel})`,
+                    value: `${dashboardStats.monthlyEffectiveTonnage.toLocaleString('pt-BR')} t`,
+                    icon: <TruckIcon className="w-4 h-4 text-white" />
+                  }}
+                />
                 <DonutChartCard 
                   title={`Volume Carregado por Cliente (${periodLabel})`} 
                   data={clientVolumeData} 

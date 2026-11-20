@@ -27,6 +27,25 @@ export interface SystemRelease {
  */
 export const SYSTEM_RELEASES: SystemRelease[] = [
   {
+    id: 'rel_2026_11_20_v2_116_45',
+    version: 'v2.116.45',
+    date: '20/11/2026',
+    title: 'Dashboard Geral: Otimização de Espaço e Integração de Tons Efetivadas',
+    summary: 'Removidos os 4 cards métricos superiores do "Dashboard Geral" (Embarques Ativos, Cargas em Andamento, Tons Efetivadas e Comissão) liberando espaço nobre no topo da tela. O indicador métrico "Tons Efetivadas (Mês Atual)" foi integrado como badge destacado no cabeçalho do painel "Distribuição de Cargas por Status".',
+    items: [
+      {
+        category: 'improvement',
+        title: 'Remoção dos Cards Topo no Dashboard Geral',
+        description: 'Os cards de indicadores do topo foram retirados para otimizar a visualização dos painéis analíticos e do mapa já na primeira dobra da página.'
+      },
+      {
+        category: 'feature',
+        title: 'Tons Efetivadas no Painel de Status de Cargas',
+        description: 'Métrica de tonelagem efetivada do mês/período agora é exibida diretamente dentro do painel "Distribuição de Cargas por Status" com ícone de caminhão e destaque verde neon.'
+      }
+    ]
+  },
+  {
     id: 'rel_2026_11_20_v2_116_44',
     version: 'v2.116.44',
     date: '20/11/2026',

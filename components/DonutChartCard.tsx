@@ -19,14 +19,30 @@ export interface DonutChartData {
   subItems?: DonutChartSubItem[];
 }
 
+export interface DonutChartCardBadge {
+  label: string;
+  value: string | number;
+  icon?: React.ReactNode;
+  colorClass?: string;
+}
+
 export interface DonutChartCardProps {
   title: string;
   data: DonutChartData[];
   unit?: string;
   onViewClientHistory?: (clientId: string) => void;
+  badge?: DonutChartCardBadge;
+  headerExtra?: React.ReactNode;
 }
 
-const DonutChartCard: React.FC<DonutChartCardProps> = ({ title, data, unit = '', onViewClientHistory }) => {
+const DonutChartCard: React.FC<DonutChartCardProps> = ({ 
+  title, 
+  data, 
+  unit = '', 
+  onViewClientHistory,
+  badge,
+  headerExtra 
+}) => {
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
   const total = data.reduce((sum, item) => sum + item.value, 0);
 
@@ -40,7 +56,27 @@ const DonutChartCard: React.FC<DonutChartCardProps> = ({ title, data, unit = '',
 
   return (
     <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-md border border-gray-100 dark:border-gray-700/60">
-      <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-200 mb-4">{title}</h3>
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+        <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-200">{title}</h3>
+        {badge && (
+          <div className="flex items-center gap-2.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 px-3 py-1.5 rounded-xl shadow-xs">
+            {badge.icon && (
+              <div className="w-7 h-7 rounded-lg bg-emerald-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+                {badge.icon}
+              </div>
+            )}
+            <div>
+              <span className="block text-[10px] uppercase font-bold text-emerald-700 dark:text-emerald-400 leading-tight">
+                {badge.label}
+              </span>
+              <span className="font-extrabold text-sm sm:text-base text-emerald-900 dark:text-emerald-100 font-mono">
+                {badge.value}
+              </span>
+            </div>
+          </div>
+        )}
+        {headerExtra}
+      </div>
       <div className="flex flex-col md:flex-row items-center justify-center gap-6">
         <div className="relative w-48 h-48 shrink-0">
           <svg className="w-full h-full" viewBox="-100 -100 200 200" transform="rotate(-90)">
