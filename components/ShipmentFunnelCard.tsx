@@ -10,13 +10,14 @@ interface ShipmentFunnelData {
 interface ShipmentFunnelCardProps {
   title: string;
   data: ShipmentFunnelData[];
+  className?: string;
 }
 
-const ShipmentFunnelCard: React.FC<ShipmentFunnelCardProps> = ({ title, data }) => {
+const ShipmentFunnelCard: React.FC<ShipmentFunnelCardProps> = ({ title, data, className = '' }) => {
   const maxValue = Math.max(...data.map(item => item.value), 1); // Use 1 to avoid division by zero
 
   return (
-    <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
+    <div className={`bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md ${className}`}>
       <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-200 mb-4">{title}</h3>
       <div className="space-y-4">
         {data.map((item, index) => (

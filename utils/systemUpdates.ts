@@ -27,6 +27,77 @@ export interface SystemRelease {
  */
 export const SYSTEM_RELEASES: SystemRelease[] = [
   {
+    id: 'rel_2026_11_20_v2_116_44',
+    version: 'v2.116.44',
+    date: '20/11/2026',
+    title: 'Dashboard: Ajuste Proporcional do Mapa do Brasil e Legendas de Regiões',
+    summary: 'Aumentado o tamanho proporcional do Mapa do Brasil no painel "Entregas por Região" (ocupando proporção ampliada de 8 colunas com altura de até 360px), e reduzida a tipografia e o espaçamento dos nomes das macrorregiões na legenda lateral para um layout mais focado e harmonioso.',
+    items: [
+      {
+        category: 'improvement',
+        title: 'Ampliação Proporcional do Mapa do Brasil',
+        description: 'Mapa do Brasil redimensionado com largura máxima ampliada para até 470px e grid 8x4, dando maior destaque visual aos pontos exatos de origem e destino.'
+      },
+      {
+        category: 'improvement',
+        title: 'Redução e Refinamento dos Nomes das Regiões',
+        description: 'Tipografia dos nomes das regiões e percentuais ajustada para escala compacta (text-xs) com espaçamento reduzido, garantindo visual limpo e equilibrado.'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_20_v2_116_43',
+    version: 'v2.116.43',
+    date: '20/11/2026',
+    title: 'Dashboard: Mapeamento com Exatidão de Origens e Destinos das Cargas em Aberto',
+    summary: 'Os pontos marcados no Mapa do Brasil foram configurados para refletir com exatidão as origens e destinos reais das cargas cadastradas que ainda não foram finalizadas. O painel inclui distinção por halos pulsantes neon para origens (embarque) e destinos (descarga), curvas de fluxo logístico em trânsito e tooltips informando rota e saldo pendente.',
+    items: [
+      {
+        category: 'feature',
+        title: 'Pontos Exatos de Origem e Destino de Cargas em Aberto',
+        description: 'Mapeamento geográfico preciso de cada carga ativa (status não finalizado) calculando coordenadas reais (GPS / polos logísticos) para as localidades de origem e destino no mapa do Brasil.'
+      },
+      {
+        category: 'improvement',
+        title: 'Trajetos e Corredores de Fluxo Logístico em Trânsito',
+        description: 'Exibição de arcos luminosos conectando a origem ao destino de cada lote ativo, com tooltips interativos mostrando número da carga, rota completa e saldo de volume pendente a carregar.'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_20_v2_116_42',
+    version: 'v2.116.42',
+    date: '20/11/2026',
+    title: 'Dashboard: Reorganização de Posição dos Painéis',
+    summary: 'Invertida a ordem dos painéis "Funil de Embarques" e "Entregas por Região", posicionando o mapa de entregas na parte superior da grade analítica e o funil de status na linha inferior ao lado do Ranking de Embarcadores.',
+    items: [
+      {
+        category: 'improvement',
+        title: 'Reposicionamento dos Painéis de Dashboard',
+        description: 'Painel "Entregas por Região" reposicionado para o topo da grade ao lado dos gráficos de clientes/status, e o "Funil de Embarques" movido para a linha do Ranking de Embarcadores.'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_20_v2_116_41',
+    version: 'v2.116.41',
+    date: '20/11/2026',
+    title: 'Dashboard: Painel "Entregas por Região" com Mapa do Brasil Interativo',
+    summary: 'Novo painel visual de "Entregas por Região" integrado ao lado do Ranking de Embarcadores, com mapa vetorial completo do Brasil em estilo radar neon, agrupamento dinâmico dos fretes por macrorregião (Sudeste, Sul, Nordeste, Norte e Centro-Oeste), clusters luminosos de destinos e barras percentuais.',
+    items: [
+      {
+        category: 'feature',
+        title: 'Mapa Interativo do Brasil e Dispersão de Entregas',
+        description: 'Visualização geográfica de alta fidelidade baseada no modelo de referência, com contornos dos 27 estados, clusters luminosos pulsantes nas regiões de entrega e identificação inteligente dos polos de destino.'
+      },
+      {
+        category: 'feature',
+        title: 'Indicadores e Legenda por Macrorregião',
+        description: 'Painel com as proporções percentuais de entregas por região (Sudeste, Sul, Nordeste, Norte e Centro-Oeste), permitindo filtrar interativamente o mapa ao clicar nas regiões e consultar detalhes por estado.'
+      }
+    ]
+  },
+  {
     id: 'rel_2026_11_19_v2_116_40',
     version: 'v2.116.40',
     date: '19/11/2026',
