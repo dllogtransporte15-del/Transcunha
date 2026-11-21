@@ -27,6 +27,68 @@ export interface SystemRelease {
  */
 export const SYSTEM_RELEASES: SystemRelease[] = [
   {
+    id: 'rel_2026_11_20_v2_116_53',
+    version: 'v2.116.53',
+    date: '20/11/2026',
+    title: 'Controladoria Fiscal: Inclusão e Suporte à "TRANSCUNHA PR FILIAL"',
+    summary: 'Adicionada a filial TRANSCUNHA PR FILIAL (Cambará/PR) nos seletores de filtro e no cadastro/edição de documentos fiscais e apólices na Controladoria Fiscal, com integração dinâmica às filiais do sistema.',
+    items: [
+      {
+        category: 'feature',
+        title: 'TRANSCUNHA PR FILIAL na Controladoria Fiscal',
+        description: 'Disponibilizada a opção TRANSCUNHA PR FILIAL no filtro superior de filiais e no seletor de filial pertencente ao emitir ou editar certidões e apólices.'
+      },
+      {
+        category: 'improvement',
+        title: 'Filtragem Resiliente e Unificação Multi-Unidades',
+        description: 'Implementado suporte automático e dinâmico a filiais cadastradas na Controladoria Fiscal e inclusão do CNPJ da Filial PR na barra de ferramentas da Controladoria de Embarques.'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_20_v2_116_52',
+    version: 'v2.116.52',
+    date: '20/11/2026',
+    title: 'Ajuste Visual: Paleta de Cores e Alto Contraste em Dropdowns e Filtros',
+    summary: 'Ajuste na paleta de cores global de seletores e dropdowns (select/options), eliminando o fundo acinzentado nativo em modo escuro e garantindo alto contraste com tema Slate/Navy escuro e texto branco nítido.',
+    items: [
+      {
+        category: 'improvement',
+        title: 'Color Scheme Escuro Universal para Dropdowns',
+        description: 'Configurado suporte nativo a color-scheme: dark e estilização de select/options com fundo azul-ardósia escuro (#0f172a) e tipografia branca de alto contraste.'
+      },
+      {
+        category: 'improvement',
+        title: 'Modernização dos Filtros de Gerenciamento de Risco',
+        description: 'Atualizada a paleta e os campos de filtro (Cliente, Desfecho, Tipo de Consulta, Período), com tratamento para evitar opções vazias na listagem de clientes.'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_20_v2_116_51',
+    version: 'v2.116.51',
+    date: '20/11/2026',
+    title: 'Correção: Entrega e Visualização de Anexos em Chamados',
+    summary: 'Correção crítica na serialização e deserialização dos arquivos anexados na abertura de chamados/tickets, garantindo que os anexos cheguem e fiquem disponíveis para visualização e download pelo destinatário do chamado.',
+    items: [
+      {
+        category: 'fix',
+        title: 'Leitura de Anexos Múltiplos (JSON)',
+        description: 'Corrigida a expressão regular de extração do bloco de anexos que truncava objetos JSON aninhados, restabelecendo a exibição de imagens e documentos anexados pelos operadores.'
+      },
+      {
+        category: 'fix',
+        title: 'Higienização da Descrição do Chamado',
+        description: 'Eliminada a ocorrência de colchetes residuais (]) na descrição inicial dos chamados quando havia arquivos anexados.'
+      },
+      {
+        category: 'improvement',
+        title: 'Compatibilidade Retroativa de Anexos',
+        description: 'Adicionado mecanismo de resiliência e fallback no leitor de chamados para recuperar e exibir anexos de chamados já abertos no histórico.'
+      }
+    ]
+  },
+  {
     id: 'rel_2026_11_20_v2_116_50',
     version: 'v2.116.50',
     date: '20/11/2026',

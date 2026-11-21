@@ -60,12 +60,48 @@ const formatTimeAgo = (dateStr: string): string => {
   }
 };
 
+const cleanTicketDescription = (desc?: string): string => {
+  if (!desc) return '';
+  return desc
+    .replace(/\[CARGO_ID:\s*.*?\]/g, '')
+    .replace(/\[SHIPMENT_ID:\s*.*?\]/g, '')
+    .replace(/\[ATTACHMENTS_JSON:\s*\[[\s\S]*?\]\s*\]/g, '')
+    .replace(/\[ATTACHMENTS_JSON:\s*[\s\S]*?\]\s*(?=\n\n\[|$)/g, '')
+    .replace(/\[ATTACHMENT_URL:\s*.*?\]/g, '')
+    .replace(/\[ATTACHMENT_NAME:\s*.*?\]/g, '')
+    .replace(/\[AUDIO_URL:\s*.*?\]/g, '')
+    .replace(/\[AUDIO_DURATION:\s*.*?\]/g, '')
+    .replace(/\[STARTED_AT:\s*.*?\]/g, '')
+    .replace(/\[STARTED_BY:\s*.*?\]/g, '')
+    .replace(/\[RESOLVED_AT:\s*.*?\]/g, '')
+    .replace(/\[RESOLVED_BY:\s*.*?\]/g, '')
+    .replace(/\[CLOSED_AT:\s*.*?\]/g, '')
+    .replace(/\[CLOSED_BY:\s*.*?\]/g, '')
+    .replace(/\]+$/, '')
+    .trim();
+};
+
 const getTicketAttachments = (ticket: Ticket): TicketAttachment[] => {
   if (ticket.attachments && ticket.attachments.length > 0) {
     return ticket.attachments;
   }
   if (ticket.attachmentUrl) {
     return [{ url: ticket.attachmentUrl, name: ticket.attachmentName || 'Anexo' }];
+  }
+  // Fallback de resiliência: se a descrição contiver tags de anexo não processadas
+  if (ticket.description) {
+    const arrayMatch = ticket.description.match(/\[ATTACHMENTS_JSON:\s*(\[[\s\S]*?\])\s*\]/);
+    if (arrayMatch) {
+      try {
+        const parsed = JSON.parse(arrayMatch[1]);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch {}
+    }
+    const urlMatch = ticket.description.match(/\[ATTACHMENT_URL:\s*(.*?)\]/);
+    if (urlMatch) {
+      const nameMatch = ticket.description.match(/\[ATTACHMENT_NAME:\s*(.*?)\]/);
+      return [{ url: urlMatch[1], name: nameMatch ? nameMatch[1] : 'Anexo' }];
+    }
   }
   return [];
 };
@@ -1765,7 +1801,7 @@ const TicketModal: React.FC<TicketModalProps> = ({
                                   })()}
                                 </div>
                                 <p className="text-xs sm:text-sm text-slate-800 dark:text-slate-200 whitespace-pre-wrap leading-relaxed">
-                                  {ticket.description}
+                                  {cleanTicketDescription(ticket.description)}
                                 </p>
                               </div>
 

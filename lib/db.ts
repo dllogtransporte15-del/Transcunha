@@ -1140,7 +1140,19 @@ export const toTicket = (row: any): Ticket => {
   let cleanDesc = row.description || '';
   const cargoMatch = cleanDesc.match(/\[CARGO_ID:\s*(.*?)\]/);
   const shipmentMatch = cleanDesc.match(/\[SHIPMENT_ID:\s*(.*?)\]/);
-  const attachmentsJsonMatch = cleanDesc.match(/\[ATTACHMENTS_JSON:\s*(.*?)\]/);
+  
+  // Extração robusta de ATTACHMENTS_JSON com suporte a múltiplos arquivos e colchetes aninhados
+  let attachmentsJsonStr: string | undefined = undefined;
+  const arrayMatch = cleanDesc.match(/\[ATTACHMENTS_JSON:\s*(\[[\s\S]*?\])\s*\]/);
+  if (arrayMatch) {
+    attachmentsJsonStr = arrayMatch[1];
+  } else {
+    const rawMatch = cleanDesc.match(/\[ATTACHMENTS_JSON:\s*([\s\S]*?)\]\s*(?=\n\n\[|$)/);
+    if (rawMatch) {
+      attachmentsJsonStr = rawMatch[1];
+    }
+  }
+
   const attachmentUrlMatch = cleanDesc.match(/\[ATTACHMENT_URL:\s*(.*?)\]/);
   const attachmentNameMatch = cleanDesc.match(/\[ATTACHMENT_NAME:\s*(.*?)\]/);
   const audioUrlMatch = cleanDesc.match(/\[AUDIO_URL:\s*(.*?)\]/);
@@ -1157,13 +1169,20 @@ export const toTicket = (row: any): Ticket => {
   const attachmentUrl = attachmentUrlMatch ? attachmentUrlMatch[1] : (row.attachment_url || undefined);
   const attachmentName = attachmentNameMatch ? attachmentNameMatch[1] : (row.attachment_name || undefined);
   let attachments: any[] | undefined = undefined;
-  if (attachmentsJsonMatch) {
+  if (attachmentsJsonStr) {
     try {
-      attachments = JSON.parse(attachmentsJsonMatch[1]);
-    } catch {}
-  } else if (attachmentUrl) {
+      attachments = JSON.parse(attachmentsJsonStr);
+    } catch (e) {
+      console.warn('[toTicket] Erro ao parsear ATTACHMENTS_JSON:', e);
+    }
+  }
+  
+  if ((!attachments || attachments.length === 0) && attachmentUrl) {
     attachments = [{ url: attachmentUrl, name: attachmentName || 'Anexo' }];
   }
+
+  const finalAttachmentUrl = (attachments && attachments.length > 0) ? attachments[0].url : attachmentUrl;
+  const finalAttachmentName = (attachments && attachments.length > 0) ? attachments[0].name : attachmentName;
 
   const audioUrl = audioUrlMatch ? audioUrlMatch[1] : (row.audio_url || undefined);
   const audioDurationSeconds = audioDurationMatch ? Number(audioDurationMatch[1]) : (row.audio_duration_seconds ? Number(row.audio_duration_seconds) : undefined);
@@ -1226,7 +1245,8 @@ export const toTicket = (row: any): Ticket => {
   cleanDesc = cleanDesc
     .replace(/\[CARGO_ID:\s*.*?\]/g, '')
     .replace(/\[SHIPMENT_ID:\s*.*?\]/g, '')
-    .replace(/\[ATTACHMENTS_JSON:\s*.*?\]/g, '')
+    .replace(/\[ATTACHMENTS_JSON:\s*\[[\s\S]*?\]\s*\]/g, '')
+    .replace(/\[ATTACHMENTS_JSON:\s*[\s\S]*?\]\s*(?=\n\n\[|$)/g, '')
     .replace(/\[ATTACHMENT_URL:\s*.*?\]/g, '')
     .replace(/\[ATTACHMENT_NAME:\s*.*?\]/g, '')
     .replace(/\[AUDIO_URL:\s*.*?\]/g, '')
@@ -1238,6 +1258,9 @@ export const toTicket = (row: any): Ticket => {
     .replace(/\[CLOSED_AT:\s*.*?\]/g, '')
     .replace(/\[CLOSED_BY:\s*.*?\]/g, '')
     .trim();
+
+  // Limpa qualquer colchete residual de tags anteriores
+  cleanDesc = cleanDesc.replace(/\]+$/, '').trim();
 
   return {
     id: row.id,
@@ -1251,8 +1274,8 @@ export const toTicket = (row: any): Ticket => {
     history,
     cargoId,
     shipmentId,
-    attachmentUrl,
-    attachmentName,
+    attachmentUrl: finalAttachmentUrl,
+    attachmentName: finalAttachmentName,
     attachments: (attachments && attachments.length > 0) ? attachments : undefined,
     audioUrl,
     audioDurationSeconds,
@@ -1274,16 +1297,14 @@ export const fromTicket = (t: Ticket | Omit<Ticket, 'id' | 'history' | 'createdA
   if (ticketObj.shipmentId) finalDesc += `\n\n[SHIPMENT_ID: ${ticketObj.shipmentId}]`;
   if (ticketObj.attachments && ticketObj.attachments.length > 0) {
     finalDesc += `\n\n[ATTACHMENTS_JSON: ${JSON.stringify(ticketObj.attachments)}]`;
-    if (!ticketObj.attachmentUrl) {
-      finalDesc += `\n\n[ATTACHMENT_URL: ${ticketObj.attachments[0].url}]`;
-      finalDesc += `\n\n[ATTACHMENT_NAME: ${ticketObj.attachments[0].name}]`;
-    }
-  }
-  if (ticketObj.attachmentUrl && (!ticketObj.attachments || ticketObj.attachments.length === 0)) {
+    // Garante sempre ATTACHMENT_URL e ATTACHMENT_NAME para redundância e retrocompatibilidade
+    finalDesc += `\n\n[ATTACHMENT_URL: ${ticketObj.attachments[0].url}]`;
+    finalDesc += `\n\n[ATTACHMENT_NAME: ${ticketObj.attachments[0].name}]`;
+  } else if (ticketObj.attachmentUrl) {
     finalDesc += `\n\n[ATTACHMENT_URL: ${ticketObj.attachmentUrl}]`;
-  }
-  if (ticketObj.attachmentName && (!ticketObj.attachments || ticketObj.attachments.length === 0)) {
-    finalDesc += `\n\n[ATTACHMENT_NAME: ${ticketObj.attachmentName}]`;
+    if (ticketObj.attachmentName) {
+      finalDesc += `\n\n[ATTACHMENT_NAME: ${ticketObj.attachmentName}]`;
+    }
   }
   if (ticketObj.audioUrl) finalDesc += `\n\n[AUDIO_URL: ${ticketObj.audioUrl}]`;
   if (ticketObj.audioDurationSeconds) finalDesc += `\n\n[AUDIO_DURATION: ${ticketObj.audioDurationSeconds}]`;
@@ -1661,7 +1682,13 @@ export async function fetchTickets(): Promise<Ticket[]> {
     try {
       const cached = localStorage.getItem('transcunha_tickets_cache');
       if (cached) {
-        dbTickets = JSON.parse(cached);
+        const rawList = JSON.parse(cached);
+        dbTickets = Array.isArray(rawList) ? rawList.map((t: any) => {
+          if (t.description && t.description.includes('[ATTACHMENTS_JSON:')) {
+            return toTicket(t);
+          }
+          return t;
+        }) : [];
       }
     } catch {}
     if (dbTickets.length === 0) {

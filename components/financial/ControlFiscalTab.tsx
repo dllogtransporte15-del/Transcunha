@@ -68,6 +68,34 @@ export const ControlFiscalTab: React.FC<ControlFiscalTabProps> = ({
   const [editingDoc, setEditingDoc] = useState<FiscalDocument | null>(null);
   const [previewFile, setPreviewFile] = useState<{ url: string; name: string } | null>(null);
 
+  // Opções de Filiais disponíveis (incluindo Matriz, Filial GO, Filial SP, TRANSCUNHA PR FILIAL e filiais cadastradas)
+  const branchOptions = useMemo(() => {
+    const list: Array<{ id: string; label: string }> = [
+      { id: 'Matriz', label: 'Matriz (MG)' },
+      { id: 'Filial GO', label: 'Filial GO' },
+      { id: 'Filial SP', label: 'Filial SP' },
+      { id: 'TRANSCUNHA PR FILIAL', label: 'TRANSCUNHA PR FILIAL' },
+    ];
+
+    if (Array.isArray(branches) && branches.length > 0) {
+      branches.forEach(b => {
+        if (!b?.name) return;
+        const exists = list.some(item => 
+          item.id.toLowerCase() === b.name.toLowerCase() ||
+          (item.id.includes('PR') && b.name.toUpperCase().includes('PR')) ||
+          (item.id.includes('GO') && b.name.toUpperCase().includes('GO')) ||
+          (item.id.includes('SP') && b.name.toUpperCase().includes('SP')) ||
+          (item.id.toLowerCase().includes('matriz') && b.name.toUpperCase().includes('MATRIZ'))
+        );
+        if (!exists) {
+          list.push({ id: b.name, label: `${b.name}${b.state ? ` (${b.state})` : ''}` });
+        }
+      });
+    }
+
+    return list;
+  }, [branches]);
+
   // Form State Documento
   const [formData, setFormData] = useState({
     title: '',
@@ -174,9 +202,30 @@ export const ControlFiscalTab: React.FC<ControlFiscalTabProps> = ({
         return false;
       }
 
-      // Filtro por Filial
+      // Filtro por Filial (com suporte resiliente a nomes, IDs e equivalências)
       if (branchFilter !== 'all') {
-        if (doc.branchId !== branchFilter && doc.branchId !== 'Todas') return false;
+        const normFilter = branchFilter.toLowerCase().trim();
+        const docBranchId = (doc.branchId || '').toLowerCase().trim();
+        const docBranchName = (doc.branchName || '').toLowerCase().trim();
+
+        const isGeneral = docBranchId === 'todas' || docBranchName.includes('todas');
+        if (branchFilter === 'Todas') {
+          if (!isGeneral) return false;
+        } else {
+          const directMatch = docBranchId === normFilter || docBranchName === normFilter;
+          const prMatch = (normFilter.includes('pr') || normFilter.includes('fil-013')) && 
+                          (docBranchId.includes('pr') || docBranchName.includes('pr') || docBranchId === 'fil-013');
+          const goMatch = (normFilter.includes('go') || normFilter.includes('fil-012')) && 
+                          (docBranchId.includes('go') || docBranchName.includes('go') || docBranchId === 'fil-012');
+          const spMatch = (normFilter.includes('sp') || normFilter.includes('fil-011')) && 
+                          (docBranchId.includes('sp') || docBranchName.includes('sp') || docBranchId === 'fil-011');
+          const matrizMatch = (normFilter.includes('matriz') || normFilter.includes('fil-010')) && 
+                              (docBranchId.includes('matriz') || docBranchName.includes('matriz') || docBranchId === 'fil-010');
+
+          if (!directMatch && !prMatch && !goMatch && !spMatch && !matrizMatch && !isGeneral) {
+            return false;
+          }
+        }
       }
 
       // Busca Textual
@@ -931,12 +980,12 @@ export const ControlFiscalTab: React.FC<ControlFiscalTabProps> = ({
             <select
               value={branchFilter}
               onChange={(e) => setBranchFilter(e.target.value)}
-              className="px-3 py-2 text-xs font-semibold rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 outline-none focus:border-indigo-500"
+              className="px-3 py-2 text-xs font-semibold rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 outline-none focus:border-indigo-500 cursor-pointer"
             >
               <option value="all">Todas as Filiais</option>
-              <option value="Matriz">Matriz (MG)</option>
-              <option value="Filial GO">Filial GO</option>
-              <option value="Filial SP">Filial SP</option>
+              {branchOptions.map(b => (
+                <option key={b.id} value={b.id}>{b.label}</option>
+              ))}
               <option value="Todas">Geral / Todas</option>
             </select>
 
@@ -1495,11 +1544,11 @@ export const ControlFiscalTab: React.FC<ControlFiscalTabProps> = ({
                   <select
                     value={formData.branchId}
                     onChange={(e) => setFormData(prev => ({ ...prev, branchId: e.target.value }))}
-                    className="w-full p-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-semibold outline-none focus:border-indigo-500"
+                    className="w-full p-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-semibold outline-none focus:border-indigo-500 cursor-pointer"
                   >
-                    <option value="Matriz">Matriz (MG)</option>
-                    <option value="Filial GO">Filial GO</option>
-                    <option value="Filial SP">Filial SP</option>
+                    {branchOptions.map(b => (
+                      <option key={b.id} value={b.id}>{b.label}</option>
+                    ))}
                     <option value="Todas">Geral / Todas as Filiais</option>
                   </select>
                 </div>

@@ -4,6 +4,18 @@
   --primary-dark: #0047AB;
   --accent: #0284C7;
   --accent-dark: #0369A1;
+  color-scheme: light;
+}
+
+:root.dark,
+html.dark {
+  color-scheme: dark;
+}
+
+:root:not(.dark),
+html:not(.dark),
+html.light {
+  color-scheme: light;
 }
 
 /* Base styles for a premium feel & mobile gestures protection */
@@ -392,15 +404,38 @@ html.light .form-label {
   color: #0f172a !important;
 }
 
-/* Itens e opções de dropdowns / selects */
+/* Paleta de Cores de Dropdowns e Seletores (Dark Mode / Light Mode) */
+html.dark select,
+.dark select {
+  color-scheme: dark;
+}
+
+html:not(.dark) select,
+html.light select {
+  color-scheme: light;
+}
+
+/* Opções de selects nativos no Modo Escuro (fundo escuro e texto claro) */
+html.dark select option,
+html.dark select optgroup,
+.dark select option,
+.dark select optgroup,
+select option,
+select optgroup {
+  background-color: #0f172a !important; /* Fundo Slate-900 elegante */
+  color: #f8fafc !important; /* Texto branco nítido */
+}
+
+/* Opções de selects nativos no Modo Claro (fundo branco e texto escuro) */
 html:not(.dark) select option,
 html.light select option,
 html:not(.dark) select optgroup,
 html.light select optgroup,
 html:not(.dark) [role="option"],
 html.light [role="option"] {
-  font-weight: 600 !important;
+  background-color: #ffffff !important;
   color: #0f172a !important;
+  font-weight: 600 !important;
 }
 
 /* Células e cabeçalhos de tabelas no modo claro */

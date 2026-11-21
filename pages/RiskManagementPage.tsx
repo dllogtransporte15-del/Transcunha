@@ -1071,7 +1071,7 @@ const RiskManagementPage: React.FC<RiskManagementPageProps> = ({
               placeholder="Buscar por Motorista, CPF, Placa Cavalo/Carreta, Cód. Liberação ou ID..."
               value={searchTerm}
               onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-              className="w-full pl-10 pr-4 py-2 text-sm bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 text-gray-900 dark:text-white"
+              className="w-full pl-10 pr-4 py-2 text-sm bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary text-gray-900 dark:text-white shadow-sm font-semibold"
             />
             {searchTerm && (
               <button
@@ -1122,33 +1122,33 @@ const RiskManagementPage: React.FC<RiskManagementPageProps> = ({
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 pt-2 border-t border-gray-100 dark:border-gray-700">
           {/* Data De */}
           <div>
-            <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1">Data De</label>
+            <label className="block text-[11px] font-bold text-gray-600 dark:text-slate-300 uppercase tracking-wider mb-1">Data De</label>
             <input
               type="date"
               value={startDate}
               onChange={e => { setStartDate(e.target.value); setCurrentPage(1); }}
-              className="w-full p-2 text-xs bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg text-gray-800 dark:text-gray-200"
+              className="w-full p-2 text-xs font-semibold bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-700 rounded-lg text-gray-900 dark:text-slate-100 shadow-sm focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 outline-none transition-colors"
             />
           </div>
 
           {/* Data Até */}
           <div>
-            <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1">Data Até</label>
+            <label className="block text-[11px] font-bold text-gray-600 dark:text-slate-300 uppercase tracking-wider mb-1">Data Até</label>
             <input
               type="date"
               value={endDate}
               onChange={e => { setEndDate(e.target.value); setCurrentPage(1); }}
-              className="w-full p-2 text-xs bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg text-gray-800 dark:text-gray-200"
+              className="w-full p-2 text-xs font-semibold bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-700 rounded-lg text-gray-900 dark:text-slate-100 shadow-sm focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 outline-none transition-colors"
             />
           </div>
 
           {/* Modalidade de Consulta */}
           <div>
-            <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1">Tipo de Consulta</label>
+            <label className="block text-[11px] font-bold text-gray-600 dark:text-slate-300 uppercase tracking-wider mb-1">Tipo de Consulta</label>
             <select
               value={selectedQueryType}
               onChange={e => { setSelectedQueryType(e.target.value); setCurrentPage(1); }}
-              className="w-full p-2 text-xs bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg text-gray-800 dark:text-gray-200"
+              className="w-full p-2 text-xs font-semibold bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-700 rounded-lg text-gray-900 dark:text-slate-100 shadow-sm focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 outline-none transition-colors"
             >
               <option value="ALL">Todas as Modalidades</option>
               {riskQueryOptions.map((opt, idx) => (
@@ -1161,11 +1161,11 @@ const RiskManagementPage: React.FC<RiskManagementPageProps> = ({
 
           {/* Status Liberação */}
           <div>
-            <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1">Status Liberação</label>
+            <label className="block text-[11px] font-bold text-gray-600 dark:text-slate-300 uppercase tracking-wider mb-1">Status Liberação</label>
             <select
               value={selectedReleaseStatus}
               onChange={e => { setSelectedReleaseStatus(e.target.value); setCurrentPage(1); }}
-              className="w-full p-2 text-xs bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg text-gray-800 dark:text-gray-200"
+              className="w-full p-2 text-xs font-semibold bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-700 rounded-lg text-gray-900 dark:text-slate-100 shadow-sm focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 outline-none transition-colors"
             >
               <option value="ALL">Todos os Status</option>
               <option value="Aprovado">Aprovado</option>
@@ -1176,11 +1176,11 @@ const RiskManagementPage: React.FC<RiskManagementPageProps> = ({
 
           {/* Status Embarque / Desfecho */}
           <div>
-            <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1">Desfecho Embarque</label>
+            <label className="block text-[11px] font-bold text-gray-600 dark:text-slate-300 uppercase tracking-wider mb-1">Desfecho Embarque</label>
             <select
               value={selectedOutcomeStatus}
               onChange={e => { setSelectedOutcomeStatus(e.target.value); setCurrentPage(1); }}
-              className="w-full p-2 text-xs bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg text-gray-800 dark:text-gray-200"
+              className="w-full p-2 text-xs font-semibold bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-700 rounded-lg text-gray-900 dark:text-slate-100 shadow-sm focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 outline-none transition-colors"
             >
               <option value="ALL">Todos os Desfechos</option>
               <option value="SEQUENCED">Deram Sequência (Carregados)</option>
@@ -1192,15 +1192,15 @@ const RiskManagementPage: React.FC<RiskManagementPageProps> = ({
 
           {/* Cliente */}
           <div>
-            <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1">Cliente</label>
+            <label className="block text-[11px] font-bold text-gray-600 dark:text-slate-300 uppercase tracking-wider mb-1">Cliente</label>
             <select
               value={selectedClientId}
               onChange={e => { setSelectedClientId(e.target.value); setCurrentPage(1); }}
-              className="w-full p-2 text-xs bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg text-gray-800 dark:text-gray-200"
+              className="w-full p-2 text-xs font-semibold bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-700 rounded-lg text-gray-900 dark:text-slate-100 shadow-sm focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 outline-none transition-colors"
             >
               <option value="ALL">Todos os Clientes</option>
               {clients.map(c => (
-                <option key={c.id} value={c.id}>{c.nomeFantasia}</option>
+                <option key={c.id} value={c.id}>{c.nomeFantasia || c.razaoSocial || 'Cliente'}</option>
               ))}
             </select>
           </div>
@@ -1480,7 +1480,7 @@ const RiskManagementPage: React.FC<RiskManagementPageProps> = ({
                         placeholder="Filtrar Cliente/Carga..."
                         value={colFilters.clientOrCargo}
                         onChange={e => updateColFilter('clientOrCargo', e.target.value)}
-                        className="w-full p-1.5 text-[11px] bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md text-gray-800 dark:text-gray-200 focus:ring-1 focus:ring-primary focus:outline-none"
+                        className="w-full p-1.5 text-[11px] font-semibold bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-700 rounded-md text-gray-900 dark:text-slate-100 focus:ring-1 focus:ring-primary focus:outline-none"
                       />
                     </th>
 
@@ -1489,7 +1489,7 @@ const RiskManagementPage: React.FC<RiskManagementPageProps> = ({
                       <select
                         value={colFilters.queryType}
                         onChange={e => updateColFilter('queryType', e.target.value)}
-                        className="w-full p-1.5 text-[11px] bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md text-gray-800 dark:text-gray-200 focus:ring-1 focus:ring-primary focus:outline-none"
+                        className="w-full p-1.5 text-[11px] font-semibold bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-700 rounded-md text-gray-900 dark:text-slate-100 focus:ring-1 focus:ring-primary focus:outline-none"
                       >
                         <option value="ALL">Todas</option>
                         {riskQueryOptions.map(opt => (
@@ -1503,7 +1503,7 @@ const RiskManagementPage: React.FC<RiskManagementPageProps> = ({
                       <select
                         value={colFilters.costRange}
                         onChange={e => updateColFilter('costRange', e.target.value)}
-                        className="w-full p-1.5 text-[11px] bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md text-gray-800 dark:text-gray-200 focus:ring-1 focus:ring-primary focus:outline-none"
+                        className="w-full p-1.5 text-[11px] font-semibold bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-700 rounded-md text-gray-900 dark:text-slate-100 focus:ring-1 focus:ring-primary focus:outline-none"
                       >
                         <option value="ALL">Todos</option>
                         <option value="withCost">&gt; R$ 0,00</option>
@@ -1522,7 +1522,7 @@ const RiskManagementPage: React.FC<RiskManagementPageProps> = ({
                         placeholder="Filtrar Código..."
                         value={colFilters.releaseCode}
                         onChange={e => updateColFilter('releaseCode', e.target.value)}
-                        className="w-full p-1.5 text-[11px] bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md text-gray-800 dark:text-gray-200 focus:ring-1 focus:ring-primary focus:outline-none"
+                        className="w-full p-1.5 text-[11px] font-semibold bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-700 rounded-md text-gray-900 dark:text-slate-100 focus:ring-1 focus:ring-primary focus:outline-none"
                       />
                     </th>
 
@@ -1531,7 +1531,7 @@ const RiskManagementPage: React.FC<RiskManagementPageProps> = ({
                       <select
                         value={colFilters.releaseStatus}
                         onChange={e => updateColFilter('releaseStatus', e.target.value)}
-                        className="w-full p-1.5 text-[11px] bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md text-gray-800 dark:text-gray-200 focus:ring-1 focus:ring-primary focus:outline-none"
+                        className="w-full p-1.5 text-[11px] font-semibold bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-700 rounded-md text-gray-900 dark:text-slate-100 focus:ring-1 focus:ring-primary focus:outline-none"
                       >
                         <option value="ALL">Todos</option>
                         <option value="Aprovado">Aprovado</option>
@@ -1545,7 +1545,7 @@ const RiskManagementPage: React.FC<RiskManagementPageProps> = ({
                       <select
                         value={colFilters.outcomeStatus}
                         onChange={e => updateColFilter('outcomeStatus', e.target.value)}
-                        className="w-full p-1.5 text-[11px] bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md text-gray-800 dark:text-gray-200 focus:ring-1 focus:ring-primary focus:outline-none"
+                        className="w-full p-1.5 text-[11px] font-semibold bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-700 rounded-md text-gray-900 dark:text-slate-100 focus:ring-1 focus:ring-primary focus:outline-none"
                       >
                         <option value="ALL">Todos</option>
                         <option value="Concluído">Concluído</option>

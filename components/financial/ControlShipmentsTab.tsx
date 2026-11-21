@@ -211,8 +211,11 @@ export function resolveTranscunhaBranch(
   if (uf === 'MG') {
     return TRANSCUNHA_BRANCH_INFO.matriz;
   }
+  if (uf === 'PR') {
+    return TRANSCUNHA_BRANCH_INFO.pr;
+  }
 
-  // Demais UFs (PR, MT, MS, BA, etc. ou indefinidas) pertencem à Matriz conforme regra
+  // Demais UFs (MT, MS, BA, etc. ou indefinidas) pertencem à Matriz conforme regra
   return TRANSCUNHA_BRANCH_INFO.matriz;
 }
 
@@ -3825,6 +3828,7 @@ export const ControlShipmentsTab: React.FC<ControlShipmentsTabProps> = ({
               <option value="36.203.306/0001-92 - MATRIZ" className="bg-slate-900 text-slate-100 dark:bg-slate-900 dark:text-slate-100">36.203.306/0001-92 - Matriz (MG e Demais UFs)</option>
               <option value="36.203.306/0002-73 - FILIAL SP" className="bg-slate-900 text-slate-100 dark:bg-slate-900 dark:text-slate-100">36.203.306/0002-73 - Filial SP (SP)</option>
               <option value="36.203.306/0004-35 - FILIAL GO" className="bg-slate-900 text-slate-100 dark:bg-slate-900 dark:text-slate-100">36.203.306/0004-35 - Filial GO (GO)</option>
+              <option value="36.203.306/0003-54 - FILIAL PR" className="bg-slate-900 text-slate-100 dark:bg-slate-900 dark:text-slate-100">36.203.306/0003-54 - Filial PR (PR)</option>
             </select>
 
             {/* Alternador Rápido de Ordem do CT-e (Crescente / Decrescente) */}
