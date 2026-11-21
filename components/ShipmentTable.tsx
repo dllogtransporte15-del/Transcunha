@@ -1191,13 +1191,14 @@ const ShipmentTable: React.FC<ShipmentTableProps> = ({ shipments, drivers, cargo
                     )}
                   </div>
                   {cargo ? (
-                    <div className="text-xs dark:text-gray-300 flex items-center gap-1.5 flex-wrap">
+                    <div className="text-xs dark:text-gray-300 flex items-center gap-1.5 flex-wrap uppercase" data-route="true">
                       <a
                         href={getCargoMapUrl('origin', cargo) || '#'}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="font-semibold text-gray-800 dark:text-gray-200 hover:text-emerald-600 dark:hover:text-emerald-400 hover:underline truncate sm:overflow-visible sm:whitespace-normal"
+                        className="font-semibold text-gray-800 dark:text-gray-200 hover:text-emerald-600 dark:hover:text-emerald-400 hover:underline truncate sm:overflow-visible sm:whitespace-normal uppercase"
                         title={`Abrir localização de Origem no Google Maps: ${cargo.origin}${cargo.originLocation ? ` (${cargo.originLocation})` : ''}`}
+                        data-origin="true"
                       >
                         {cargo.origin}
                       </a>
@@ -1218,8 +1219,9 @@ const ShipmentTable: React.FC<ShipmentTableProps> = ({ shipments, drivers, cargo
                         href={getCargoMapUrl('destination', cargo) || '#'}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="font-semibold text-gray-800 dark:text-gray-200 hover:text-rose-600 dark:hover:text-rose-400 hover:underline truncate sm:overflow-visible sm:whitespace-normal"
+                        className="font-semibold text-gray-800 dark:text-gray-200 hover:text-rose-600 dark:hover:text-rose-400 hover:underline truncate sm:overflow-visible sm:whitespace-normal uppercase"
                         title={`Abrir localização de Destino no Google Maps: ${cargo.destination}${cargo.destinationLocation ? ` (${cargo.destinationLocation})` : ''}`}
+                        data-destination="true"
                       >
                         {cargo.destination}
                       </a>
@@ -1724,29 +1726,29 @@ const ShipmentTable: React.FC<ShipmentTableProps> = ({ shipments, drivers, cargo
                           </div>
                       )}
                     </td>
-                    <td className="px-6 py-[11px] whitespace-nowrap text-sm text-gray-900 dark:text-white group relative">
+                    <td className="px-6 py-[11px] whitespace-nowrap text-sm text-gray-900 dark:text-white group relative uppercase" data-route="true">
                       {cargo ? (
                         <>
-                          <div>
+                          <div className="uppercase" data-origin="true">
                             <a
                               href={getCargoMapUrl('origin', cargo) || '#'}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="hover:text-emerald-600 dark:hover:text-emerald-400 hover:underline inline-flex items-center gap-1"
+                              className="hover:text-emerald-600 dark:hover:text-emerald-400 hover:underline inline-flex items-center gap-1 uppercase"
                               title={`Abrir localização de Origem no Google Maps: ${cargo.origin}${cargo.originLocation ? ` (${cargo.originLocation})` : ''}`}
                             >
-                              <span>{cargo.origin}</span>
+                              <span className="uppercase">{cargo.origin}</span>
                             </a>
                           </div>
-                          <div className="text-sm text-gray-500 dark:text-gray-400">
+                          <div className="text-sm text-gray-500 dark:text-gray-400 uppercase" data-destination="true">
                             <a
                               href={getCargoMapUrl('destination', cargo) || '#'}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="hover:text-rose-600 dark:hover:text-rose-400 hover:underline inline-flex items-center gap-1"
+                              className="hover:text-rose-600 dark:hover:text-rose-400 hover:underline inline-flex items-center gap-1 uppercase"
                               title={`Abrir localização de Destino no Google Maps: ${cargo.destination}${cargo.destinationLocation ? ` (${cargo.destinationLocation})` : ''}`}
                             >
-                              <span>{cargo.destination}</span>
+                              <span className="uppercase">{cargo.destination}</span>
                             </a>
                           </div>
                         </>

@@ -248,14 +248,15 @@ export async function updateTaxTransaction(
   const baseList = remoteRes.success ? remoteRes.transactions : getLocalTransactions();
 
   let targetItem: FinancialTransaction | null = null;
-  const updatedList = baseList.map(t => {
+  const updatedList: FinancialTransaction[] = baseList.map(t => {
     if (t.id === id) {
-      targetItem = {
+      const updated: FinancialTransaction = {
         ...t,
         ...updates,
         updatedAt: nowIso
       };
-      return targetItem;
+      targetItem = updated;
+      return updated;
     }
     return t;
   });
@@ -263,10 +264,11 @@ export async function updateTaxTransaction(
   if (!targetItem) {
     // Item pode estar apenas no localStorage
     const local = getLocalTransactions();
-    const localUpdated = local.map(t => {
+    const localUpdated: FinancialTransaction[] = local.map(t => {
       if (t.id === id) {
-        targetItem = { ...t, ...updates, updatedAt: nowIso };
-        return targetItem;
+        const updated: FinancialTransaction = { ...t, ...updates, updatedAt: nowIso };
+        targetItem = updated;
+        return updated;
       }
       return t;
     });

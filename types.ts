@@ -613,6 +613,7 @@ export interface Shipment {
   riskReleaseCode?: string;
   riskQueryType?: RiskQueryType | string;
   riskQueryCost?: number;
+  driverId?: string;
   driverName: string;
   driverContact?: string;
   driverCpf?: string;
@@ -1034,6 +1035,7 @@ export interface FinancialTransaction {
   barcode?: string;          // Linha digitável ou código de barras da guia
   
   createdAt: string;
+  updatedAt?: string;
   createdById?: string;
 }
 

@@ -2742,6 +2742,7 @@ export const AccountsPayableTab: React.FC<AccountsPayableTabProps> = ({
       details?: string;
       pixKey?: string;
       bankAccount?: string;
+      taxPeriod?: string;
       isReconciled?: boolean;
       reconciledAt?: string;
       originalItem: any;

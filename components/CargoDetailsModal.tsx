@@ -22,8 +22,8 @@ interface CargoDetailsModalProps {
   currentUser?: User;
 }
 
-const DetailItem: React.FC<{ label: string; value?: string | number | null; children?: React.ReactNode }> = ({ label, value, children }) => (
-    <div>
+const DetailItem: React.FC<{ label: string; value?: string | number | null; children?: React.ReactNode; className?: string }> = ({ label, value, children, className }) => (
+    <div className={className}>
         <p className="text-xs font-medium text-gray-500 dark:text-gray-400">{label}</p>
         {children || <p className="text-sm text-gray-800 dark:text-gray-200">{value ?? 'N/A'}</p>}
     </div>
@@ -227,8 +227,8 @@ const CargoDetailsModal: React.FC<CargoDetailsModalProps> = ({ isOpen, onClose, 
                         <span className="text-sm text-gray-500 dark:text-gray-400">Não informado</span>
                     )}
                 </DetailItem>
-                <DetailItem label="Origem" value={cargo.origin} />
-                <DetailItem label="Destino" value={cargo.destination} />
+                <DetailItem label="Origem" value={cargo.origin} className="uppercase" />
+                <DetailItem label="Destino" value={cargo.destination} className="uppercase" />
                 <DetailItem label="Lote TMS">
                     {cargo.tmsLoteNumber ? (
                         <div className="flex items-center gap-1.5 mt-0.5">

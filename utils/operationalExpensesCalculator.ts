@@ -188,7 +188,33 @@ export function calculateShipmentExpenses(
     ? Number(((freightDifference / freteLiquidoIcms) * 100).toFixed(2))
     : 0;
 
-  // 6. Imposto Federal (Simples Nacional 3,40% s/ Frete Bruto | PF: 3,655% s/ Líquido | PJ Normal: 9,25% s/ Spread)
+  const isComplementar = Boolean(
+    shipment.isComplementar || 
+    (shipment.documents as any)?.is_complementar || 
+    (shipment.documents as any)?.isComplementar
+  );
+
+  // 6. Pedágio (deve estar FORA dos fretes empresa e motorista no cálculo fiscal)
+  const rawToll = isComplementar
+    ? 0
+    : (shipment.tollValue !== undefined && shipment.tollValue !== null && !isNaN(Number(shipment.tollValue))
+        ? Number(shipment.tollValue)
+        : (Number(shipment.realProfitData?.toll) ||
+           Number((shipment.documents as any)?.toll_value) ||
+           Number((shipment.documents as any)?.valor_pedagio) ||
+           Number((shipment.documents as any)?.financeiro?.valorPedagio) ||
+           0));
+  const toll = (!isNaN(rawToll) && rawToll >= 0 && rawToll <= 25000) ? rawToll : 0;
+
+  // Fretes líquidos de pedágio para apuração do Imposto Federal
+  const baseFreteEmpresaSemPedagio = Math.max(0, companyFreight - toll);
+  const baseFreteMotoristaSemPedagio = Math.max(0, driverFreight - toll);
+
+  // 7. Imposto Federal Conforme Regime do Motorista (PF/PJ)
+  // - PJ Real/Presumido: (frete empresa * 9,25%) - (frete motorista * 9,25%) = Valor do Imposto Federal
+  // - PJ Simples Nacional: (frete empresa * 9,25%) - (frete motorista * 6,9375%) = Valor do Imposto Federal
+  // - PF: (frete empresa * 9,25%) - (frete motorista * 6,9375%) = Valor do Imposto Federal
+  // Obs: na conta dos fretes o valor de pedágio está fora do frete empresa e frete motorista.
   const isSimplesNacional = Boolean(
     shipment.etcTaxRegime === 'Simples Nacional' ||
     shipment.etcTaxRegime === 'MEI' ||
@@ -200,10 +226,10 @@ export function calculateShipmentExpenses(
     (shipment.documents as any)?.crt === '2'
   );
 
-  const simplesFederalRate = config.simplesNacionalFederalRate ?? 0.0340;
-  const impostoFederalSimples = Number((companyFreight * simplesFederalRate).toFixed(2));
-  const impostoFederalPf = Number((freteLiquidoIcms * 0.03655).toFixed(2));
-  const impostoFederalPjSpread = Number((Math.max(0, freightDifference) * 0.0925).toFixed(2));
+  const debitoEmpresaFederal = baseFreteEmpresaSemPedagio * 0.0925;
+  const impostoFederalPjReal = Math.max(0, Number((debitoEmpresaFederal - (baseFreteMotoristaSemPedagio * 0.0925)).toFixed(2)));
+  const impostoFederalSimples = Math.max(0, Number((debitoEmpresaFederal - (baseFreteMotoristaSemPedagio * 0.069375)).toFixed(2)));
+  const impostoFederalPf = Math.max(0, Number((debitoEmpresaFederal - (baseFreteMotoristaSemPedagio * 0.069375)).toFixed(2)));
 
   let impostoFederalMercadoInterno = 0;
   if (isSimplesNacional) {
@@ -211,7 +237,7 @@ export function calculateShipmentExpenses(
   } else if (isShipmentPf) {
     impostoFederalMercadoInterno = impostoFederalPf;
   } else {
-    impostoFederalMercadoInterno = impostoFederalPjSpread;
+    impostoFederalMercadoInterno = impostoFederalPjReal;
   }
 
   const isFederalTaxManual = Boolean(
@@ -238,24 +264,8 @@ export function calculateShipmentExpenses(
     ? manualFederalTax
     : (isExportCargo ? 0 : impostoFederalMercadoInterno);
 
-  const isComplementar = Boolean(
-    shipment.isComplementar || 
-    (shipment.documents as any)?.is_complementar || 
-    (shipment.documents as any)?.isComplementar
-  );
-
-  // 7. INSS Patronal / CPRB (4% sobre Frete Motorista - Pedágio se PF, Isento se PJ)
+  // 8. INSS Patronal / CPRB (4% sobre Frete Motorista - Pedágio se PF, Isento se PJ)
   // No complementar, pedágio é sempre 0 e NÃO é descontado
-  const rawToll = isComplementar
-    ? 0
-    : (shipment.tollValue !== undefined && shipment.tollValue !== null && !isNaN(Number(shipment.tollValue))
-        ? Number(shipment.tollValue)
-        : (Number(shipment.realProfitData?.toll) ||
-           Number((shipment.documents as any)?.toll_value) ||
-           Number((shipment.documents as any)?.valor_pedagio) ||
-           Number((shipment.documents as any)?.financeiro?.valorPedagio) ||
-           0));
-  const toll = (!isNaN(rawToll) && rawToll >= 0 && rawToll <= 25000) ? rawToll : 0;
   const baseInssPatronal = Math.max(0, driverFreight - toll);
   const inssPatronal = isShipmentPf && baseInssPatronal > 0 
     ? Number((baseInssPatronal * config.patronalPfRate).toFixed(2)) 
@@ -414,10 +424,10 @@ export function calculateShipmentExpenses(
 
   if (impostoFederal > 0) {
     const federalLabel = isSimplesNacional
-      ? `Imposto Federal (${(simplesFederalRate * 100).toFixed(2).replace('.', ',')}% Simples Nacional Anexo III)`
+      ? 'Imposto Federal (PJ Simples: 9,25% Emp. - 6,9375% Mot.)'
       : isShipmentPf
-        ? 'Imposto Federal (3,655% s/ Líq.)'
-        : 'Imposto Federal (9,25% s/ Spread)';
+        ? 'Imposto Federal (PF: 9,25% Emp. - 6,9375% Mot.)'
+        : 'Imposto Federal (PJ Real/Pres.: 9,25% Emp. - 9,25% Mot.)';
 
     expenseItems.push({
       name: federalLabel,
@@ -661,7 +671,7 @@ export function calculateShipmentExpenses(
       }
 
       // Imposto Federal do CT-e Complementar
-      const defaultFedRate = isSimplesNacional ? simplesFederalRate : (isShipmentPf ? 0.03655 : 0.0925);
+      const defaultFedRate = isSimplesNacional ? 0.069375 : (isShipmentPf ? 0.069375 : 0.0925);
       const stFedTaxVal = st.federalTaxValue !== undefined && st.federalTaxValue !== null
         ? Number(st.federalTaxValue)
         : (isExportCargo ? 0 : (defaultFedRate > 0 && stApproved > 0 ? Number((stApproved * defaultFedRate).toFixed(2)) : 0));

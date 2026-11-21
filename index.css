@@ -344,3 +344,176 @@ html.dark .glass-panel {
 :is(.dark .chat-bubble-left::after) {
   border-right-color: #374151;
 }
+
+
+/* ==========================================================================
+   TIPOGRAFIA GLOBAL EM NEGRITO NO MODO CLARO (LIGHT MODE) PARA TODOS OS CAMPOS
+   ========================================================================== */
+
+/* Todos os inputs, textareas e selects em modo claro */
+html:not(.dark) input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+html.light input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+html:not(.dark) select,
+html.light select,
+html:not(.dark) textarea,
+html.light textarea,
+html:not(.dark) .form-input,
+html.light .form-input,
+html:not(.dark) .form-select,
+html.light .form-select,
+html:not(.dark) .form-textarea,
+html.light .form-textarea,
+html:not(.dark) [role="combobox"],
+html.light [role="combobox"],
+html:not(.dark) [role="searchbox"],
+html.light [role="searchbox"] {
+  font-weight: 600 !important;
+  color: #0f172a !important; /* Slate-900 para máxima nitidez */
+}
+
+/* Placeholders em negrito */
+html:not(.dark) input::placeholder,
+html.light input::placeholder,
+html:not(.dark) textarea::placeholder,
+html.light textarea::placeholder {
+  font-weight: 600 !important;
+  color: #64748b !important; /* Slate-500 visível */
+  opacity: 0.9 !important;
+}
+
+/* Rótulos de campos (labels), títulos de inputs e legendas */
+html:not(.dark) label,
+html.light label,
+html:not(.dark) legend,
+html.light legend,
+html:not(.dark) .form-label,
+html.light .form-label {
+  font-weight: 700 !important;
+  color: #0f172a !important;
+}
+
+/* Itens e opções de dropdowns / selects */
+html:not(.dark) select option,
+html.light select option,
+html:not(.dark) select optgroup,
+html.light select optgroup,
+html:not(.dark) [role="option"],
+html.light [role="option"] {
+  font-weight: 600 !important;
+  color: #0f172a !important;
+}
+
+/* Células e cabeçalhos de tabelas no modo claro */
+html:not(.dark) table th,
+html.light table th {
+  font-weight: 700 !important;
+  color: #0f172a !important;
+}
+
+html:not(.dark) table td,
+html.light table td {
+  font-weight: 600 !important;
+  color: #1e293b !important;
+}
+
+/* Campos de dados chave-valor (dt/dd) e grupos de informações */
+html:not(.dark) dl dt,
+html.light dl dt {
+  font-weight: 700 !important;
+  color: #334155 !important;
+}
+
+html:not(.dark) dl dd,
+html.light dl dd {
+  font-weight: 600 !important;
+  color: #0f172a !important;
+}
+
+/* Botões de formulário, campos de filtro e caixas de texto com alto contraste */
+html:not(.dark) .form-control,
+html.light .form-control,
+html:not(.dark) .input-group,
+html.light .input-group {
+  font-weight: 600 !important;
+}
+
+
+/* ==========================================================================
+   TIPOGRAFIA GLOBAL EM CAIXA ALTA (UPPERCASE) PARA TODOS OS CAMPOS
+   ========================================================================== */
+
+/* Todos os inputs (exceto senha), selects e textareas em caixa alta */
+input:not([type="password"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]),
+select,
+textarea,
+.form-input,
+.form-select,
+.form-textarea,
+.form-control,
+[role="combobox"],
+[role="searchbox"] {
+  text-transform: uppercase !important;
+}
+
+/* Placeholders de todos os campos em caixa alta */
+input:not([type="password"])::placeholder,
+textarea::placeholder {
+  text-transform: uppercase !important;
+}
+
+/* Rótulos de campos (labels), títulos de formulários e legendas */
+label,
+legend,
+.form-label,
+.field-label {
+  text-transform: uppercase !important;
+}
+
+/* Opções de dropdown e seletores */
+select option,
+select optgroup,
+[role="option"] {
+  text-transform: uppercase !important;
+}
+
+/* Cabeçalhos e células de dados em tabelas */
+table th,
+table td,
+.table-cell {
+  text-transform: uppercase;
+}
+
+/* Origens, Destinos, Trajetos e Cidades de Cargas em Caixa Alta */
+[data-origin],
+[data-origin] *,
+[data-destination],
+[data-destination] *,
+[data-route],
+[data-route] *,
+.route-origin,
+.route-destination,
+.route-location,
+.origin-city,
+.destination-city,
+.cargo-origin,
+.cargo-destination,
+.route-text,
+.route-cell,
+.trajeto-col {
+  text-transform: uppercase !important;
+}
+
+/* Preservação explícita para campos de senha e classes de escape */
+input[type="password"] {
+  text-transform: none !important;
+}
+
+.normal-case,
+.normal-case * {
+  text-transform: none !important;
+}
+
+.lowercase,
+.lowercase * {
+  text-transform: lowercase !important;
+}

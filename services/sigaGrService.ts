@@ -654,7 +654,7 @@ export async function simulateSigaStatus(
       nextState = 'approved';
     } else if (simulationTag === 'simulate_denial') {
       nextState = 'denied';
-      denialReason = 'Não recomendado pelo gerenciador de risco (Simulação).';
+      denialReason = 'other';
     } else if (simulationTag === 'simulate_authorization') {
       nextState = 'authorized_by_manager';
     } else if (simulationTag === 'simulate_comment') {
@@ -665,7 +665,7 @@ export async function simulateSigaStatus(
           id: Date.now(),
           body: 'Analista SIGA GR: Documentação conferida, aguardando liberação final.',
           created_at: new Date().toISOString(),
-          user: { name: 'Central de Risco (Simulação)' }
+          author: { fullname: 'Central de Risco (Simulação)' }
         }
       ];
     } else if (simulationTag === 'simulate_issue') {
@@ -674,7 +674,8 @@ export async function simulateSigaStatus(
         ...issues,
         {
           id: Date.now(),
-          description: 'Foto do CRLV com baixa nitidez. Favor reenviar documento legível.',
+          reason: 'CRLV ilegível',
+          body: 'Foto do CRLV com baixa nitidez. Favor reenviar documento legível.',
           solved: false,
           created_at: new Date().toISOString()
         }

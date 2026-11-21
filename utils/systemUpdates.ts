@@ -27,6 +27,111 @@ export interface SystemRelease {
  */
 export const SYSTEM_RELEASES: SystemRelease[] = [
   {
+    id: 'rel_2026_11_20_v2_116_50',
+    version: 'v2.116.50',
+    date: '20/11/2026',
+    title: 'Manutenção: Resolução Integral de Diagnósticos e Tipagem (TypeScript)',
+    summary: 'Correção de todos os alertas e erros do painel de diagnósticos / problems: ajustes em tipos de transações tributárias, período de apuração fiscal em contas a pagar, integração SIGA GR e compatibilidade de identificadores operacionais.',
+    items: [
+      {
+        category: 'fix',
+        title: 'Tipagem de Transações e Períodos Fiscais',
+        description: 'Adicionados campos updatedAt e taxPeriod nas interfaces de transações e contas a pagar consolidadas, eliminando inconsistências de tipo.'
+      },
+      {
+        category: 'fix',
+        title: 'Compatibilidade em Integração SIGA GR e Risco',
+        description: 'Adequação dos objetos de comentários, pendências e motivos de recusa na simulação de análise de risco e vínculo de motorista em embarques.'
+      },
+      {
+        category: 'fix',
+        title: 'Estabilidade do Motor de Despesas Operacionais',
+        description: 'Alinhamento dos rótulos de Imposto Federal no demonstrativo de despesas com as novas alíquotas de crédito de frete.'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_20_v2_116_49',
+    version: 'v2.116.49',
+    date: '20/11/2026',
+    title: 'Fiscal: Novo Cálculo do Imposto Federal por Regime do Motorista (PF/PJ)',
+    summary: 'Atualização do motor de apuração do Imposto Federal na Composição das Deduções do CT-e e DRE, com dedução de crédito conforme enquadramento do motorista (PJ Real/Presumido: 9,25%, PJ Simples: 6,9375%, PF: 6,9375%), excluindo estritamente o valor de pedágio de ambos os fretes.',
+    items: [
+      {
+        category: 'feature',
+        title: 'Cálculo Parametrizado por Regime Fiscal',
+        description: 'Imposto Federal calculado pela fórmula: (Frete Empresa * 9,25%) - (Frete Motorista * alíquota do regime). PJ Real/Presumido abate 9,25%, enquanto PJ Simples Nacional e PF abatem 6,9375%.'
+      },
+      {
+        category: 'improvement',
+        title: 'Exclusão do Pedágio nas Bases de Frete',
+        description: 'Tanto o frete da empresa quanto o frete do motorista passam a ter o valor do vale-pedágio expressamente subtraído antes da apuração das alíquotas federais.'
+      },
+      {
+        category: 'improvement',
+        title: 'Detalhamento Visual e Auditoria',
+        description: 'Card de Imposto Federal no painel de automatização do CT-e com badges e discriminativos claros para cada modalidade (PJ Real/Pres., PJ Simples e PF).'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_20_v2_116_48',
+    version: 'v2.116.48',
+    date: '20/11/2026',
+    title: 'Aparência: Tipografia Global em Caixa Alta para Cidades de Origem e Destino',
+    summary: 'Padronização visual global com tipografia em caixa alta (uppercase / letras maiúsculas) aplicada a todos os campos, células e exibições de cidades de origem, destino e trajetos em cargas e embarques.',
+    items: [
+      {
+        category: 'improvement',
+        title: 'Cidades de Origem e Destino em Caixa Alta',
+        description: 'Todas as cidades de origem e destino na listagem de cargas, embarques, trajetos, modais de detalhes e relatórios agora são exibidas uniformemente em caixa alta (maiúsculas).'
+      },
+      {
+        category: 'improvement',
+        title: 'Locais de Coleta e Entrega Padronizados',
+        description: 'Subtítulos e locais complementares de coleta e entrega (como armazéns, usinas e cooperativas) também formatados com caixa alta global.'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_20_v2_116_47',
+    version: 'v2.116.47',
+    date: '20/11/2026',
+    title: 'Aparência: Tipografia Global em Caixa Alta para Todos os Campos',
+    summary: 'Configuração global de tipografia em caixa alta (uppercase / letras maiúsculas) aplicada a todos os campos do sistema, abrangendo inputs, selects, textareas, placeholders, rótulos (labels), opções de seleção e células de tabelas, com proteção para campos de senha.',
+    items: [
+      {
+        category: 'improvement',
+        title: 'Tipografia em Caixa Alta (Uppercase) nos Campos',
+        description: 'Todos os campos de formulários, inputs, caixas de busca, selects, textareas e placeholders agora exibem texto em caixa alta automaticamente no padrão TMS operacional.'
+      },
+      {
+        category: 'improvement',
+        title: 'Padronização Visual em Rótulos e Tabelas',
+        description: 'Labels, cabeçalhos de formulários e células de dados em tabelas formatados em caixa alta uniforme, mantendo proteção de tipo para campos de senha.'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_20_v2_116_46',
+    version: 'v2.116.46',
+    date: '20/11/2026',
+    title: 'Aparência: Tipografia Global em Negrito no Modo Claro',
+    summary: 'Implementada regra global de estilização para o Modo Claro (Light Mode) tornando a tipografia de todos os campos (inputs, selects, textareas, rótulos/labels, placeholders, dropdowns e células de tabelas) em negrito (font-weight: 600/700) com contraste nítido.',
+    items: [
+      {
+        category: 'improvement',
+        title: 'Tipografia em Negrito para Campos em Modo Claro',
+        description: 'Todos os campos de entrada, seleção, texto, labels e placeholders receberam formatação em negrito (font-weight 600 e 700) e contraste aprimorado no Modo Claro.'
+      },
+      {
+        category: 'improvement',
+        title: 'Legibilidade e Contraste em Tabelas e Formulários',
+        description: 'Cabeçalhos e células de tabelas de embarques, cargas e módulos operacionais agora contam com visual encorpado e máxima legibilidade.'
+      }
+    ]
+  },
+  {
     id: 'rel_2026_11_20_v2_116_45',
     version: 'v2.116.45',
     date: '20/11/2026',

@@ -1842,11 +1842,15 @@ export const CteCostAutomationPanel: React.FC<CteCostAutomationPanelProps> = ({
         ? autoOrRealFederalTax
         : (baseFreteEmpresaLiqIcms > 0 ? Number((baseFreteEmpresaLiqIcms * (suspensionPercentage > 0 ? tributavelRatio : 1) * 0.0925).toFixed(2)) : 0));
 
-  // Passo 3: Imposto Federal (Simples Nacional 3,40% s/ Frete Bruto | PF: 3,655% s/ Líquido | PJ: 9,25% s/ Spread)
-  const simplesFederalRate = 0.0340; // 3,40% (Anexo III - Tributos Federais)
-  const impostoFederalSimples = Number((cteGrossFreight * simplesFederalRate).toFixed(2));
-  const impostoFederalPf = Number((freteLiquidoIcms * 0.03655).toFixed(2));
-  const impostoFederalPjSpread = Number((Math.max(0, diferencaFreteReais) * 0.0925).toFixed(2));
+  // Passo 3: Imposto Federal Conforme Regime do Motorista (PF/PJ)
+  // - PJ Real/Presumido: (frete empresa * 9,25%) - (frete motorista * 9,25%) = Valor do Imposto Federal
+  // - PJ Simples Nacional: (frete empresa * 9,25%) - (frete motorista * 6,9375%) = Valor do Imposto Federal
+  // - PF: (frete empresa * 9,25%) - (frete motorista * 6,9375%) = Valor do Imposto Federal
+  // Obs: na conta dos fretes o valor de pedágio deve estar fora do frete empresa e frete motorista (baseFreteEmpresa e baseFreteMotorista)
+  const debitoEmpresaFederal = baseFreteEmpresa * 0.0925;
+  const impostoFederalPjSpread = Math.max(0, Number((debitoEmpresaFederal - (baseFreteMotorista * 0.0925)).toFixed(2)));
+  const impostoFederalSimples = Math.max(0, Number((debitoEmpresaFederal - (baseFreteMotorista * 0.069375)).toFixed(2)));
+  const impostoFederalPf = Math.max(0, Number((debitoEmpresaFederal - (baseFreteMotorista * 0.069375)).toFixed(2)));
 
   let impostoFederalMercadoInterno = 0;
   if (isSimplesNacional) {
@@ -1991,10 +1995,10 @@ export const CteCostAutomationPanel: React.FC<CteCostAutomationPanelProps> = ({
   const effectiveStayIcmsRate = isIcmsExemptExplicit ? 0 : icmsPercentage;
   const stayFederalRate = isExportCargo 
     ? 0 
-    : (isSimplesNacional ? simplesFederalRate : (isShipmentPf ? 0.03655 : 0.0925));
+    : (isSimplesNacional ? 0.069375 : (isShipmentPf ? 0.069375 : 0.0925));
   const stayFederalRateLabel = isExportCargo 
     ? '0% Exportação' 
-    : (isSimplesNacional ? '3,40% Simples' : (isShipmentPf ? '3,655% PF' : '9,25%'));
+    : (isSimplesNacional ? '6,9375% Simples' : (isShipmentPf ? '6,9375% PF' : '9,25% PJ'));
 
   // Apuração detalhada de tributos de cada estadia vinculada
   const staysWithTaxes = shipmentStays.map(s => {
@@ -2202,10 +2206,10 @@ export const CteCostAutomationPanel: React.FC<CteCostAutomationPanelProps> = ({
                   : 'bg-blue-50/70 text-blue-900 border-blue-300 dark:bg-blue-950/50 dark:text-blue-200 dark:border-blue-800'
             }`}
           >
-            <option value="Simples Nacional">🟣 Simples Nacional (3,40% s/ Frete Bruto)</option>
-            <option value="Lucro Real / Presumido">🔵 Lucro Real / Presumido (9,25% s/ Spread)</option>
-            <option value="PF">🟠 Pessoa Física / TAC (3,655% s/ Líq. + 4% CPRB)</option>
-            <option value="MEI">🟢 MEI (Simples Nacional - 3,40%)</option>
+            <option value="Simples Nacional">🟣 PJ Simples Nacional (9,25% Emp. - 6,9375% Mot.)</option>
+            <option value="Lucro Real / Presumido">🔵 PJ Real / Presumido (9,25% Emp. - 9,25% Mot.)</option>
+            <option value="PF">🟠 Pessoa Física / TAC (9,25% Emp. - 6,9375% Mot.)</option>
+            <option value="MEI">🟢 MEI / Simples (9,25% Emp. - 6,9375% Mot.)</option>
           </select>
 
           {!isDemo && (
@@ -2228,10 +2232,10 @@ export const CteCostAutomationPanel: React.FC<CteCostAutomationPanelProps> = ({
 
         <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
           {isSimplesNacional 
-            ? 'Simples Nacional: 3,40% sobre Frete Empresa Bruto' 
+            ? 'PJ Simples: (Frete Empresa * 9,25%) - (Frete Motorista * 6,9375%) [líq. pedágio]' 
             : isShipmentPf 
-              ? 'PF / TAC: 3,655% s/ Frete Líquido + 4% CPRB' 
-              : 'Regime Normal: 9,25% s/ Spread Comercial'}
+              ? 'PF / TAC: (Frete Empresa * 9,25%) - (Frete Motorista * 6,9375%) [líq. pedágio]' 
+              : 'PJ Real/Presumido: (Frete Empresa * 9,25%) - (Frete Motorista * 9,25%) [líq. pedágio]'}
         </p>
       </div>
 
@@ -2745,17 +2749,21 @@ export const CteCostAutomationPanel: React.FC<CteCostAutomationPanelProps> = ({
                       ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300' 
                       : isSimplesNacional
                         ? 'bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300'
-                        : 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300'
-                  } max-w-[95px] truncate`} title={
+                        : isShipmentPf
+                          ? 'bg-orange-50 dark:bg-orange-950/60 text-orange-700 dark:text-orange-300'
+                          : 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300'
+                  } max-w-[110px] truncate`} title={
                     isFederalTaxCustom
-                      ? `Valor manual informado: ${formatBrl(impostoFederalLiquido)} (Base cálculo: ${isExportCargo ? 'Exportação' : (isSimplesNacional ? 'Simples Nacional 3,40%' : (isShipmentPf ? 'PF 3,655%' : 'PJ Spread 9,25%'))})`
+                      ? `Valor manual informado: ${formatBrl(impostoFederalLiquido)} (Base cálculo: ${isExportCargo ? 'Exportação' : (isSimplesNacional ? 'PJ Simples Nacional' : (isShipmentPf ? 'PF' : 'PJ Real/Presumido'))})`
                       : isExportCargo 
                         ? 'Exportação: Isenção / Alíquota zero de PIS/COFINS na saída' 
                         : isSimplesNacional
-                          ? `Simples Nacional (Anexo III): 3,40% sobre Frete Empresa Bruto (${formatBrl(cteGrossFreight)})`
-                          : (isShipmentPf ? `PF Mercado Interno: 3,655% sobre Frete Líquido (${formatBrl(freteLiquidoIcms)})` : `PJ Mercado Interno: 9,25% sobre o Spread Comercial / Diferença (${formatBrl(diferencaFreteReais)})`)
+                          ? `PJ Simples Nacional: 9,25% Frete Empresa (${formatBrl(baseFreteEmpresa)}) - 6,9375% Frete Motorista (${formatBrl(baseFreteMotorista)}) = ${formatBrl(impostoFederalSimples)}`
+                          : (isShipmentPf 
+                              ? `PF: 9,25% Frete Empresa (${formatBrl(baseFreteEmpresa)}) - 6,9375% Frete Motorista (${formatBrl(baseFreteMotorista)}) = ${formatBrl(impostoFederalPf)}` 
+                              : `PJ Real/Presumido: 9,25% Frete Empresa (${formatBrl(baseFreteEmpresa)}) - 9,25% Frete Motorista (${formatBrl(baseFreteMotorista)}) = ${formatBrl(impostoFederalPjSpread)}`)
                   }>
-                    {isExportCargo ? 'Exportação' : (isSimplesNacional ? '3,40% Simples' : (isShipmentPf ? '3,655% PF' : '9,25% Spread'))}
+                    {isExportCargo ? 'Exportação' : (isSimplesNacional ? 'PJ Simples' : (isShipmentPf ? 'PF (6,9375%)' : 'PJ Real/Pres. (9,25%)'))}
                   </span>
 
                   {!isEditingFederalTax && !isDemo && (
@@ -2853,14 +2861,16 @@ export const CteCostAutomationPanel: React.FC<CteCostAutomationPanelProps> = ({
                       : isExportCargo 
                         ? 'Exportação: Receita desonerada de PIS/COFINS' 
                         : isSimplesNacional
-                          ? `Simples Nacional: Frete Empresa Bruto ${formatBrl(cteGrossFreight)} • 3,40% = ${formatBrl(impostoFederalSimples)}`
-                          : (isShipmentPf ? `PF: Frete Líq. ${formatBrl(freteLiquidoIcms)} • 3,655%` : `PJ: Spread ${formatBrl(diferencaFreteReais)} • 9,25%`)
+                          ? `PJ Simples: ${formatBrl(baseFreteEmpresa)} * 9,25% - ${formatBrl(baseFreteMotorista)} * 6,9375%`
+                          : (isShipmentPf 
+                              ? `PF: ${formatBrl(baseFreteEmpresa)} * 9,25% - ${formatBrl(baseFreteMotorista)} * 6,9375%` 
+                              : `PJ Real/Pres.: ${formatBrl(baseFreteEmpresa)} * 9,25% - ${formatBrl(baseFreteMotorista)} * 9,25%`)
                   }>
                     {staysWithTaxes.length > 0 
                       ? `CT-e Princ.: ${formatBrl(impostoFederalLiquido)}`
                       : (isFederalTaxCustom
                           ? `Manual (Auto: ${formatBrl(isSimplesNacional ? impostoFederalSimples : (isShipmentPf ? impostoFederalPf : impostoFederalPjSpread))})`
-                          : (isExportCargo ? 'Exportação: R$ 0,00' : (isSimplesNacional ? `Simples: ${formatBrl(cteGrossFreight)} • 3,4%` : (isShipmentPf ? `PF: Líq. • 3,655%` : `PJ: Spread • 9,25%`))))}
+                          : (isExportCargo ? 'Exportação: R$ 0,00' : (isSimplesNacional ? `PJ Simples: 9,25% - 6,9375%` : (isShipmentPf ? `PF: 9,25% - 6,9375%` : `PJ Real: 9,25% - 9,25%`))))}
                   </div>
                 </>
               )}

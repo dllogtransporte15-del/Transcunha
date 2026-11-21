@@ -2081,11 +2081,14 @@ const AttachmentModal: React.FC<AttachmentModalProps> = ({
       const freteLiquidoIcms = Math.max(0, cteGrossFreight - icmsBruto);
       const diferencaFreteReais = Math.max(0, freteLiquidoIcms - (shipment.realProfitData?.driverFreight || shipment.driverFreightValue || baseFreteMotorista));
 
-      // Simples Nacional: 3,40% s/ Frete Empresa Bruto | PF: 3,655% s/ Frete Líquido | PJ: 9,25% s/ Spread
-
-      const impostoFederalSimples = Number((cteGrossFreight * 0.0340).toFixed(2));
-      const impostoFederalPf = Number((freteLiquidoIcms * 0.03655).toFixed(2));
-      const impostoFederalPjSpread = Number((diferencaFreteReais * 0.0925).toFixed(2));
+      // Regime Motorista (PF/PJ) - Fretes sem pedágio
+      // - PJ Real/Presumido: (frete empresa * 9,25%) - (frete motorista * 9,25%)
+      // - PJ Simples Nacional: (frete empresa * 9,25%) - (frete motorista * 6,9375%)
+      // - PF: (frete empresa * 9,25%) - (frete motorista * 6,9375%)
+      const debitoEmpresaFederal = baseFreteEmpresa * 0.0925;
+      const impostoFederalPjSpread = Math.max(0, Number((debitoEmpresaFederal - (baseFreteMotorista * 0.0925)).toFixed(2)));
+      const impostoFederalSimples = Math.max(0, Number((debitoEmpresaFederal - (baseFreteMotorista * 0.069375)).toFixed(2)));
+      const impostoFederalPf = Math.max(0, Number((debitoEmpresaFederal - (baseFreteMotorista * 0.069375)).toFixed(2)));
 
       let impostoFederalMercadoInterno = 0;
       if (isSimplesNacional) {
@@ -2105,10 +2108,10 @@ const AttachmentModal: React.FC<AttachmentModalProps> = ({
       const federalTaxDesc = isExportCargo
         ? `(Exportação - Crédito ${creditRateLabel}: ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(effectiveCredit)})`
         : isSimplesNacional
-          ? '(Simples Nacional: 3,40% s/ Frete Bruto)'
+          ? '(PJ Simples: 9,25% Empresa - 6,9375% Motorista)'
           : isShipmentPf
-            ? '(PF: 3,655% s/ Frete Líquido)'
-            : `(PJ: 9,25% s/ Spread ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(diferencaFreteReais)})`;
+            ? '(PF: 9,25% Empresa - 6,9375% Motorista)'
+            : `(PJ Real/Presumido: 9,25% Empresa - 9,25% Motorista)`;
 
       showToast(`Impostos Federais sincronizados! Imposto Federal Líquido: ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(effectiveFederalTax)} ${federalTaxDesc}`, 'success');
     } catch (err: any) {

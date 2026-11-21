@@ -230,16 +230,20 @@ const App: React.FC = () => {
     localStorage.setItem('trancunha_theme_mode', mode);
     if (mode === 'dark') {
       document.documentElement.classList.add('dark');
+      document.documentElement.classList.remove('light');
     } else {
       document.documentElement.classList.remove('dark');
+      document.documentElement.classList.add('light');
     }
   };
 
   useEffect(() => {
     if (themeMode === 'dark') {
       document.documentElement.classList.add('dark');
+      document.documentElement.classList.remove('light');
     } else {
       document.documentElement.classList.remove('dark');
+      document.documentElement.classList.add('light');
     }
   }, [themeMode]);
   
