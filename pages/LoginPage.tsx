@@ -805,10 +805,14 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, users, companyLogo, prof
                           type={showRegPassword ? 'text' : 'password'}
                           required
                           disabled={isLoading}
+                          autoCapitalize="none"
+                          autoCorrect="off"
+                          spellCheck={false}
+                          data-no-uppercase="true"
                           value={regPassword}
                           onChange={e => setRegPassword(e.target.value)}
                           placeholder="Mínimo 4 dígitos"
-                          className="w-full px-3 py-2.5 pr-9 rounded-xl bg-slate-950/80 border border-slate-700/80 text-white text-xs placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 transition-all"
+                          className="w-full px-3 py-2.5 pr-9 rounded-xl bg-slate-950/80 border border-slate-700/80 text-white text-xs placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 transition-all normal-case"
                         />
                         <button
                           type="button"
@@ -829,10 +833,14 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, users, companyLogo, prof
                           type={showRegConfirmPassword ? 'text' : 'password'}
                           required
                           disabled={isLoading}
+                          autoCapitalize="none"
+                          autoCorrect="off"
+                          spellCheck={false}
+                          data-no-uppercase="true"
                           value={regConfirmPassword}
                           onChange={e => setRegConfirmPassword(e.target.value)}
                           placeholder="Repita a senha"
-                          className="w-full px-3 py-2.5 pr-9 rounded-xl bg-slate-950/80 border border-slate-700/80 text-white text-xs placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 transition-all"
+                          className="w-full px-3 py-2.5 pr-9 rounded-xl bg-slate-950/80 border border-slate-700/80 text-white text-xs placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 transition-all normal-case"
                         />
                         <button
                           type="button"
@@ -897,10 +905,14 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, users, companyLogo, prof
                             type="text"
                             required
                             disabled={isLoading}
+                            autoCapitalize="none"
+                            autoCorrect="off"
+                            spellCheck={false}
+                            data-no-uppercase="true"
                             value={email}
                             onChange={e => setEmail(e.target.value)}
                             placeholder="seu.email@transcunhaoficial.com.br, usuário ou CPF"
-                            className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-950/80 border border-slate-700/80 text-white text-sm placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                            className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-950/80 border border-slate-700/80 text-white text-sm placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all normal-case"
                           />
                         </div>
                       </div>
@@ -920,10 +932,14 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, users, companyLogo, prof
                             type={showPassword ? 'text' : 'password'}
                             required
                             disabled={isLoading}
+                            autoCapitalize="none"
+                            autoCorrect="off"
+                            spellCheck={false}
+                            data-no-uppercase="true"
                             value={password}
                             onChange={e => setPassword(e.target.value)}
                             placeholder="Digite sua senha de acesso"
-                            className="w-full pl-10 pr-10 py-3 rounded-xl bg-slate-950/80 border border-slate-700/80 text-white text-sm placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                            className="w-full pl-10 pr-10 py-3 rounded-xl bg-slate-950/80 border border-slate-700/80 text-white text-sm placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all normal-case"
                           />
                           <button
                             type="button"
@@ -972,11 +988,16 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, users, companyLogo, prof
                           </div>
                           <input
                             type={showPassword ? 'text' : 'password'}
+                            name="driverPassword"
                             disabled={isLoading}
+                            autoCapitalize="none"
+                            autoCorrect="off"
+                            spellCheck={false}
+                            data-no-uppercase="true"
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                             placeholder="Senha (Opcional no 1º acesso)"
-                            className="w-full pl-10 pr-10 py-3 rounded-xl bg-slate-950/80 border border-slate-700/80 text-white text-sm placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all"
+                            className="w-full pl-10 pr-10 py-3 rounded-xl bg-slate-950/80 border border-slate-700/80 text-white text-sm placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all normal-case"
                           />
                           <button
                             type="button"

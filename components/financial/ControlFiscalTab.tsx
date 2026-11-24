@@ -4,10 +4,10 @@ import {
   Calendar, FileText, Search, Plus, Trash2, Edit3, Eye, Download, 
   Upload, X, RefreshCw, Filter, Layers, ExternalLink, Paperclip, 
   Tag, Clock, Sparkles, Building2, Check, ArrowRight, Grid, List, 
-  FileSpreadsheet, Loader2, Info, ChevronDown, Pencil
+  FileSpreadsheet, Loader2, Info, ChevronDown, Pencil, Mail, Send
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import type { FiscalDocument, FiscalDocumentType, FiscalAlertLevel, FiscalDocumentAttachment, Branch, User } from '../../types';
+import type { FiscalDocument, FiscalDocumentType, FiscalAlertLevel, FiscalDocumentAttachment, Branch, User, Client } from '../../types';
 import { 
   getFiscalDocuments, 
   saveFiscalDocument, 
@@ -25,11 +25,13 @@ import {
 } from '../../services/fiscalControlService';
 import { extractDataFromInvoiceFile, extractDataFromBoletoFile } from '../../utils/invoiceExtractionService';
 import { DocumentPreviewModal } from '../DocumentPreviewModal';
+import { FiscalHomologationModal } from './FiscalHomologationModal';
 import { useToast } from '../../hooks/useToast';
 import { supabase } from '../../supabase';
 
 interface ControlFiscalTabProps {
   branches?: Branch[];
+  clients?: Client[];
   currentUser?: User | null;
   isModal?: boolean;
   onClose?: () => void;
@@ -46,6 +48,7 @@ const readFileAsDataUrl = (fileOrBlob: File | Blob): Promise<string> => {
 
 export const ControlFiscalTab: React.FC<ControlFiscalTabProps> = ({
   branches = [],
+  clients = [],
   currentUser,
   isModal = false,
   onClose
@@ -62,9 +65,26 @@ export const ControlFiscalTab: React.FC<ControlFiscalTabProps> = ({
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
 
+  // Clientes internos com fallback para carregar caso prop esteja vazia
+  const [internalClients, setInternalClients] = useState<Client[]>(clients);
+
+  useEffect(() => {
+    if (clients && clients.length > 0) {
+      setInternalClients(clients);
+    } else {
+      supabase.from('clients').select('*').order('nomeFantasia').then(({ data, error }) => {
+        if (!error && Array.isArray(data)) {
+          setInternalClients(data);
+        }
+      });
+    }
+  }, [clients]);
+
   // Modais
   const [isDocModalOpen, setIsDocModalOpen] = useState(false);
   const [isTypeModalOpen, setIsTypeModalOpen] = useState(false);
+  const [isHomologationModalOpen, setIsHomologationModalOpen] = useState(false);
+  const [homologationDocId, setHomologationDocId] = useState<string | null>(null);
   const [editingDoc, setEditingDoc] = useState<FiscalDocument | null>(null);
   const [previewFile, setPreviewFile] = useState<{ url: string; name: string } | null>(null);
 
@@ -734,6 +754,19 @@ export const ControlFiscalTab: React.FC<ControlFiscalTabProps> = ({
 
             <button
               type="button"
+              onClick={() => {
+                setHomologationDocId(null);
+                setIsHomologationModalOpen(true);
+              }}
+              className="px-3.5 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-md shadow-blue-600/30 transition-all flex items-center gap-1.5 cursor-pointer transform active:scale-95"
+              title="Gerar e Enviar Dossiê de Homologação da Transportadora para Clientes via contato@transcunhaoficial.com.br"
+            >
+              <Mail className="w-3.5 h-3.5 text-blue-200" />
+              <span>Dossiê de Homologação</span>
+            </button>
+
+            <button
+              type="button"
               onClick={() => handleOpenDocModal()}
               className="px-4 py-2 rounded-xl text-xs sm:text-sm font-black bg-gradient-to-r from-indigo-500 to-blue-600 hover:from-indigo-600 hover:to-blue-700 text-white shadow-lg shadow-indigo-500/30 transition-all transform active:scale-95 flex items-center gap-2 cursor-pointer"
             >
@@ -1257,6 +1290,17 @@ export const ControlFiscalTab: React.FC<ControlFiscalTabProps> = ({
                           </button>
                           <button
                             type="button"
+                            onClick={() => {
+                              setHomologationDocId(doc.id);
+                              setIsHomologationModalOpen(true);
+                            }}
+                            className="p-1.5 rounded-lg text-sky-500 hover:bg-sky-50 dark:hover:bg-sky-950/40 transition-colors cursor-pointer"
+                            title="Enviar este documento por e-mail para homologação de cliente"
+                          >
+                            <Mail className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => handleOpenDocModal(doc)}
                             className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-colors cursor-pointer"
                             title="Editar dados completos do documento"
@@ -1438,6 +1482,17 @@ export const ControlFiscalTab: React.FC<ControlFiscalTabProps> = ({
                       title="Renovar este documento"
                     >
                       <RefreshCw className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setHomologationDocId(doc.id);
+                        setIsHomologationModalOpen(true);
+                      }}
+                      className="p-1.5 rounded-lg text-sky-500 hover:bg-sky-50 dark:hover:bg-sky-950/40 transition-colors cursor-pointer"
+                      title="Enviar este documento por e-mail para homologação de cliente"
+                    >
+                      <Mail className="w-4 h-4" />
                     </button>
                     <button
                       type="button"
@@ -1968,6 +2023,19 @@ export const ControlFiscalTab: React.FC<ControlFiscalTabProps> = ({
         fileUrl={previewFile?.url || null}
         fileName={previewFile?.name || 'Documento Fiscal'}
         category="Controladoria Fiscal"
+      />
+
+      {/* MODAL DE ENVIO DE DOSSIÊ DE HOMOLOGAÇÃO PARA CLIENTES */}
+      <FiscalHomologationModal
+        isOpen={isHomologationModalOpen}
+        onClose={() => {
+          setIsHomologationModalOpen(false);
+          setHomologationDocId(null);
+        }}
+        documents={documents}
+        clients={internalClients}
+        branches={branches}
+        preselectedDocId={homologationDocId}
       />
     </div>
   );

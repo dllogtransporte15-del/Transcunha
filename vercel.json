@@ -5,7 +5,7 @@
       "destination": "https://evolution-api-production-2e84c515.up.railway.app/:path*"
     },
     {
-      "source": "/(.*)",
+      "source": "/((?!api/).*)",
       "destination": "/index.html"
     }
   ]

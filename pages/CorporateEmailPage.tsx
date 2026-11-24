@@ -1,41 +1,41 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import type { 
-  User, 
-  CorporateEmailAccount, 
-  CorporateEmailServerConfig, 
-  CorporateEmailDepartment, 
-  CorporateEmailStatus 
+import type {
+  User,
+  CorporateEmailAccount,
+  CorporateEmailServerConfig,
+  CorporateEmailDepartment,
+  CorporateEmailStatus
 } from '../types';
 import { isDeveloperUser, filterVisibleUsers } from '../auth';
-import { 
-  corporateEmailService, 
-  DEFAULT_EMAIL_SERVER_CONFIG, 
-  PROVIDER_PRESETS 
+import {
+  corporateEmailService,
+  DEFAULT_EMAIL_SERVER_CONFIG,
+  PROVIDER_PRESETS
 } from '../services/corporateEmailService';
-import { 
-  Mail, 
-  Plus, 
-  Search, 
-  Filter, 
-  ExternalLink, 
-  Copy, 
-  Check, 
-  Eye, 
-  EyeOff, 
-  Key, 
-  Server, 
-  ShieldCheck, 
-  HardDrive, 
-  Users, 
-  Edit3, 
-  Trash2, 
-  Send, 
-  Sparkles, 
-  FileText, 
-  RefreshCw, 
-  CheckCircle2, 
-  AlertCircle, 
-  Globe, 
+import {
+  Mail,
+  Plus,
+  Search,
+  Filter,
+  ExternalLink,
+  Copy,
+  Check,
+  Eye,
+  EyeOff,
+  Key,
+  Server,
+  ShieldCheck,
+  HardDrive,
+  Users,
+  Edit3,
+  Trash2,
+  Send,
+  Sparkles,
+  FileText,
+  RefreshCw,
+  CheckCircle2,
+  AlertCircle,
+  Globe,
   HelpCircle,
   X,
   Smartphone,
@@ -176,7 +176,7 @@ export const CorporateEmailPage: React.FC<CorporateEmailPageProps> = ({
   // Contas filtradas
   const filteredAccounts = useMemo(() => {
     return accounts.filter(acc => {
-      const matchSearch = 
+      const matchSearch =
         acc.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
         acc.displayName.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (acc.userName && acc.userName.toLowerCase().includes(searchTerm.toLowerCase())) ||
@@ -402,10 +402,10 @@ export const CorporateEmailPage: React.FC<CorporateEmailPageProps> = ({
       </Header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-6">
-        
+
         {/* TOP BAR: CARDS DE MÉTRICAS & ATALHOS RÁPIDOS */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          
+
           {/* Card 1: Total de Contas */}
           <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-between">
             <div>
@@ -447,10 +447,9 @@ export const CorporateEmailPage: React.FC<CorporateEmailPageProps> = ({
               </div>
             </div>
             <div className="w-full bg-slate-100 dark:bg-slate-700 h-2 rounded-full overflow-hidden mt-3">
-              <div 
-                className={`h-full transition-all duration-500 rounded-full ${
-                  metrics.usedPercentage > 85 ? 'bg-rose-500' : metrics.usedPercentage > 60 ? 'bg-amber-500' : 'bg-emerald-500'
-                }`}
+              <div
+                className={`h-full transition-all duration-500 rounded-full ${metrics.usedPercentage > 85 ? 'bg-rose-500' : metrics.usedPercentage > 60 ? 'bg-amber-500' : 'bg-emerald-500'
+                  }`}
                 style={{ width: `${Math.min(100, Math.max(5, metrics.usedPercentage))}%` }}
               />
             </div>
@@ -511,11 +510,10 @@ export const CorporateEmailPage: React.FC<CorporateEmailPageProps> = ({
         <div className="bg-white dark:bg-slate-800 p-2 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-wrap items-center gap-2">
           <button
             onClick={() => setActiveTab('accounts')}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
-              activeTab === 'accounts'
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${activeTab === 'accounts'
                 ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
                 : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/60'
-            }`}
+              }`}
           >
             <Mail className="w-4 h-4" />
             <span>Contas de E-mail ({accounts.length})</span>
@@ -523,11 +521,10 @@ export const CorporateEmailPage: React.FC<CorporateEmailPageProps> = ({
 
           <button
             onClick={() => setActiveTab('server')}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
-              activeTab === 'server'
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${activeTab === 'server'
                 ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
                 : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/60'
-            }`}
+              }`}
           >
             <Server className="w-4 h-4" />
             <span>Servidor & DNS (SMTP / IMAP)</span>
@@ -535,11 +532,10 @@ export const CorporateEmailPage: React.FC<CorporateEmailPageProps> = ({
 
           <button
             onClick={() => setActiveTab('signature')}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
-              activeTab === 'signature'
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${activeTab === 'signature'
                 ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
                 : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/60'
-            }`}
+              }`}
           >
             <Sparkles className="w-4 h-4 text-amber-400" />
             <span>Gerador de Assinaturas</span>
@@ -547,11 +543,10 @@ export const CorporateEmailPage: React.FC<CorporateEmailPageProps> = ({
 
           <button
             onClick={() => setActiveTab('compose')}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
-              activeTab === 'compose'
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${activeTab === 'compose'
                 ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
                 : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/60'
-            }`}
+              }`}
           >
             <Send className="w-4 h-4" />
             <span>Testar Envio Institucional</span>
@@ -610,7 +605,7 @@ export const CorporateEmailPage: React.FC<CorporateEmailPageProps> = ({
         {/* ========================================================= */}
         {activeTab === 'accounts' && (
           <div className="space-y-4 animate-fade-in">
-            
+
             {/* Barra de Filtros */}
             <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
               <div className="flex-1 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
@@ -698,7 +693,7 @@ export const CorporateEmailPage: React.FC<CorporateEmailPageProps> = ({
 
                         return (
                           <tr key={account.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-700/40 transition-colors">
-                            
+
                             {/* 1. Endereço & Titular */}
                             <td className="py-3 px-4">
                               <div className="flex items-center gap-2">
@@ -808,9 +803,8 @@ export const CorporateEmailPage: React.FC<CorporateEmailPageProps> = ({
                                 </div>
                                 <div className="w-full bg-slate-100 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
                                   <div
-                                    className={`h-full rounded-full ${
-                                      usedPct > 80 ? 'bg-rose-500' : usedPct > 50 ? 'bg-amber-500' : 'bg-blue-500'
-                                    }`}
+                                    className={`h-full rounded-full ${usedPct > 80 ? 'bg-rose-500' : usedPct > 50 ? 'bg-amber-500' : 'bg-blue-500'
+                                      }`}
                                     style={{ width: `${Math.min(100, Math.max(5, usedPct))}%` }}
                                   />
                                 </div>
@@ -819,13 +813,12 @@ export const CorporateEmailPage: React.FC<CorporateEmailPageProps> = ({
 
                             {/* 6. Status */}
                             <td className="py-3 px-4 text-center">
-                              <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${
-                                account.status === 'Ativo'
+                              <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${account.status === 'Ativo'
                                   ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800'
                                   : account.status === 'Bloqueado'
-                                  ? 'bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300 border-rose-300 dark:border-rose-800'
-                                  : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border-slate-300 dark:border-slate-700'
-                              }`}>
+                                    ? 'bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300 border-rose-300 dark:border-rose-800'
+                                    : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border-slate-300 dark:border-slate-700'
+                                }`}>
                                 <span className={`w-1.5 h-1.5 rounded-full ${account.status === 'Ativo' ? 'bg-emerald-500' : 'bg-slate-400'}`} />
                                 <span>{account.status}</span>
                               </span>
@@ -888,7 +881,7 @@ export const CorporateEmailPage: React.FC<CorporateEmailPageProps> = ({
         {activeTab === 'server' && (
           <div className="space-y-6 animate-fade-in">
             <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-6">
-              
+
               <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-700 gap-3">
                 <div>
                   <h3 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
@@ -919,7 +912,7 @@ export const CorporateEmailPage: React.FC<CorporateEmailPageProps> = ({
               </div>
 
               <form onSubmit={handleSaveServerConfig} className="space-y-6">
-                
+
                 {/* 1. Domínio & Webmail */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
@@ -1111,7 +1104,7 @@ export const CorporateEmailPage: React.FC<CorporateEmailPageProps> = ({
         {activeTab === 'signature' && selectedSignatureAccount && (
           <div className="space-y-6 animate-fade-in">
             <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-6">
-              
+
               <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-700 gap-3">
                 <div>
                   <h3 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
@@ -1176,9 +1169,9 @@ export const CorporateEmailPage: React.FC<CorporateEmailPageProps> = ({
                 </span>
                 <div className="p-6 bg-slate-50 dark:bg-slate-900/60 rounded-2xl border border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row items-start gap-4">
                   {companyLogo ? (
-                    <img 
-                      src={companyLogo} 
-                      alt="Logo Transcunha" 
+                    <img
+                      src={companyLogo}
+                      alt="Logo Transcunha"
                       className="h-16 max-w-[140px] object-contain rounded shrink-0 bg-white p-1 border border-slate-200"
                     />
                   ) : (
@@ -1241,7 +1234,7 @@ export const CorporateEmailPage: React.FC<CorporateEmailPageProps> = ({
         {activeTab === 'compose' && (
           <div className="space-y-6 animate-fade-in">
             <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
-              
+
               <div className="pb-3 border-b border-slate-100 dark:border-slate-700">
                 <h3 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
                   <Send className="w-5 h-5 text-blue-600" />
@@ -1277,10 +1270,15 @@ export const CorporateEmailPage: React.FC<CorporateEmailPageProps> = ({
                     </label>
                     <input
                       type="email"
+                      name="composeTo"
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
+                      data-no-uppercase="true"
                       value={composeTo}
                       onChange={(e) => setComposeTo(e.target.value)}
                       placeholder="destinatario@cliente.com.br ou seu.email@pessoal.com"
-                      className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs sm:text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                      className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs sm:text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/40 normal-case"
                       required
                     />
                   </div>
@@ -1346,7 +1344,7 @@ export const CorporateEmailPage: React.FC<CorporateEmailPageProps> = ({
       {isAccountModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm animate-fade-in">
           <div className="bg-white dark:bg-slate-800 w-full max-w-2xl rounded-3xl border border-slate-200 dark:border-slate-700 shadow-2xl overflow-hidden animate-scale-up">
-            
+
             {/* Modal Header */}
             <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between bg-slate-50/50 dark:bg-slate-900/40">
               <div className="flex items-center gap-2.5">
@@ -1372,7 +1370,7 @@ export const CorporateEmailPage: React.FC<CorporateEmailPageProps> = ({
 
             {/* Modal Body */}
             <form onSubmit={handleSaveAccount} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
-              
+
               {/* 1. Vínculo com Usuário Existente (Opcional) */}
               <div className="p-3 bg-blue-50/60 dark:bg-blue-950/30 rounded-2xl border border-blue-100 dark:border-blue-900/50 space-y-2">
                 <div className="flex items-center justify-between">

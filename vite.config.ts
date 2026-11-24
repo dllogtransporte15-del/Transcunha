@@ -186,6 +186,131 @@ export default defineConfig({
         });
       }
     },
+    {
+      name: 'send-email-endpoint',
+      configureServer(server) {
+        server.middlewares.use('/api/send-email', async (req, res) => {
+          res.setHeader('Access-Control-Allow-Origin', '*');
+          res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+          res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+          if (req.method === 'OPTIONS') {
+            res.statusCode = 200;
+            res.end();
+            return;
+          }
+
+          if (req.method !== 'POST') {
+            res.statusCode = 405;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error: 'Method not allowed. Use POST.' }));
+            return;
+          }
+
+          const chunks: any[] = [];
+          req.on('data', chunk => { chunks.push(chunk); });
+          req.on('end', async () => {
+            try {
+              const bodyStr = Buffer.concat(chunks).toString('utf-8');
+              const body = JSON.parse(bodyStr || '{}');
+
+              const {
+                to,
+                subject,
+                html,
+                text,
+                senderEmail: customSender,
+                senderName = 'Transcunha Transportes e Logística',
+                replyTo,
+                appPassword: customPassword,
+                attachments = [],
+              } = body;
+
+              if (!to) {
+                res.statusCode = 400;
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({ error: 'Destinatário (to) é obrigatório.' }));
+                return;
+              }
+
+              const senderEmail = (customSender || process.env.GWORKSPACE_USER || 'contato@transcunhaoficial.com.br').trim();
+              const rawPassword = (customPassword || process.env.GWORKSPACE_APP_PASSWORD || '').trim();
+              const appPassword = rawPassword.replace(/\s+/g, '');
+
+              if (!appPassword) {
+                res.statusCode = 400;
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({
+                  error: 'Senha de App do Google Workspace não configurada.',
+                  code: 'MISSING_APP_PASSWORD'
+                }));
+                return;
+              }
+
+              const processedAttachments: any[] = [];
+              for (const att of attachments) {
+                if (att.base64 || att.content) {
+                  const raw = (att.base64 || att.content || '').replace(/^data:[^;]+;base64,/, '');
+                  processedAttachments.push({
+                    filename: att.filename || 'anexo.pdf',
+                    content: Buffer.from(raw, 'base64'),
+                    contentType: att.contentType || 'application/pdf',
+                  });
+                }
+              }
+
+              const nodemailerModule = await import('nodemailer');
+              const nodemailer = nodemailerModule.default || nodemailerModule;
+
+              const transporter = nodemailer.createTransport({
+                host: 'smtp.gmail.com',
+                port: 465,
+                secure: true,
+                auth: {
+                  user: senderEmail,
+                  pass: appPassword,
+                },
+                connectionTimeout: 20000,
+                greetingTimeout: 20000,
+                socketTimeout: 35000,
+              });
+
+              const info = await transporter.sendMail({
+                from: `"${senderName}" <${senderEmail}>`,
+                to: Array.isArray(to) ? to.join(', ') : to,
+                replyTo: replyTo || senderEmail,
+                subject,
+                text: text || undefined,
+                html: html || undefined,
+                attachments: processedAttachments,
+              });
+
+              res.statusCode = 200;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({
+                success: true,
+                messageId: info.messageId,
+                accepted: info.accepted,
+                totalAttachments: processedAttachments.length,
+                sender: senderEmail,
+              }));
+            } catch (err: any) {
+              const errorMessage = err?.message || 'Erro ao enviar e-mail';
+              let userHelp = '';
+              if (errorMessage.includes('Invalid login') || errorMessage.includes('535')) {
+                userHelp = 'Falha de autenticação no Google Workspace. Verifique se o e-mail está correto e utilize uma "Senha de App" de 16 dígitos.';
+              }
+              res.statusCode = 500;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({
+                error: errorMessage,
+                userHelp,
+              }));
+            }
+          });
+        });
+      }
+    },
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['vite.svg'],

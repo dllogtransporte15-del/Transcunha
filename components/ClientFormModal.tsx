@@ -398,8 +398,12 @@ const ClientFormModal: React.FC<ClientFormModalProps> = ({
                     value={client.email}
                     onChange={handleChange}
                     type="email"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    data-no-uppercase="true"
                     placeholder="contato@empresa.com.br"
-                    className="w-full p-2.5 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-primary shadow-xs"
+                    className="w-full p-2.5 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-primary shadow-xs normal-case"
                   />
                 </div>
 
@@ -816,8 +820,12 @@ const ClientFormModal: React.FC<ClientFormModalProps> = ({
                         onChange={handleBranchChange}
                         onKeyDown={handleBranchKeyDown}
                         type="email"
+                        autoCapitalize="none"
+                        autoCorrect="off"
+                        spellCheck={false}
+                        data-no-uppercase="true"
                         placeholder="filial@empresa.com.br"
-                        className="w-full p-2.5 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-600 shadow-xs"
+                        className="w-full p-2.5 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-600 shadow-xs normal-case"
                       />
                     </div>
 

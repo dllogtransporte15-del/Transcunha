@@ -474,25 +474,26 @@ html.light .input-group {
 
 
 /* ==========================================================================
-   TIPOGRAFIA GLOBAL EM CAIXA ALTA (UPPERCASE) PARA TODOS OS CAMPOS
+   TIPOGRAFIA GLOBAL EM CAIXA ALTA (UPPERCASE) PARA CAMPOS GERAIS
+   (COM DESTRAVAMENTO TOTAL DE E-MAILS, SENHAS E CREDENCIAIS)
    ========================================================================== */
 
-/* Todos os inputs (exceto senha), selects e textareas em caixa alta */
-input:not([type="password"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]),
+/* Todos os inputs gerais (exceto senhas, e-mails e credenciais), selects e textareas em caixa alta */
+input:not([type="password"]):not([type="email"]):not([type="url"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not([name*="email" i]):not([name*="mail" i]):not([name*="senha" i]):not([name*="password" i]):not([name*="pass" i]):not([id*="email" i]):not([id*="mail" i]):not([id*="senha" i]):not([id*="password" i]):not([id*="pass" i]):not([data-no-uppercase]):not(.no-uppercase):not(.normal-case):not(.lowercase),
 select,
-textarea,
-.form-input,
+textarea:not([data-no-uppercase]):not(.no-uppercase):not(.normal-case):not(.lowercase),
+.form-input:not([type="password"]):not([type="email"]):not([name*="email" i]):not([name*="senha" i]):not([name*="password" i]):not(.no-uppercase):not(.normal-case),
 .form-select,
-.form-textarea,
-.form-control,
+.form-textarea:not([data-no-uppercase]):not(.no-uppercase):not(.normal-case),
+.form-control:not([type="password"]):not([type="email"]):not([name*="email" i]):not([name*="senha" i]):not([name*="password" i]):not(.no-uppercase):not(.normal-case),
 [role="combobox"],
 [role="searchbox"] {
   text-transform: uppercase !important;
 }
 
-/* Placeholders de todos os campos em caixa alta */
-input:not([type="password"])::placeholder,
-textarea::placeholder {
+/* Placeholders gerais em caixa alta (exceto e-mails e senhas) */
+input:not([type="password"]):not([type="email"]):not([type="url"]):not([name*="email" i]):not([name*="mail" i]):not([name*="senha" i]):not([name*="password" i]):not([name*="pass" i]):not([id*="email" i]):not([id*="mail" i]):not([id*="senha" i]):not([id*="password" i]):not([id*="pass" i]):not([data-no-uppercase]):not(.no-uppercase):not(.normal-case)::placeholder,
+textarea:not([data-no-uppercase]):not(.no-uppercase):not(.normal-case)::placeholder {
   text-transform: uppercase !important;
 }
 
@@ -538,13 +539,60 @@ table td,
   text-transform: uppercase !important;
 }
 
-/* Preservação explícita para campos de senha e classes de escape */
-input[type="password"] {
+/* ==========================================================================
+   PRESERVAÇÃO E DESTRAVAMENTO EXPLÍCITO: E-MAILS, SENHAS E CREDENCIAIS
+   ========================================================================== */
+
+/* Campos de Senha (mesmo quando exibidos com type="text" via botão de mostrar senha) */
+input[type="password"],
+input[name*="password" i],
+input[name*="senha" i],
+input[name*="pass" i],
+input[id*="password" i],
+input[id*="senha" i],
+input[id*="pass" i],
+input[autocomplete*="password" i],
+input[data-field="password"],
+input[data-field="senha"],
+
+/* Campos de E-mail e URLs */
+input[type="email"],
+input[type="url"],
+input[name*="email" i],
+input[name*="mail" i],
+input[id*="email" i],
+input[id*="mail" i],
+input[autocomplete*="email" i],
+input[data-field="email"],
+
+/* Classes e Atributos de escape */
+input[data-no-uppercase],
+textarea[data-no-uppercase],
+.no-uppercase,
+.no-uppercase *,
+.normal-case,
+.normal-case * {
   text-transform: none !important;
 }
 
-.normal-case,
-.normal-case * {
+/* Placeholders de e-mails, senhas e credenciais mantidos naturais */
+input[type="password"]::placeholder,
+input[name*="password" i]::placeholder,
+input[name*="senha" i]::placeholder,
+input[name*="pass" i]::placeholder,
+input[id*="password" i]::placeholder,
+input[id*="senha" i]::placeholder,
+input[id*="pass" i]::placeholder,
+input[type="email"]::placeholder,
+input[type="url"]::placeholder,
+input[name*="email" i]::placeholder,
+input[name*="mail" i]::placeholder,
+input[id*="email" i]::placeholder,
+input[id*="mail" i]::placeholder,
+input[data-no-uppercase]::placeholder,
+textarea[data-no-uppercase]::placeholder,
+.no-uppercase::placeholder,
+.normal-case::placeholder {
   text-transform: none !important;
 }
 

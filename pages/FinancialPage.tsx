@@ -603,6 +603,7 @@ export const FinancialPage: React.FC<FinancialPageProps> = ({
         {activeTab === 'control-fiscal' && (
           <ControlFiscalTab
             branches={branches}
+            clients={clients}
             currentUser={_currentUser}
           />
         )}

@@ -72,7 +72,12 @@ const PasswordChangeModal: React.FC<PasswordChangeModalProps> = ({ user, onPassw
                 </label>
                 <input
                   type="password"
-                  className="w-full px-4 py-3 bg-red-50/30 dark:bg-red-900/10 border-2 border-red-100 dark:border-red-900/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent text-gray-700 dark:text-white transition-all placeholder-gray-400"
+                  name="currentPassword"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  data-no-uppercase="true"
+                  className="w-full px-4 py-3 bg-red-50/30 dark:bg-red-900/10 border-2 border-red-100 dark:border-red-900/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent text-gray-700 dark:text-white transition-all placeholder-gray-400 normal-case"
                   placeholder="Digite sua senha atual"
                   value={currentPassword}
                   onChange={(e) => setCurrentPassword(e.target.value)}
@@ -90,7 +95,12 @@ const PasswordChangeModal: React.FC<PasswordChangeModalProps> = ({ user, onPassw
             </label>
             <input
               type="password"
-              className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border-2 border-gray-100 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent text-gray-700 dark:text-white transition-all placeholder-gray-400"
+              name="newPassword"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              data-no-uppercase="true"
+              className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border-2 border-gray-100 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent text-gray-700 dark:text-white transition-all placeholder-gray-400 normal-case"
               placeholder="Digite sua nova senha"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
@@ -105,7 +115,12 @@ const PasswordChangeModal: React.FC<PasswordChangeModalProps> = ({ user, onPassw
             </label>
             <input
               type="password"
-              className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border-2 border-gray-100 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent text-gray-700 dark:text-white transition-all placeholder-gray-400"
+              name="confirmPassword"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              data-no-uppercase="true"
+              className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border-2 border-gray-100 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent text-gray-700 dark:text-white transition-all placeholder-gray-400 normal-case"
               placeholder="Confirme sua nova senha"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}

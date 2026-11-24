@@ -27,6 +27,154 @@ export interface SystemRelease {
  */
 export const SYSTEM_RELEASES: SystemRelease[] = [
   {
+    id: 'rel_2026_11_23_v2_116_60',
+    version: 'v2.116.60',
+    date: '23/11/2026',
+    title: 'Domínio Oficial transcunhaoficial.com.br para Website Institucional',
+    summary: 'Configuração do domínio oficial transcunhaoficial.com.br para abrir diretamente o Website Institucional na raiz, com transição ágil para o ERP (/dashboard e /login) e atualização dos contatos oficiais.',
+    items: [
+      {
+        category: 'feature',
+        title: 'Website Institucional como Homepage Oficial',
+        description: 'Acessos a transcunhaoficial.com.br ou www.transcunhaoficial.com.br abrem diretamente o portal institucional moderno e responsivo, mantendo acesso rápido à Área do Cliente e ERP.'
+      },
+      {
+        category: 'improvement',
+        title: 'E-mail Oficial nos Canais de Contato',
+        description: 'Padronização do e-mail de contato do website e das apresentações comerciais para contato@transcunhaoficial.com.br.'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_23_v2_116_59',
+    version: 'v2.116.59',
+    date: '23/11/2026',
+    title: 'Prevenção de Erro 400 no Gmail Web & Orientação de Senha de App',
+    summary: 'Ajustada a geração de link do Gmail Webmail no envio do Dossiê para evitar limite de URL (Bad Request Error 400) do Google, com cópia automática de todo o conteúdo para a área de transferência.',
+    items: [
+      {
+        category: 'fix',
+        title: 'Tratamento de URL no Gmail Web (Evita Bad Request 400)',
+        description: 'Compactação segura dos parâmetros enviados na URL de abertura do Gmail Web, garantindo compatibilidade com os limites de caracteres do servidor do Google sem estourar requisições.'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_23_v2_116_58',
+    version: 'v2.116.58',
+    date: '23/11/2026',
+    title: 'Atualização Cadastral da Filial SP (Ipaussu - SP)',
+    summary: 'Corrigida a localização do CNPJ 36.203.306/0002-73 para Ipaussu - SP no Dossiê de Homologação, templates de e-mail institucional, seletores e apresentações comerciais.',
+    items: [
+      {
+        category: 'fix',
+        title: 'Filial SP em Ipaussu - SP',
+        description: 'Atualização da identificação cadastral do CNPJ 36.203.306/0002-73 para Ipaussu - SP no corpo do e-mail, texto de apresentação e seletores da Controladoria Fiscal.'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_23_v2_116_57',
+    version: 'v2.116.57',
+    date: '23/11/2026',
+    title: 'Apresentação Comercial de Parceria & Localização Catalão - GO',
+    summary: 'Atualizada a mensagem do e-mail do Dossiê para um formato profissional de apresentação comercial de parceria logística, e corrigida a localização da Filial GO (CNPJ 36.203.306/0004-35) para Catalão - GO.',
+    items: [
+      {
+        category: 'improvement',
+        title: 'E-mail em Formato de Apresentação de Parceria Comercial',
+        description: 'Texto do corpo do e-mail institucional e HTML reformulados para uma mensagem atrativa e formal de apresentação de parceria logística, destacando a atuação nacional, frota qualificada e convidando para reuniões e cotações de fretes.'
+      },
+      {
+        category: 'fix',
+        title: 'Correção de Município da Filial GO (Catalão - GO)',
+        description: 'Atualização do município correspondente ao CNPJ 36.203.306/0004-35 para Catalão - GO em todos os templates de e-mail, dossiês e seletores de filial.'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_23_v2_116_56',
+    version: 'v2.116.56',
+    date: '23/11/2026',
+    title: 'Destravamento Global de Caixa Alta em E-mails, Senhas e Credenciais',
+    summary: 'Removida a regra global de caixa alta (uppercase) para todos os campos de e-mail, senha, tokens e credenciais do sistema, preservando a digitação original em minúsculas e maiúsculas sem distorções visuais ou de autenticação.',
+    items: [
+      {
+        category: 'improvement',
+        title: 'Preservação de Senhas e Senhas de App',
+        description: 'Campos de senha (inclusive quando revelados no botão de olho/visibilidade) e Senhas de App do Google Workspace não sofrem mais transformação forçada para maiúsculas.'
+      },
+      {
+        category: 'improvement',
+        title: 'Campos de E-mail em Caixa Natural',
+        description: 'Inputs de e-mail em login, usuários, clientes, motoristas, homologação fiscal e comunicados preservam caracteres em minúsculas conforme digitados.'
+      },
+      {
+        category: 'fix',
+        title: 'Exclusão Abrangente nas Regras Globais de Tipografia',
+        description: 'Ajuste nas regras globais de CSS e formatadores para proteger seletivamente campos de credenciais, mantendo a caixa alta apenas em dados cadastrais gerais, placas e cidades.'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_23_v2_116_55',
+    version: 'v2.116.55',
+    date: '23/11/2026',
+    title: 'Disparo Automático de Dossiê com PDFs Anexados via Google Workspace',
+    summary: 'Implementado o disparo automático em segundo plano do Dossiê de Homologação via Google Workspace com Senha de App, anexando fisicamente todos os arquivos PDF selecionados diretamente no e-mail entregue ao cliente ou embarcador.',
+    items: [
+      {
+        category: 'feature',
+        title: 'Disparo com Anexos Físicos de PDF no E-mail',
+        description: 'Os documentos, certidões e apólices selecionados são baixados e anexados diretamente como arquivos .pdf na mensagem de e-mail entregue ao cliente ou embarcador, sem necessidade de anexar manualmente.'
+      },
+      {
+        category: 'feature',
+        title: 'Integração Google Workspace via Senha de App',
+        description: 'Configuração com Senha de App de 16 caracteres e e-mail oficial (contato@transcunhaoficial.com.br), salva no navegador para envios instantâneos com 1 clique.'
+      },
+      {
+        category: 'improvement',
+        title: 'Template HTML Executivo e Responsivo',
+        description: 'E-mail corporativo com visual profissional, tabela detalhada de documentos com status de validade, CNPJs de todas as filiais e resumo das apólices RCTR-C e RC-DC.'
+      },
+      {
+        category: 'improvement',
+        title: 'Acompanhamento em Tempo Real do Envio',
+        description: 'Feedback visual passo a passo informando o download dos PDFs, conexão SMTP com smtp.gmail.com e confirmação de entrega ao destinatário.'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_23_v2_116_54',
+    version: 'v2.116.54',
+    date: '23/11/2026',
+    title: 'Controladoria Fiscal: Dossiê de Homologação & Envio via Google Workspace',
+    summary: 'Implementado o módulo e modal de envio de Dossiê de Homologação de Fornecedor a partir da Controladoria Fiscal com o e-mail oficial contato@transcunhaoficial.com.br, permitindo selecionar clientes, filiais e documentos válidos com geração automática de e-mail institucional e disparo via Google Workspace (Gmail).',
+    items: [
+      {
+        category: 'feature',
+        title: 'Dossiê de Homologação para Clientes e Embarcadores',
+        description: 'Novo botão "Dossiê de Homologação" no topo da Controladoria Fiscal e botões de envio direto por documento nas tabelas e cards, permitindo selecionar documentos/CNDs/apólices para homologação da Transcunha.'
+      },
+      {
+        category: 'fix',
+        title: 'Correção de Limite de URL no Google Workspace (Error 400)',
+        description: 'Tratamento inteligente de tamanho de URL para abertura do Gmail corporativo, eliminando o erro HTTP 400 Bad Request e copiando automaticamente o dossiê completo para colagem instantânea (Ctrl+V) com todos os links de download.'
+      },
+      {
+        category: 'feature',
+        title: 'Integração Google Workspace (contato@transcunhaoficial.com.br)',
+        description: 'Composição de e-mail institucional com 1 clique para o Gmail corporativo, com dados cadastrais completos, links seguros de download e assinatura oficial da transportadora.'
+      },
+      {
+        category: 'improvement',
+        title: 'Vínculo Inteligente com Cadastro de Clientes',
+        description: 'Preenchimento automático do e-mail de contato ao selecionar qualquer cliente já cadastrado no sistema, com opções de cópia integral do e-mail e de links dos documentos.'
+      }
+    ]
+  },
+  {
     id: 'rel_2026_11_20_v2_116_53',
     version: 'v2.116.53',
     date: '20/11/2026',

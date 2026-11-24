@@ -1055,7 +1055,7 @@ export const CommercialPresentationPage: React.FC<CommercialPresentationPageProp
                 </p>
 
                 <div 
-                  onClick={() => window.open('/site', '_blank')}
+                  onClick={() => window.open('https://transcunhaoficial.com.br', '_blank')}
                   className="p-4 rounded-xl bg-slate-900/90 border border-slate-700 hover:border-sky-500/60 hover:bg-slate-800/90 transition-all cursor-pointer group flex items-center justify-between shadow-lg"
                   title="Clique para abrir o website oficial (transcunhaoficial.com.br)"
                 >

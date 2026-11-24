@@ -69,6 +69,17 @@ export const autoFormatInput = (name: string, value: string): string => {
     return value;
   }
 
+  // Preservação estrita: campos de e-mail e senha nunca sofrem formatação de caixa ou máscara indevida
+  if (
+    lowerName.includes('email') ||
+    lowerName.includes('mail') ||
+    lowerName.includes('senha') ||
+    lowerName.includes('password') ||
+    lowerName.includes('pass')
+  ) {
+    return value;
+  }
+
   if (lowerName === 'cpf' || lowerName === 'drivercpf' || lowerName === 'ownercpf') {
     return formatCPF(value);
   }

@@ -4020,6 +4020,7 @@ export const ControlShipmentsTab: React.FC<ControlShipmentsTabProps> = ({
         isOpen={isFiscalModalOpen}
         onClose={() => setIsFiscalModalOpen(false)}
         branches={branches}
+        clients={clients}
         currentUser={currentUser}
       />
     </div>

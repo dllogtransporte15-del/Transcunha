@@ -14,7 +14,7 @@ interface InstitutionalWebsitePageProps {
 
 const WHATSAPP_COMERCIAL = '5535991030469';
 const WHATSAPP_OPERACOES = '5535998721970';
-const EMAIL_COMERCIAL = 'comercialtranscunha@gmail.com';
+const EMAIL_COMERCIAL = 'contato@transcunhaoficial.com.br';
 
 const NAV_LINKS = [
   { id: 'inicio', label: 'Início' },

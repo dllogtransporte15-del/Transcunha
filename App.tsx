@@ -5001,7 +5001,7 @@ const App: React.FC = () => {
         <InstitutionalWebsitePage 
           companyLogo={companyLogo} 
           isLoggedIn={!!currentUser}
-          onGoToSystem={currentUser ? () => navigate('/') : () => navigate('/login')}
+          onGoToSystem={currentUser ? () => navigate('/dashboard') : () => navigate('/login')}
           onOpenPresentation={() => navigate('/apresentacao')}
         />
       </React.Suspense>

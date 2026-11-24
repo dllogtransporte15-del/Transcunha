@@ -302,8 +302,12 @@ Qualquer dúvida, estamos à disposição! 🚛💨`;
                 value={user.email} 
                 onChange={handleChange} 
                 type="text" 
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                data-no-uppercase="true"
                 placeholder={isMotorista ? "000.000.000-00 (CPF do Motorista)" : "Usuário, CPF ou E-mail de Acesso"} 
-                className="p-2 w-full border rounded dark:bg-gray-700 dark:border-gray-600 text-sm font-mono" 
+                className="p-2 w-full border rounded dark:bg-gray-700 dark:border-gray-600 text-sm font-mono normal-case" 
                 required 
               />
               <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">
@@ -358,8 +362,12 @@ Qualquer dúvida, estamos à disposição! 🚛💨`;
                   value={user.password} 
                   onChange={handleChange} 
                   type="password" 
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  data-no-uppercase="true"
                   placeholder={userToEdit ? 'Nova Senha (em branco para manter)' : 'Senha de Acesso'} 
-                  className="p-2 w-full border rounded dark:bg-gray-700 dark:border-gray-600 text-sm" 
+                  className="p-2 w-full border rounded dark:bg-gray-700 dark:border-gray-600 text-sm normal-case" 
                 />
               </div>
             </div>
@@ -387,9 +395,13 @@ Qualquer dúvida, estamos à disposição! 🚛💨`;
                       name="corporateEmail"
                       value={user.corporateEmail || ''}
                       onChange={handleChange}
-                      type="text"
+                      type="email"
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
+                      data-no-uppercase="true"
                       placeholder="colaborador@transcunhaoficial.com.br"
-                      className="p-2 w-full text-xs font-mono border rounded dark:bg-gray-700 dark:border-gray-600"
+                      className="p-2 w-full text-xs font-mono border rounded dark:bg-gray-700 dark:border-gray-600 normal-case"
                     />
                   </div>
 
@@ -412,8 +424,12 @@ Qualquer dúvida, estamos à disposição! 🚛💨`;
                       value={user.corporateEmailPassword || ''}
                       onChange={handleChange}
                       type="text"
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
+                      data-no-uppercase="true"
                       placeholder="Senha de acesso ao Webmail"
-                      className="p-2 w-full text-xs font-mono border rounded dark:bg-gray-700 dark:border-gray-600"
+                      className="p-2 w-full text-xs font-mono border rounded dark:bg-gray-700 dark:border-gray-600 normal-case"
                     />
                   </div>
                 </div>
