@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { UserProfile } from '../types';
 import type {
   User,
   CorporateEmailAccount,
@@ -14,6 +15,7 @@ import {
 } from '../services/corporateEmailService';
 import {
   Mail,
+  Inbox,
   Plus,
   Search,
   Filter,
@@ -44,6 +46,7 @@ import {
 } from 'lucide-react';
 import Header from '../components/Header';
 import { useToast } from '../hooks/useToast';
+import { WebmailOutlookView } from '../components/corporate-email/WebmailOutlookView';
 
 interface CorporateEmailPageProps {
   currentUser: User;
@@ -99,7 +102,14 @@ export const CorporateEmailPage: React.FC<CorporateEmailPageProps> = ({
   // State: Dados principais
   const [accounts, setAccounts] = useState<CorporateEmailAccount[]>([]);
   const [serverConfig, setServerConfig] = useState<CorporateEmailServerConfig>(DEFAULT_EMAIL_SERVER_CONFIG);
-  const [activeTab, setActiveTab] = useState<'accounts' | 'server' | 'signature' | 'compose'>('accounts');
+  const [activeTab, setActiveTab] = useState<'webmail' | 'accounts' | 'server' | 'signature' | 'compose'>('webmail');
+  const [unreadTotalCount, setUnreadTotalCount] = useState<number>(() => {
+    try {
+      return corporateEmailService.getUnreadCount();
+    } catch {
+      return 0;
+    }
+  });
 
   // State: Filtros de busca
   const [searchTerm, setSearchTerm] = useState('');
@@ -163,13 +173,22 @@ export const CorporateEmailPage: React.FC<CorporateEmailPageProps> = ({
   useEffect(() => {
     loadData();
 
-    const handleUpdate = () => loadData();
+    const handleUpdate = () => {
+      loadData();
+      try {
+        setUnreadTotalCount(corporateEmailService.getUnreadCount());
+      } catch {}
+    };
     window.addEventListener('corporate_emails_updated', handleUpdate);
     window.addEventListener('corporate_email_config_updated', handleUpdate);
+    window.addEventListener('corporate_messages_updated', handleUpdate);
+    window.addEventListener('transcunha:new_corporate_email', handleUpdate);
 
     return () => {
       window.removeEventListener('corporate_emails_updated', handleUpdate);
       window.removeEventListener('corporate_email_config_updated', handleUpdate);
+      window.removeEventListener('corporate_messages_updated', handleUpdate);
+      window.removeEventListener('transcunha:new_corporate_email', handleUpdate);
     };
   }, [users]);
 
@@ -342,10 +361,74 @@ export const CorporateEmailPage: React.FC<CorporateEmailPageProps> = ({
     }
   };
 
+  // Opções de colaboradores (Usuários Internos) para assinatura
+  const internalSignatureOptions = useMemo<CorporateEmailAccount[]>(() => {
+    const internalUsers = visibleUsersForEmail
+      .filter(
+        u =>
+          u.profile !== UserProfile.Cliente &&
+          u.profile !== UserProfile.Motorista &&
+          u.profile !== UserProfile.Embarcador
+      )
+      .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+
+    return internalUsers.map(u => {
+      const matched = accounts.find(
+        a =>
+          a.userId === u.id ||
+          (u.corporateEmail && a.email.toLowerCase() === u.corporateEmail.toLowerCase()) ||
+          (u.email && a.email.toLowerCase() === u.email.toLowerCase())
+      );
+
+      if (matched) {
+        return {
+          ...matched,
+          displayName: u.name,
+          userId: u.id,
+          userName: u.name,
+        };
+      }
+
+      const fallbackLocal =
+        u.name
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '.')
+          .replace(/^\.+|\.+$/g, '') || 'colaborador';
+
+      const email =
+        (u.corporateEmail && u.corporateEmail.trim()) ||
+        (u.email && u.email.includes('@') ? u.email.trim() : `${fallbackLocal}@${serverConfig.domain}`);
+
+      return {
+        id: `user_${u.id}`,
+        email,
+        displayName: u.name,
+        userId: u.id,
+        userName: u.name,
+        department: corporateEmailService.mapProfileToDepartment(u.profile),
+        status: u.active ? 'Ativo' : 'Inativo',
+        quotaMb: serverConfig.defaultQuotaMb || 5120,
+        usedMb: 0,
+        aliases: [],
+        createdAt: '',
+        updatedAt: '',
+      };
+    });
+  }, [visibleUsersForEmail, accounts, serverConfig.domain, serverConfig.defaultQuotaMb]);
+
   // Conta selecionada para assinatura
   const selectedSignatureAccount = useMemo(() => {
-    return accounts.find(a => a.id === selectedSignatureAccountId) || accounts[0];
-  }, [accounts, selectedSignatureAccountId]);
+    return (
+      internalSignatureOptions.find(
+        a => a.id === selectedSignatureAccountId || a.userId === selectedSignatureAccountId
+      ) ||
+      accounts.find(a => a.id === selectedSignatureAccountId) ||
+      internalSignatureOptions[0] ||
+      accounts[0]
+    );
+  }, [internalSignatureOptions, accounts, selectedSignatureAccountId]);
 
   // Enviar e-mail de teste
   const handleSendTestEmail = (e: React.FormEvent) => {
@@ -484,7 +567,7 @@ export const CorporateEmailPage: React.FC<CorporateEmailPageProps> = ({
             </div>
             <div className="flex items-center gap-2 mt-2">
               <a
-                href={serverConfig.webmailUrl}
+                href="https://mail.google.com/mail/u/0/?tab=rm&ogbl#inbox"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex-1 py-2 px-3 bg-white hover:bg-blue-50 text-blue-700 rounded-xl text-xs font-bold text-center transition-all shadow-sm flex items-center justify-center gap-1.5"
@@ -508,6 +591,22 @@ export const CorporateEmailPage: React.FC<CorporateEmailPageProps> = ({
 
         {/* NAVEGAÇÃO DE ABAS */}
         <div className="bg-white dark:bg-slate-800 p-2 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => setActiveTab('webmail')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${activeTab === 'webmail'
+                ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
+                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/60'
+              }`}
+          >
+            <Inbox className="w-4 h-4" />
+            <span>Webmail Outlook</span>
+            {unreadTotalCount > 0 && (
+              <span className={`px-2 py-0.5 text-xs font-black rounded-full ${activeTab === 'webmail' ? 'bg-white text-blue-600' : 'bg-blue-600 text-white animate-pulse'}`}>
+                {unreadTotalCount}
+              </span>
+            )}
+          </button>
+
           <button
             onClick={() => setActiveTab('accounts')}
             className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${activeTab === 'accounts'
@@ -566,7 +665,7 @@ export const CorporateEmailPage: React.FC<CorporateEmailPageProps> = ({
               </p>
             </div>
             <a
-              href="https://outlook.office.com"
+              href="https://admin.google.com/?utm_source=og_am&rapt=AEjHL4NB8yUVlJhoL5PaKW0-2Moki-8dJucxxkB7CpgzglxTADO1dCZ2lA0_6Lw4lsjwRuiFEtKjR5UAOg-mpZQxL3kJTrcT3mwmtfI3RXyZBYTYLoXk2DI"
               target="_blank"
               rel="noopener noreferrer"
               className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-600/30 transition-all shrink-0 flex items-center gap-1.5 cursor-pointer"
@@ -598,6 +697,17 @@ export const CorporateEmailPage: React.FC<CorporateEmailPageProps> = ({
               <span>Acessar Gmail</span>
             </a>
           </div>
+        )}
+
+        {/* ========================================================= */}
+        {/* ABA 0: WEBMAIL CORPORATIVO (ESTILO OUTLOOK 3 COLUNAS)    */}
+        {/* ========================================================= */}
+        {activeTab === 'webmail' && (
+          <WebmailOutlookView
+            accounts={accounts}
+            onOpenSignatures={() => setActiveTab('signature')}
+            onOpenServerConfig={() => setActiveTab('server')}
+          />
         )}
 
         {/* ========================================================= */}
@@ -1120,11 +1230,11 @@ export const CorporateEmailPage: React.FC<CorporateEmailPageProps> = ({
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-bold text-slate-500">Colaborador:</span>
                   <select
-                    value={selectedSignatureAccountId}
+                    value={selectedSignatureAccount?.id || ''}
                     onChange={(e) => setSelectedSignatureAccountId(e.target.value)}
                     className="px-3 py-1.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
                   >
-                    {accounts.map(acc => (
+                    {(internalSignatureOptions.length > 0 ? internalSignatureOptions : accounts).map(acc => (
                       <option key={acc.id} value={acc.id}>
                         {acc.displayName} ({acc.email})
                       </option>

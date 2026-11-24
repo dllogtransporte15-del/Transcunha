@@ -62,6 +62,40 @@ export interface CorporateEmailServerConfig {
   providerPreset: 'cpanel' | 'google_workspace' | 'microsoft_365' | 'zoho' | 'titan' | 'custom';
 }
 
+export type CorporateEmailFolder = 'inbox' | 'sent' | 'drafts' | 'starred' | 'trash';
+
+export interface CorporateEmailAttachment {
+  id: string;
+  filename: string;
+  sizeBytes: number;
+  contentType: string;
+  url?: string;
+  base64?: string;
+}
+
+export interface CorporateEmailMessage {
+  id: string;
+  accountId: string;
+  accountEmail: string;
+  folder: CorporateEmailFolder;
+  from: string;
+  fromName: string;
+  to: string[];
+  cc?: string[];
+  bcc?: string[];
+  replyTo?: string;
+  subject: string;
+  bodyHtml?: string;
+  bodyText: string;
+  preview: string;
+  date: string; // ISO string
+  isRead: boolean;
+  isStarred?: boolean;
+  hasAttachments?: boolean;
+  attachments?: CorporateEmailAttachment[];
+  priority?: 'normal' | 'high' | 'low';
+}
+
 export enum UserProfile {
   Desenvolvedor = "Desenvolvedor",
   Embarcador = "Embarcador",

@@ -27,6 +27,167 @@ export interface SystemRelease {
  */
 export const SYSTEM_RELEASES: SystemRelease[] = [
   {
+    id: 'rel_2026_11_24_v2_117_7',
+    version: 'v2.117.7',
+    date: '24/11/2026',
+    title: 'Correção de Falsos Positivos e Suporte Completo a Múltiplos Destinatários no Disparo de Dossiê',
+    summary: 'Eliminado o falso positivo no serviço de e-mail corporativo que acusava sucesso quando a senha de app estava ausente ou ocorria erro de SMTP. Adicionado suporte a múltiplos destinatários, cópia (Cc) e detecção de endereços rejeitados.',
+    items: [
+      {
+        category: 'fix',
+        title: 'Fim dos Falsos Positivos de Envio SMTP',
+        description: 'Corrigido o serviço de envio para interromper a execução e lançar exceção explícita se a senha de app estiver vazia ou se o servidor SMTP rejeitar a conexão, impedindo a exibição de mensagem de sucesso indevida.'
+      },
+      {
+        category: 'fix',
+        title: 'Envio para Todos os Destinatários e Lista de Rejeitados',
+        description: 'Corrigida a limitação que enviava apenas para o primeiro endereço da lista, passando a enviar para todos os destinatários informados (To e Cc) e alertando caso algum endereço específico seja rejeitado pelo provedor.'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_24_v2_117_6',
+    version: 'v2.117.6',
+    date: '24/11/2026',
+    title: 'Correção e Validação Real no Disparo de Dossiê Fiscal com PDFs Anexados',
+    summary: 'Corrigido o fluxo de envio automático do Dossiê Fiscal para impedir falsos positivos quando a resposta do servidor não for JSON válido ou não houver confirmação SMTP, além de paralelizar o download dos PDFs e normalizar múltiplos destinatários.',
+    items: [
+      {
+        category: 'fix',
+        title: 'Validação Estrita de Confirmação SMTP',
+        description: 'O serviço de disparo agora valida explicitamente o JSON retornado, o messageId e a lista de destinatários aceitos (accepted) pelo servidor SMTP antes de exibir sucesso.'
+      },
+      {
+        category: 'improvement',
+        title: 'Download Paralelo de Anexos e Suporte a Ponto e Vírgula',
+        description: 'Os anexos PDF passaram a ser baixados em paralelo no backend (evitando timeouts em dossiês grandes) e múltiplos destinatários separados por ";" ou "," são normalizados automaticamente.'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_24_v2_117_5',
+    version: 'v2.117.5',
+    date: '24/11/2026',
+    title: 'Blindagem de Autenticação SMTP Google Workspace e Dossiê de Parceria',
+    summary: 'Sanitização de senhas de app do Google Workspace, orientações de autenticação SMTP 535, ajuste das filiais (Ipaussu/SP e Catalão/GO) e novo texto de apresentação de parceria.',
+    items: [
+      {
+        category: 'fix',
+        title: 'Tratamento de Autenticação Google Workspace (535 BadCredentials)',
+        description: 'Sanitização automática de senhas de app com espaços e mensagens instrutivas para vincular a Senha de App de 16 caracteres à conta remetente correspondente.'
+      },
+      {
+        category: 'improvement',
+        title: 'Atualização Cadastral de Filiais e Apresentação de Parceria',
+        description: 'Atualização das cidades das filiais SP (Ipaussu - SP) e GO (Catalão - GO) e padronização do corpo do e-mail para apresentação comercial de parceria e homologação.'
+      },
+      {
+        category: 'fix',
+        title: 'Limpeza de Tipos na API de E-mail',
+        description: 'Remoção de referências não utilizadas em api/send-email.ts garantindo compilação e tipagem limpas.'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_24_v2_117_4',
+    version: 'v2.117.4',
+    date: '24/11/2026',
+    title: 'Colaboradores na Assinatura de E-mail e Ocultação de E-mail Corporativo para Embarcadores',
+    summary: 'O seletor de Colaborador na assinatura de e-mail agora lista os Usuários Internos e o campo de E-mail Corporativo no cadastro de usuários foi ocultado para o perfil Embarcador.',
+    items: [
+      {
+        category: 'improvement',
+        title: 'Seletor de Colaborador com Usuários Internos',
+        description: 'Na aba de Assinatura de E-mail Padronizada, o campo "Colaborador" passa a listar os nomes dos Usuários Internos do sistema.'
+      },
+      {
+        category: 'fix',
+        title: 'Ocultação do Campo E-mail Corporativo para Embarcadores',
+        description: 'O bloco de configuração de E-mail Corporativo (@transcunhaoficial.com.br) no formulário de usuários não é mais exibido para o perfil Embarcador.'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_24_v2_117_3',
+    version: 'v2.117.3',
+    date: '24/11/2026',
+    title: 'Atualização do Link de Acesso no Banner do Provedor de E-mail',
+    summary: 'Atualizado o direcionamento do botão de acesso no banner informativo da Central de E-mail Corporativo para o Google Admin.',
+    items: [
+      {
+        category: 'improvement',
+        title: 'Redirecionamento para Google Admin',
+        description: 'O botão de acesso no banner informativo da página de E-mail Corporativo agora direciona para o painel administrativo do Google.'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_24_v2_117_2',
+    version: 'v2.117.2',
+    date: '24/11/2026',
+    title: 'Restrição de Notificações de E-mail para Embarcadores',
+    summary: 'Removido o recebimento de alertas e notificações de e-mail corporativo no sino de notificações para usuários com perfil Embarcador.',
+    items: [
+      {
+        category: 'fix',
+        title: 'Filtro de Notificações de E-mail Corporativo',
+        description: 'Usuários com perfil Embarcador não recebem mais notificações de e-mail corporativo no painel de alertas.'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_24_v2_117_1',
+    version: 'v2.117.1',
+    date: '24/11/2026',
+    title: 'Direcionamento do Botão Abrir Webmail para o Gmail',
+    summary: 'Configurado o botão "Abrir Webmail" na Central de E-mail Corporativo para redirecionar diretamente para a caixa de entrada do Gmail.',
+    items: [
+      {
+        category: 'improvement',
+        title: 'Atalho Abrir Webmail',
+        description: 'O botão "Abrir Webmail" no card Acesso Imediato agora direciona diretamente para https://mail.google.com/mail/u/0/?tab=rm&ogbl#inbox em nova aba.'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_23_v2_117_0',
+    version: 'v2.117.0',
+    date: '23/11/2026',
+    title: 'Central de E-mail Corporativo Integrada (Webmail Estilo Outlook)',
+    summary: 'Implementado o Webmail Corporativo completo no menu Ferramentas em layout clássico de 3 colunas (estilo Outlook/Gmail), com suporte a múltiplas caixas, pastas, anexação física de PDFs, notificações em tempo real e envio direto via Google Workspace SMTP.',
+    items: [
+      {
+        category: 'feature',
+        title: 'Webmail Outlook em 3 Colunas',
+        description: 'Painel completo com alternância entre caixas (@transcunhaoficial.com.br), pastas (Entrada, Favoritos, Enviados, Rascunhos e Lixeira), lista com busca/filtros em tempo real e visualizador de leitura com anexos e ações rápidas (Responder, Encaminhar, Imprimir).'
+      },
+      {
+        category: 'feature',
+        title: 'Modal de Composição e Disparo SMTP Real',
+        description: 'Compositor completo com seleção de remetente corporativo, destinatários múltiplos (Para/Cc), assinatura institucional pré-carregada e upload de anexos conectado ao Google Workspace.'
+      },
+      {
+        category: 'improvement',
+        title: 'Notificações Visuais e Sonoras no Sino',
+        description: 'Integração com o NotificationBell exibindo alertas com remetente e assunto para e-mails não lidos, som discreto de aviso e badges de contagem na barra de ferramentas e menus.'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_23_v2_116_62',
+    version: 'v2.116.62',
+    date: '23/11/2026',
+    title: 'Ampliação do Modal do Dossiê Fiscal em 30%',
+    summary: 'Aumentada a largura e a área útil do Modal de Dossiê de Homologação em 30% (max-w de 1350px), com grid de 4 colunas para documentos e visualização mais ampla do corpo da mensagem.',
+    items: [
+      {
+        category: 'improvement',
+        title: 'Área Útil do Modal Aumentada em 30%',
+        description: 'Janela expandida para max-w de 1350px com maior altura útil, permitindo visualizar mais certidões simultaneamente em 4 colunas sem necessidade de rolagem excessiva.'
+      }
+    ]
+  },
+  {
     id: 'rel_2026_11_23_v2_116_61',
     version: 'v2.116.61',
     date: '23/11/2026',

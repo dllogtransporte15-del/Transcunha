@@ -3,12 +3,127 @@ import type {
   CorporateEmailServerConfig, 
   CorporateEmailDepartment,
   CorporateEmailStatus,
+  CorporateEmailFolder,
+  CorporateEmailAttachment,
+  CorporateEmailMessage,
   User 
 } from '../types';
 import { isDeveloperUser, isDemoUser } from '../auth';
 
 const STORAGE_EMAILS_KEY = 'transcunha_corporate_emails';
 const STORAGE_CONFIG_KEY = 'transcunha_corporate_email_config';
+const STORAGE_MESSAGES_KEY = 'transcunha_corporate_messages_v1';
+
+const INITIAL_MESSAGES: CorporateEmailMessage[] = [
+  {
+    id: 'msg_001',
+    accountId: 'email_contato',
+    accountEmail: 'contato@transcunhaoficial.com.br',
+    folder: 'inbox',
+    from: 'compras@agroindustria-brasil.com.br',
+    fromName: 'Agroindústria Brasil S/A',
+    to: ['contato@transcunhaoficial.com.br'],
+    subject: 'Solicitação de Homologação Cadastral & Cotação de Frete Safra',
+    preview: 'Prezados, gostaríamos de receber o dossiê fiscal e certidões da Transcunha para homologação de transportador parceiro...',
+    bodyHtml: `<p>Prezados(as) da equipe Transcunha,</p>
+<p>Esperamos que este e-mail os encontre bem.</p>
+<p>Estamos iniciando o processo de cotação e contratação de transportadoras rodoviárias de grande porte para escoamento de grãos e fertilizantes na rota <strong>Catalão (GO) x Porto de Santos (SP)</strong> e <strong>Pratápolis (MG) x Interior de SP</strong>.</p>
+<p>Solicitamos o envio da documentação cadastral atualizada (CNDs Federal, Estadual, Trabalhista, ANTT e apólices de seguro RCTR-C / RC-DC) para inclusão no nosso cadastro de fornecedores homologados.</p>
+<p>Ficamos no aguardo para agendarmos o início dos carregamentos.</p>
+<br/>
+<p>Atenciosamente,<br/><strong>Departamento de Suprimentos & Logística</strong><br/>Agroindústria Brasil S/A</p>`,
+    bodyText: 'Prezados, gostaríamos de receber o dossiê fiscal e certidões da Transcunha para homologação de transportador parceiro para a safra atual.',
+    date: new Date(Date.now() - 1000 * 60 * 45).toISOString(), // 45 min atrás
+    isRead: false,
+    isStarred: true,
+    hasAttachments: false,
+    priority: 'high',
+  },
+  {
+    id: 'msg_002',
+    accountId: 'email_comercial',
+    accountEmail: 'comercial@transcunhaoficial.com.br',
+    folder: 'inbox',
+    from: 'logistica@cooperativa-graos.com.br',
+    fromName: 'Cooperativa Agro Grãos Sul',
+    to: ['comercial@transcunhaoficial.com.br'],
+    subject: 'Cotação de Frete Rodoviário - 50 Viagens Bitrem Graneleiro',
+    preview: 'Olá Comercial Transcunha, temos disponibilidade de carga imediata para escoamento de soja com partida em Cambará (PR)...',
+    bodyHtml: `<p>Olá, equipe comercial da Transcunha!</p>
+<p>Temos 50 viagens de soja a granel para transporte imediato saindo de <strong>Cambará - PR</strong> com destino ao terminal portuário de Paranaguá.</p>
+<p>Favor enviar proposta com valor por tonelada, prazo de carregamento e quantidade de carretas/bitrens disponíveis.</p>
+<br/>
+<p>Atenciosamente,<br/><strong>Coordenação de Fretes</strong><br/>Cooperativa Agro Grãos Sul</p>`,
+    bodyText: 'Temos 50 viagens de soja a granel para transporte imediato saindo de Cambará - PR com destino ao terminal portuário de Paranaguá.',
+    date: new Date(Date.now() - 1000 * 60 * 180).toISOString(), // 3h atrás
+    isRead: false,
+    isStarred: false,
+    hasAttachments: false,
+    priority: 'normal',
+  },
+  {
+    id: 'msg_003',
+    accountId: 'email_operacional',
+    accountEmail: 'operacional@transcunhaoficial.com.br',
+    folder: 'inbox',
+    from: 'averbacao@sompo-seguros.com.br',
+    fromName: 'Sompo Seguros Corporativos',
+    to: ['operacional@transcunhaoficial.com.br'],
+    subject: 'Confirmação de Averbação Automática de Carga - RCTR-C / RC-DC',
+    preview: 'Confirmamos o recebimento da averbação eletrônica de transporte rodoviário de cargas para a viagem Transcunha nº 8492...',
+    bodyHtml: `<p>Prezada Transcunha Transportes e Logística LTDA,</p>
+<p>Confirmamos com sucesso a averbação securitária automática da carga sob as apólices vigentes:</p>
+<ul>
+  <li><strong>RCTR-C:</strong> Cobertura Integral contra Colisão, Capotagem e Abalroamento.</li>
+  <li><strong>RC-DC:</strong> Cobertura contra Roubo e Desaparecimento de Carga com Gerenciamento de Risco Liberado.</li>
+</ul>
+<p>O comprovante de averbação em formato PDF foi processado eletronicamente.</p>`,
+    bodyText: 'Confirmamos com sucesso a averbação securitária automática da carga sob as apólices vigentes RCTR-C e RC-DC.',
+    date: new Date(Date.now() - 1000 * 60 * 60 * 8).toISOString(), // 8h atrás
+    isRead: true,
+    isStarred: false,
+    hasAttachments: true,
+    attachments: [
+      {
+        id: 'att_001',
+        filename: 'Comprovante_Averbacao_Seguro_8492.pdf',
+        sizeBytes: 184500,
+        contentType: 'application/pdf',
+      }
+    ],
+    priority: 'normal',
+  },
+  {
+    id: 'msg_004',
+    accountId: 'email_contato',
+    accountEmail: 'contato@transcunhaoficial.com.br',
+    folder: 'sent',
+    from: 'contato@transcunhaoficial.com.br',
+    fromName: 'Transcunha Transportes e Logística',
+    to: ['diretoria@cliente-logistica.com.br'],
+    subject: '[TRANSCUNHA] Apresentação Comercial de Parceria & Dossiê Cadastral',
+    preview: 'Prezados, é com grande satisfação que apresentamos a Transcunha Transportes e Logística LTDA com nossa documentação cadastral...',
+    bodyHtml: `<p>Prezados Senhores,</p>
+<p>É com grande satisfação que apresentamos a <strong>TRANSCUNHA TRANSPORTES E LOGÍSTICA LTDA.</strong> com o objetivo de estabelecer uma sólida parceria comercial no fornecimento de soluções em transporte rodoviário de cargas.</p>
+<p>Encaminhamos em anexo nosso Dossiê de Homologação completo com CNDs, ANTT e apólices de seguro.</p>
+<br/>
+<p>Atenciosamente,<br/><strong>Equipe Comercial & Controladoria</strong><br/>Transcunha Transportes e Logística LTDA.</p>`,
+    bodyText: 'É com grande satisfação que apresentamos a Transcunha Transportes e Logística LTDA com nosso Dossiê de Homologação completo.',
+    date: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(), // 1 dia atrás
+    isRead: true,
+    isStarred: true,
+    hasAttachments: true,
+    attachments: [
+      {
+        id: 'att_002',
+        filename: 'Dossie_Homologacao_Transcunha_2026.pdf',
+        sizeBytes: 842000,
+        contentType: 'application/pdf',
+      }
+    ],
+    priority: 'normal',
+  }
+];
 
 export const DEFAULT_EMAIL_SERVER_CONFIG: CorporateEmailServerConfig = {
   domain: 'transcunhaoficial.com.br',
@@ -422,6 +537,253 @@ class CorporateEmailService {
     Transcunha Logística & Transportes — Excelência, Segurança e Eficiência no Transporte Rodoviário.
   </div>
 </div>`;
+  }
+
+  // --- GESTÃO DE MENSAGENS (WEBMAIL OUTLOOK STYLE) ---
+
+  /**
+   * Obtém as mensagens de e-mail corporativo armazenadas.
+   */
+  getMessages(accountId?: string, folder?: CorporateEmailFolder): CorporateEmailMessage[] {
+    try {
+      const saved = localStorage.getItem(STORAGE_MESSAGES_KEY);
+      let messages: CorporateEmailMessage[] = [];
+      if (saved) {
+        messages = JSON.parse(saved);
+      } else {
+        messages = [...INITIAL_MESSAGES];
+        this.saveMessagesToStorage(messages);
+      }
+
+      if (accountId && accountId !== 'all') {
+        messages = messages.filter(m => m.accountId === accountId || m.accountEmail === accountId);
+      }
+
+      if (folder) {
+        if (folder === 'starred') {
+          messages = messages.filter(m => m.isStarred);
+        } else {
+          messages = messages.filter(m => m.folder === folder);
+        }
+      }
+
+      // Ordena por data decrescente
+      return messages.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    } catch (e) {
+      console.error('[CorporateEmailService] Erro ao carregar mensagens:', e);
+      return [];
+    }
+  }
+
+  /**
+   * Salva ou atualiza uma mensagem de e-mail.
+   */
+  saveMessage(msg: CorporateEmailMessage): void {
+    const all = this.getMessages();
+    const idx = all.findIndex(m => m.id === msg.id);
+    let isNew = false;
+    if (idx >= 0) {
+      all[idx] = msg;
+    } else {
+      isNew = true;
+      all.unshift(msg);
+    }
+    this.saveMessagesToStorage(all);
+
+    window.dispatchEvent(new CustomEvent('corporate_messages_updated', { detail: { message: msg, isNew } }));
+
+    if (isNew && msg.folder === 'inbox' && !msg.isRead) {
+      this.notifyNewEmail(msg);
+    }
+  }
+
+  /**
+   * Marca uma mensagem como lida ou não lida.
+   */
+  markAsRead(id: string, isRead = true): void {
+    const all = this.getMessages();
+    const msg = all.find(m => m.id === id);
+    if (msg) {
+      msg.isRead = isRead;
+      this.saveMessagesToStorage(all);
+      window.dispatchEvent(new CustomEvent('corporate_messages_updated', { detail: { id, isRead } }));
+    }
+  }
+
+  /**
+   * Alterna a estrela (favorito) da mensagem.
+   */
+  toggleStar(id: string): void {
+    const all = this.getMessages();
+    const msg = all.find(m => m.id === id);
+    if (msg) {
+      msg.isStarred = !msg.isStarred;
+      this.saveMessagesToStorage(all);
+      window.dispatchEvent(new CustomEvent('corporate_messages_updated', { detail: { id, isStarred: msg.isStarred } }));
+    }
+  }
+
+  /**
+   * Move uma mensagem para outra pasta (inbox, sent, drafts, trash).
+   */
+  moveToFolder(id: string, folder: CorporateEmailFolder): void {
+    const all = this.getMessages();
+    const msg = all.find(m => m.id === id);
+    if (msg) {
+      msg.folder = folder;
+      this.saveMessagesToStorage(all);
+      window.dispatchEvent(new CustomEvent('corporate_messages_updated', { detail: { id, folder } }));
+    }
+  }
+
+  /**
+   * Exclui uma mensagem (se já estiver na lixeira, remove definitivamente; caso contrário move para trash).
+   */
+  deleteMessage(id: string): void {
+    const all = this.getMessages();
+    const msg = all.find(m => m.id === id);
+    if (!msg) return;
+
+    if (msg.folder === 'trash') {
+      const filtered = all.filter(m => m.id !== id);
+      this.saveMessagesToStorage(filtered);
+    } else {
+      msg.folder = 'trash';
+      this.saveMessagesToStorage(all);
+    }
+    window.dispatchEvent(new CustomEvent('corporate_messages_updated', { detail: { id, deleted: true } }));
+  }
+
+  /**
+   * Retorna a quantidade de e-mails não lidos na caixa de entrada.
+   */
+  getUnreadCount(accountId?: string): number {
+    const messages = this.getMessages(accountId, 'inbox');
+    return messages.filter(m => !m.isRead).length;
+  }
+
+  /**
+   * Dispara um e-mail novo e salva na caixa de saída (Sent).
+   */
+  async sendOutgoingEmail(data: {
+    to: string[];
+    cc?: string[];
+    subject: string;
+    bodyHtml: string;
+    bodyText: string;
+    accountEmail: string;
+    senderName?: string;
+    appPassword?: string;
+    attachments?: CorporateEmailAttachment[];
+  }): Promise<{ success: boolean; messageId?: string; error?: string }> {
+    const { to, cc, subject, bodyHtml, bodyText, accountEmail, senderName = 'Transcunha Transportes e Logística', appPassword, attachments = [] } = data;
+
+    let messageId: string | undefined;
+
+    // Se houver senha de app, tenta envio real via /api/send-email
+    if (appPassword && appPassword.trim()) {
+      const allTo = to.filter(Boolean).join(', ');
+      const allCc = cc && cc.length > 0 ? cc.filter(Boolean).join(', ') : undefined;
+
+      const res = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: allTo,
+          cc: allCc,
+          subject,
+          html: bodyHtml,
+          text: bodyText,
+          senderEmail: accountEmail,
+          senderName,
+          appPassword: appPassword.replace(/\s+/g, ''),
+          attachments: attachments.map(a => ({
+            filename: a.filename,
+            url: a.url,
+            base64: a.base64,
+            contentType: a.contentType || 'application/pdf',
+          })),
+        }),
+      });
+
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const errMsg = json?.error || 'Erro no servidor de envio ao disparar e-mail';
+        const userHelp = json?.userHelp ? `\n\n👉 Dica: ${json.userHelp}` : '';
+        throw new Error(`${errMsg}${userHelp}`);
+      }
+
+      if (Array.isArray(json?.rejected) && json.rejected.length > 0) {
+        if (!json.accepted || json.accepted.length === 0) {
+          throw new Error(`O servidor SMTP rejeitou o envio para: ${json.rejected.join(', ')}`);
+        }
+      }
+
+      messageId = json.messageId;
+    } else {
+      throw new Error('A Senha de App do Google Workspace não foi informada. Por favor, preencha a Senha de App de 16 caracteres para que o e-mail seja disparado efetivamente.');
+    }
+
+    // Salva na pasta 'sent' (Enviados)
+    const newMsg: CorporateEmailMessage = {
+      id: `msg_sent_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      accountId: accountEmail,
+      accountEmail,
+      folder: 'sent',
+      from: accountEmail,
+      fromName: senderName,
+      to,
+      cc,
+      subject,
+      bodyHtml,
+      bodyText,
+      preview: bodyText.substring(0, 120),
+      date: new Date().toISOString(),
+      isRead: true,
+      hasAttachments: attachments.length > 0,
+      attachments,
+      priority: 'normal',
+    };
+
+    this.saveMessage(newMsg);
+
+    return { success: true, messageId };
+  }
+
+  /**
+   * Notifica a chegada de novo e-mail no sistema com evento e áudio.
+   */
+  notifyNewEmail(msg: CorporateEmailMessage): void {
+    // Dispara evento customizado para captura no NotificationBell e Toasts
+    window.dispatchEvent(new CustomEvent('transcunha:new_corporate_email', {
+      detail: {
+        id: msg.id,
+        subject: msg.subject,
+        fromName: msg.fromName,
+        from: msg.from,
+        preview: msg.preview,
+        date: msg.date,
+        accountEmail: msg.accountEmail,
+      }
+    }));
+
+    // Toca som de notificação se áudio não estiver mutado
+    try {
+      const isMuted = localStorage.getItem('transcunha_audio_muted') === 'true';
+      if (!isMuted && typeof Audio !== 'undefined') {
+        const audio = new Audio('/sounds/notification.mp3');
+        audio.volume = 0.6;
+        audio.play().catch(() => {});
+      }
+    } catch {}
+  }
+
+  private saveMessagesToStorage(messages: CorporateEmailMessage[]): void {
+    try {
+      localStorage.setItem(STORAGE_MESSAGES_KEY, JSON.stringify(messages));
+    } catch (e) {
+      console.error('[CorporateEmailService] Erro ao salvar mensagens no localStorage:', e);
+    }
   }
 
   private saveAccountsToStorage(accounts: CorporateEmailAccount[]): void {

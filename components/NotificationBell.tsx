@@ -19,13 +19,15 @@ import {
   Wallet,
   DollarSign,
   Tag,
-  Package
+  Package,
+  Mail
 } from 'lucide-react';
 import OrderRequestDecisionModal from './OrderRequestDecisionModal';
+import { corporateEmailService } from '../services/corporateEmailService';
 
 export interface SystemAlert {
   id: string;
-  type: 'order_request' | 'client_freight_offer' | 'fiscal_sla' | 'insurance_sla' | 'financial_sla' | 'ticket' | 'new_cargo';
+  type: 'order_request' | 'client_freight_offer' | 'fiscal_sla' | 'insurance_sla' | 'financial_sla' | 'ticket' | 'new_cargo' | 'corporate_email';
   title: string;
   message: string;
   timestamp: string;
@@ -79,6 +81,19 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
 
   const dropdownRef = useRef<HTMLDivElement>(null);
   const lastAlertIdsRef = useRef<Set<string>>(new Set());
+  const [emailUpdateTrigger, setEmailUpdateTrigger] = useState(0);
+
+  useEffect(() => {
+    const handleEmailUpdate = () => {
+      setEmailUpdateTrigger(prev => prev + 1);
+    };
+    window.addEventListener('corporate_messages_updated', handleEmailUpdate);
+    window.addEventListener('transcunha:new_corporate_email', handleEmailUpdate);
+    return () => {
+      window.removeEventListener('corporate_messages_updated', handleEmailUpdate);
+      window.removeEventListener('transcunha:new_corporate_email', handleEmailUpdate);
+    };
+  }, []);
 
   // Fechar dropdown ao clicar fora
   useEffect(() => {
@@ -411,13 +426,35 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
       });
     }
 
+    // 7. REGRA E-MAIL CORPORATIVO: Alertas para e-mails não lidos na Caixa de Entrada
+    const isEligibleForEmailAlerts = ![UserProfile.Motorista, UserProfile.Cliente, UserProfile.Embarcador].includes(user.profile);
+    if (isEligibleForEmailAlerts) {
+      try {
+        const unreadEmails = corporateEmailService.getMessages(undefined, 'inbox').filter(m => !m.isRead);
+        unreadEmails.slice(0, 5).forEach(m => {
+          alerts.push({
+            id: `email_${m.id}`,
+            type: 'corporate_email',
+            title: `E-mail: ${m.fromName || m.from}`,
+            message: `${m.subject} — ${m.preview}`,
+            timestamp: m.date,
+            urgency: m.priority === 'high' ? 'critical' : 'normal',
+            targetPage: 'corporate-email',
+            relatedId: m.id
+          });
+        });
+      } catch (err) {
+        console.warn('Erro ao carregar alertas de e-mail corporativo:', err);
+      }
+    }
+
     // Ordenar alertas: Críticos primeiro, depois Atenção
     return alerts.sort((a, b) => {
       if (a.urgency === 'critical' && b.urgency !== 'critical') return -1;
       if (a.urgency !== 'critical' && b.urgency === 'critical') return 1;
       return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
     });
-  }, [user, shipments, freightOffers, cargos, drivers, clients, products, tickets, cargoMap, driverMap, clientMap, productMap]);
+  }, [user, shipments, freightOffers, cargos, drivers, clients, products, tickets, cargoMap, driverMap, clientMap, productMap, emailUpdateTrigger]);
 
   // Contadores por urgência
   const criticalCount = useMemo(() => activeAlerts.filter(a => a.urgency === 'critical').length, [activeAlerts]);
@@ -635,6 +672,11 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
                         {alert.type === 'ticket' && (
                           <div className="p-2 rounded-xl bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400">
                             <AlertTriangle className="w-4 h-4" />
+                          </div>
+                        )}
+                        {alert.type === 'corporate_email' && (
+                          <div className="p-2 rounded-xl bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400">
+                            <Mail className="w-4 h-4" />
                           </div>
                         )}
                       </div>

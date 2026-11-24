@@ -60,6 +60,7 @@ const UserFormModal: React.FC<UserFormModalProps> = ({
 
   const isMotorista = user.profile === UserProfile.Motorista || defaultProfile === UserProfile.Motorista;
   const isExternalClient = user.profile === UserProfile.Cliente || defaultProfile === UserProfile.Cliente;
+  const isEmbarcador = user.profile === UserProfile.Embarcador || defaultProfile === UserProfile.Embarcador;
   const showCorporateFeatures = !isMotorista && !isExternalClient;
 
   const [copiedInModal, setCopiedInModal] = useState(false);
@@ -233,7 +234,7 @@ Qualquer dúvida, estamos à disposição! 🚛💨`;
       }
     }
 
-    if (user.corporateEmail && user.corporateEmail.trim()) {
+    if (showCorporateFeatures && !isEmbarcador && user.corporateEmail && user.corporateEmail.trim()) {
       corporateEmailService.saveEmailAccount({
         email: user.corporateEmail.trim(),
         displayName: user.name,
@@ -372,8 +373,8 @@ Qualquer dúvida, estamos à disposição! 🚛💨`;
               </div>
             </div>
 
-            {/* Campo & Configuração: E-mail Corporativo (@transcunhaoficial.com.br) - Apenas para Usuários Internos */}
-            {showCorporateFeatures && (
+            {/* Campo & Configuração: E-mail Corporativo (@transcunhaoficial.com.br) - Apenas para Usuários Internos (exceto Embarcadores) */}
+            {showCorporateFeatures && !isEmbarcador && (
               <div className="p-4 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-700 space-y-3">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5 uppercase tracking-wider">

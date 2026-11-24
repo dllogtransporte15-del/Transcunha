@@ -389,8 +389,18 @@ Equipe Comercial & Controladoria
 TRANSCUNHA TRANSPORTES E LOGÍSTICA LTDA.
   `.trim();
 
+  const normalizedTo = to
+    .split(/[;,]/)
+    .map(addr => addr.trim())
+    .filter(Boolean)
+    .join(', ');
+
+  if (!normalizedTo) {
+    throw new Error('Informe ao menos um e-mail de destinatário válido.');
+  }
+
   // 3. Chamar API Serverless /api/send-email
-  onProgress?.(`Disparando mensagem com ${attachments.length} anexo(s) PDF para ${to}...`, total, total);
+  onProgress?.(`Disparando mensagem com ${attachments.length} anexo(s) PDF para ${normalizedTo}...`, total, total);
 
   const response = await fetch('/api/send-email', {
     method: 'POST',
@@ -398,7 +408,7 @@ TRANSCUNHA TRANSPORTES E LOGÍSTICA LTDA.
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      to: to.trim(),
+      to: normalizedTo,
       subject: subject.trim(),
       html: htmlBody,
       text: textBody,
@@ -410,7 +420,7 @@ TRANSCUNHA TRANSPORTES E LOGÍSTICA LTDA.
   });
 
   const rawText = await response.text();
-  let responseData: any = {};
+  let responseData: any = null;
   try {
     responseData = JSON.parse(rawText || '{}');
   } catch {
@@ -420,6 +430,9 @@ TRANSCUNHA TRANSPORTES E LOGÍSTICA LTDA.
       }
       throw new Error(`Falha no servidor (${response.status}): ${rawText.substring(0, 150)}`);
     }
+    throw new Error(
+      'O servidor de envio (/api/send-email) não retornou uma resposta JSON válida. Verifique se a API de e-mail está ativa neste ambiente.'
+    );
   }
 
   if (!response.ok) {
@@ -428,9 +441,29 @@ TRANSCUNHA TRANSPORTES E LOGÍSTICA LTDA.
     throw new Error(userHelp ? `${errorMsg}\n\n👉 Dica: ${userHelp}` : errorMsg);
   }
 
+  if (!responseData?.success || !responseData?.messageId) {
+    throw new Error(
+      responseData?.error ||
+        'O servidor não confirmou o envio do e-mail (messageId ausente). Nenhum e-mail foi disparado.'
+    );
+  }
+
+  if (Array.isArray(responseData.accepted) && responseData.accepted.length === 0) {
+    throw new Error('O servidor SMTP não aceitou nenhum endereço de destinatário.');
+  }
+
+  if (Array.isArray(responseData.rejected) && responseData.rejected.length > 0) {
+    if (!responseData.accepted || responseData.accepted.length === 0) {
+      throw new Error(`O servidor SMTP rejeitou o envio para: ${responseData.rejected.join(', ')}`);
+    }
+  }
+
   return {
     success: true,
     messageId: responseData.messageId,
     totalAttachments: responseData.totalAttachments ?? attachments.length,
+    userHelp: Array.isArray(responseData.rejected) && responseData.rejected.length > 0
+      ? `Atenção: E-mail aceito para ${responseData.accepted.join(', ')}, mas rejeitado para: ${responseData.rejected.join(', ')}`
+      : undefined,
   };
 }

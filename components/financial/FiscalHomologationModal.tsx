@@ -268,7 +268,11 @@ Website: https://transcunhaoficial.com.br`;
         count: result.totalAttachments,
       });
 
-      showToast(`Dossiê enviado com sucesso com ${result.totalAttachments} documento(s) PDF anexados!`, 'success', 5000);
+      if (result.userHelp) {
+        showToast(result.userHelp, 'warning', 8000);
+      } else {
+        showToast(`Dossiê enviado com sucesso com ${result.totalAttachments} documento(s) PDF anexados!`, 'success', 5000);
+      }
     } catch (err: any) {
       console.error('Falha no envio direto:', err);
       showToast(err?.message || 'Falha ao disparar e-mail pelo Google Workspace.', 'error', 7000);
@@ -418,17 +422,17 @@ ${senderEmail || DEFAULT_GWORKSPACE_SENDER}`;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/75 backdrop-blur-xs animate-fade-in overflow-y-auto">
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-5xl max-h-[94vh] flex flex-col shadow-2xl overflow-hidden my-auto">
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-[1350px] max-h-[96vh] flex flex-col shadow-2xl overflow-hidden my-auto">
         
         {/* CABEÇALHO DO MODAL */}
-        <div className="p-4 sm:p-6 border-b border-slate-800 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 flex items-start justify-between gap-4">
-          <div className="flex items-center gap-3.5">
-            <div className="p-3 bg-gradient-to-br from-indigo-500 to-blue-600 text-white rounded-2xl shadow-lg shadow-indigo-500/30">
-              <ShieldCheck className="w-6 h-6" />
+        <div className="p-5 sm:p-7 border-b border-slate-800 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 flex items-start justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="p-3.5 bg-gradient-to-br from-indigo-500 to-blue-600 text-white rounded-2xl shadow-lg shadow-indigo-500/30">
+              <ShieldCheck className="w-7 h-7" />
             </div>
             <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="text-lg sm:text-xl font-black text-white tracking-tight">
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
                   Dossiê de Homologação de Fornecedor
                 </h2>
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/20 text-blue-300 border border-blue-400/30">
@@ -640,8 +644,8 @@ ${senderEmail || DEFAULT_GWORKSPACE_SENDER}`;
               </div>
             </div>
 
-            {/* Grid de Documentos */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 max-h-56 overflow-y-auto p-1 border border-slate-800 rounded-2xl bg-slate-950/40">
+            {/* Grid de Documentos Ampliado (+30% de capacidade visual) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 max-h-72 overflow-y-auto p-2 border border-slate-800 rounded-2xl bg-slate-950/40">
               {displayDocuments.length === 0 ? (
                 <div className="col-span-full py-8 text-center text-xs text-slate-500">
                   Nenhum documento encontrado para a filial selecionada.
@@ -751,7 +755,7 @@ ${senderEmail || DEFAULT_GWORKSPACE_SENDER}`;
             
             <textarea
               readOnly
-              rows={6}
+              rows={8}
               value={generatedEmailBody}
               className="w-full p-3 font-mono text-[11px] leading-relaxed rounded-2xl border border-slate-800 bg-slate-950 text-slate-300 outline-none resize-none selection:bg-indigo-600"
             />

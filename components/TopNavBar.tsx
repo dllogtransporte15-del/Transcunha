@@ -23,8 +23,9 @@ import { ToolIcon } from './icons/ToolIcon';
 import { CalculatorIcon } from './icons/CalculatorIcon';
 import { InfoIcon } from './icons/InfoIcon';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Menu as MenuIcon, X as XIcon, Activity, ShieldCheck, Sun, Moon, Sparkles, MessageSquare, ArrowDownCircle, ArrowUpCircle, FileSpreadsheet, PieChart, Layers, TrendingUp, Building2, Landmark, Send, FileText, MapPin, Presentation, Globe, Headphones, Scale, Plus, GraduationCap, ExternalLink } from 'lucide-react';
+import { Menu as MenuIcon, X as XIcon, Activity, ShieldCheck, Sun, Moon, Sparkles, MessageSquare, ArrowDownCircle, ArrowUpCircle, FileSpreadsheet, PieChart, Layers, TrendingUp, Building2, Landmark, Send, FileText, MapPin, Presentation, Globe, Headphones, Scale, Plus, GraduationCap, ExternalLink, Mail } from 'lucide-react';
 import DriverLocationTracker from './DriverLocationTracker';
+import { corporateEmailService } from '../services/corporateEmailService';
 
 import type { User, Page, ProfilePermissions, Ticket, Shipment, FreightOffer, Cargo, Driver, Client, Product, Vehicle } from '../types';
 import { UserProfile, TicketStatus } from '../types';
@@ -120,6 +121,7 @@ const navItems: NavItem[] = [
     label: 'Ferramentas',
     icon: ToolIcon,
     children: [
+      { id: 'corporate-email', label: 'E-mail Corporativo', icon: Mail },
       { id: 'layover-calculator', label: 'Cálculo de Estadias', icon: CalculatorIcon },
       { id: 'freight-quote', label: 'Cotação de Frete', icon: MapIcon },
       { id: 'atua-reconciliation', label: 'Auditoria Atua TMS', icon: Scale },
@@ -170,6 +172,27 @@ const TopNavBar: React.FC<TopNavBarProps> = ({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [unreadEmailsCount, setUnreadEmailsCount] = useState<number>(() => {
+    try {
+      return corporateEmailService.getUnreadCount();
+    } catch {
+      return 0;
+    }
+  });
+
+  useEffect(() => {
+    const handleEmailsUpdated = () => {
+      try {
+        setUnreadEmailsCount(corporateEmailService.getUnreadCount());
+      } catch {}
+    };
+    window.addEventListener('corporate_messages_updated', handleEmailsUpdated);
+    window.addEventListener('transcunha:new_corporate_email', handleEmailsUpdated);
+    return () => {
+      window.removeEventListener('corporate_messages_updated', handleEmailsUpdated);
+      window.removeEventListener('transcunha:new_corporate_email', handleEmailsUpdated);
+    };
+  }, []);
 
   const myOpenTicketsCount = useMemo(() => {
     return tickets.filter(
@@ -304,10 +327,13 @@ const TopNavBar: React.FC<TopNavBarProps> = ({
                                 }`}
                             >
                                 <span>{item.label}</span>
+                                {item.id === 'ferramentas' && unreadEmailsCount > 0 && (
+                                  <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse ml-1.5" title={`${unreadEmailsCount} e-mail(s) corporativo(s) não lido(s)`} />
+                                )}
                                 <ChevronDownIcon className={`w-3.5 h-3.5 xl:w-4 xl:h-4 ml-1 transition-transform ${openDropdown === item.id ? 'rotate-180' : ''}`} />
                             </button>
                             {openDropdown === item.id && (
-                                <div className="absolute mt-2 w-60 origin-top-left bg-white/95 dark:bg-[#0b1328]/95 border border-slate-200 dark:border-slate-700/80 rounded-2xl shadow-2xl backdrop-blur-2xl py-1.5 z-50">
+                                <div className="absolute mt-2 w-64 origin-top-left bg-white/95 dark:bg-[#0b1328]/95 border border-slate-200 dark:border-slate-700/80 rounded-2xl shadow-2xl backdrop-blur-2xl py-1.5 z-50">
                                     {item.children.map(child => {
                                       if (child.children) {
                                         return (
@@ -328,10 +354,17 @@ const TopNavBar: React.FC<TopNavBarProps> = ({
                                       }
                                       return (
                                         <a key={child.id} href="#" onClick={(e) => { e.preventDefault(); handlePageSelect(child.id as Page); }}
-                                           className={`flex items-center gap-3 px-3.5 py-2 mx-1 rounded-xl text-sm font-medium transition-all ${currentPage === child.id ? 'text-white bg-blue-600 shadow-sm' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/80'}`}
+                                           className={`flex items-center justify-between px-3.5 py-2 mx-1 rounded-xl text-sm font-medium transition-all ${currentPage === child.id ? 'text-white bg-blue-600 shadow-sm' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/80'}`}
                                         >
-                                           <child.icon className="w-4 h-4" />
-                                           {child.label}
+                                           <div className="flex items-center gap-3 min-w-0">
+                                             <child.icon className="w-4 h-4 shrink-0 text-blue-500 dark:text-blue-400" />
+                                             <span className="truncate">{child.label}</span>
+                                           </div>
+                                           {child.id === 'corporate-email' && unreadEmailsCount > 0 && (
+                                             <span className="px-1.5 py-0.5 text-[10px] font-black rounded-full bg-blue-600 text-white animate-pulse">
+                                               {unreadEmailsCount}
+                                             </span>
+                                           )}
                                         </a>
                                       )
                                     })}
@@ -677,10 +710,17 @@ const TopNavBar: React.FC<TopNavBarProps> = ({
                                   }
                                   return (
                                       <a key={child.id} href="#" onClick={(e) => { e.preventDefault(); handlePageSelect(child.id as Page); }}
-                                         className={`flex items-center px-3 py-2 rounded-md text-sm font-medium ${currentPage === child.id ? 'text-primary dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+                                         className={`flex items-center justify-between px-3 py-2 rounded-md text-sm font-medium ${currentPage === child.id ? 'text-primary dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
                                       >
-                                          <child.icon className="w-4 h-4 mr-3" />
-                                          {child.label}
+                                          <div className="flex items-center">
+                                            <child.icon className="w-4 h-4 mr-3 text-blue-500 dark:text-blue-400" />
+                                            {child.label}
+                                          </div>
+                                          {child.id === 'corporate-email' && unreadEmailsCount > 0 && (
+                                            <span className="px-1.5 py-0.5 text-[10px] font-black rounded-full bg-blue-600 text-white animate-pulse">
+                                              {unreadEmailsCount}
+                                            </span>
+                                          )}
                                       </a>
                                   )
                                })}

@@ -216,6 +216,7 @@ export default defineConfig({
 
               const {
                 to,
+                cc,
                 subject,
                 html,
                 text,
@@ -247,31 +248,35 @@ export default defineConfig({
                 return;
               }
 
-              const processedAttachments: any[] = [];
-              for (const att of attachments) {
-                if (att.base64 || att.content) {
-                  const raw = (att.base64 || att.content || '').replace(/^data:[^;]+;base64,/, '');
-                  processedAttachments.push({
-                    filename: att.filename || 'anexo.pdf',
-                    content: Buffer.from(raw, 'base64'),
-                    contentType: att.contentType || 'application/pdf',
-                  });
-                } else if (att.url) {
-                  try {
-                    const fetchRes = await fetch(att.url);
-                    if (fetchRes.ok) {
-                      const arrayBuffer = await fetchRes.arrayBuffer();
-                      processedAttachments.push({
-                        filename: att.filename || 'documento.pdf',
-                        content: Buffer.from(arrayBuffer),
-                        contentType: att.contentType || 'application/pdf',
-                      });
-                    }
-                  } catch (downloadErr) {
-                    console.warn(`[send-email] Falha ao baixar anexo remoto da URL: ${att.url}`, downloadErr);
+              const attachmentResults = await Promise.all(
+                attachments.map(async (att: any) => {
+                  if (att.base64 || att.content) {
+                    const raw = (att.base64 || att.content || '').replace(/^data:[^;]+;base64,/, '');
+                    return {
+                      filename: att.filename || 'anexo.pdf',
+                      content: Buffer.from(raw, 'base64'),
+                      contentType: att.contentType || 'application/pdf',
+                    };
                   }
-                }
-              }
+                  if (att.url) {
+                    try {
+                      const fetchRes = await fetch(att.url);
+                      if (fetchRes.ok) {
+                        const arrayBuffer = await fetchRes.arrayBuffer();
+                        return {
+                          filename: att.filename || 'documento.pdf',
+                          content: Buffer.from(arrayBuffer),
+                          contentType: att.contentType || 'application/pdf',
+                        };
+                      }
+                    } catch (downloadErr) {
+                      console.warn(`[send-email] Falha ao baixar anexo remoto da URL: ${att.url}`, downloadErr);
+                    }
+                  }
+                  return null;
+                })
+              );
+              const processedAttachments = attachmentResults.filter(Boolean);
 
               const nodemailerModule = await import('nodemailer');
               const nodemailer = nodemailerModule.default || nodemailerModule;
@@ -289,9 +294,31 @@ export default defineConfig({
                 socketTimeout: 35000,
               });
 
+              const rawTo = Array.isArray(to) ? to.join(',') : String(to || '');
+              const toAddresses = rawTo
+                .split(/[;,]/)
+                .map((addr) => addr.trim())
+                .filter(Boolean)
+                .join(', ');
+
+              if (!toAddresses) {
+                res.statusCode = 400;
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({ error: 'Nenhum endereço de destinatário válido informado.' }));
+                return;
+              }
+
+              const rawCc = Array.isArray(cc) ? cc.join(',') : (cc || '');
+              const ccAddresses = rawCc
+                .split(/[;,]/)
+                .map((addr: string) => addr.trim())
+                .filter(Boolean)
+                .join(', ');
+
               const info = await transporter.sendMail({
                 from: `"${senderName}" <${senderEmail}>`,
-                to: Array.isArray(to) ? to.join(', ') : to,
+                to: toAddresses,
+                cc: ccAddresses || undefined,
                 replyTo: replyTo || senderEmail,
                 subject,
                 text: text || undefined,
@@ -299,12 +326,23 @@ export default defineConfig({
                 attachments: processedAttachments,
               });
 
+              if (!info.accepted || info.accepted.length === 0) {
+                res.statusCode = 502;
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({
+                  error: 'O servidor SMTP não aceitou nenhum endereço de destinatário.',
+                  rejected: info.rejected,
+                }));
+                return;
+              }
+
               res.statusCode = 200;
               res.setHeader('Content-Type', 'application/json');
               res.end(JSON.stringify({
                 success: true,
                 messageId: info.messageId,
                 accepted: info.accepted,
+                rejected: info.rejected,
                 totalAttachments: processedAttachments.length,
                 sender: senderEmail,
               }));
@@ -350,6 +388,7 @@ export default defineConfig({
       },
       workbox: {
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
+        navigateFallbackDenylist: [/^\/api\//],
       },
       devOptions: {
         enabled: true

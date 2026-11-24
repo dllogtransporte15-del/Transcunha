@@ -1,4 +1,3 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
 import nodemailer from 'nodemailer';
 
 interface AttachmentPayload {
@@ -11,6 +10,7 @@ interface AttachmentPayload {
 
 interface SendEmailRequestBody {
   to: string | string[];
+  cc?: string | string[];
   subject: string;
   html?: string;
   text?: string;
@@ -35,11 +35,14 @@ export default async function handler(req: any, res: any) {
     return res.status(405).json({ error: 'Method not allowed. Use POST.' });
   }
 
+  let senderEmail = 'contato@transcunhaoficial.com.br';
+
   try {
     const body: SendEmailRequestBody = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
 
     const {
       to,
+      cc,
       subject,
       html,
       text,
@@ -59,7 +62,7 @@ export default async function handler(req: any, res: any) {
     }
 
     // Credenciais do Google Workspace
-    const senderEmail = (customSender || process.env.GWORKSPACE_USER || 'contato@transcunhaoficial.com.br').trim();
+    senderEmail = (customSender || process.env.GWORKSPACE_USER || 'contato@transcunhaoficial.com.br').trim();
     const rawPassword = (customPassword || process.env.GWORKSPACE_APP_PASSWORD || '').trim();
 
     // Remove espaços que o Google às vezes insere na senha de app (ex: "abcd efgh ijkl mnop" -> "abcdefghijklmnop")
@@ -72,32 +75,36 @@ export default async function handler(req: any, res: any) {
       });
     }
 
-    // Processamento de anexos recebidos em Base64 ou URL
-    const processedAttachments = [];
-    for (const att of attachments) {
-      if (att.base64 || att.content) {
-        const rawContent = (att.base64 || att.content || '').replace(/^data:[^;]+;base64,/, '');
-        processedAttachments.push({
-          filename: att.filename || 'anexo.pdf',
-          content: Buffer.from(rawContent, 'base64'),
-          contentType: att.contentType || 'application/pdf',
-        });
-      } else if (att.url) {
-        try {
-          const fetchRes = await fetch(att.url);
-          if (fetchRes.ok) {
-            const arrayBuffer = await fetchRes.arrayBuffer();
-            processedAttachments.push({
-              filename: att.filename || 'documento.pdf',
-              content: Buffer.from(arrayBuffer),
-              contentType: att.contentType || 'application/pdf',
-            });
-          }
-        } catch (downloadErr) {
-          console.warn(`[send-email] Falha ao baixar anexo remoto da URL: ${att.url}`, downloadErr);
+    // Processamento de anexos recebidos em Base64 ou URL (em paralelo para evitar timeout)
+    const attachmentResults = await Promise.all(
+      attachments.map(async (att) => {
+        if (att.base64 || att.content) {
+          const rawContent = (att.base64 || att.content || '').replace(/^data:[^;]+;base64,/, '');
+          return {
+            filename: att.filename || 'anexo.pdf',
+            content: Buffer.from(rawContent, 'base64'),
+            contentType: att.contentType || 'application/pdf',
+          };
         }
-      }
-    }
+        if (att.url) {
+          try {
+            const fetchRes = await fetch(att.url);
+            if (fetchRes.ok) {
+              const arrayBuffer = await fetchRes.arrayBuffer();
+              return {
+                filename: att.filename || 'documento.pdf',
+                content: Buffer.from(arrayBuffer),
+                contentType: att.contentType || 'application/pdf',
+              };
+            }
+          } catch (downloadErr) {
+            console.warn(`[send-email] Falha ao baixar anexo remoto da URL: ${att.url}`, downloadErr);
+          }
+        }
+        return null;
+      })
+    );
+    const processedAttachments = attachmentResults.filter((a): a is NonNullable<typeof a> => a !== null);
 
     // Configuração do transporter SMTP Google Workspace
     const transporter = nodemailer.createTransport({
@@ -113,12 +120,29 @@ export default async function handler(req: any, res: any) {
       socketTimeout: 35000,
     });
 
-    const toAddresses = Array.isArray(to) ? to.join(', ') : to;
+    const rawTo = Array.isArray(to) ? to.join(',') : to;
+    const toAddresses = rawTo
+      .split(/[;,]/)
+      .map((addr) => addr.trim())
+      .filter(Boolean)
+      .join(', ');
+
+    if (!toAddresses) {
+      return res.status(400).json({ error: 'Nenhum endereço de destinatário válido informado.' });
+    }
+
+    const rawCc = Array.isArray(cc) ? cc.join(',') : (cc || '');
+    const ccAddresses = rawCc
+      .split(/[;,]/)
+      .map((addr) => addr.trim())
+      .filter(Boolean)
+      .join(', ');
 
     // Disparo do e-mail
     const info = await transporter.sendMail({
       from: `"${senderName}" <${senderEmail}>`,
       to: toAddresses,
+      cc: ccAddresses || undefined,
       replyTo: replyTo || senderEmail,
       subject: subject,
       text: text || undefined,
@@ -126,10 +150,18 @@ export default async function handler(req: any, res: any) {
       attachments: processedAttachments,
     });
 
+    if (!info.accepted || info.accepted.length === 0) {
+      return res.status(502).json({
+        error: 'O servidor SMTP não aceitou nenhum endereço de destinatário.',
+        rejected: info.rejected,
+      });
+    }
+
     return res.status(200).json({
       success: true,
       messageId: info.messageId,
       accepted: info.accepted,
+      rejected: info.rejected,
       totalAttachments: processedAttachments.length,
       sender: senderEmail,
     });
@@ -142,7 +174,7 @@ export default async function handler(req: any, res: any) {
     // Dicas amigáveis para falhas comuns de autenticação no Google Workspace
     let userHelp = '';
     if (errorMessage.includes('Invalid login') || errorMessage.includes('535') || responseCode === 535) {
-      userHelp = 'Falha de autenticação no Google Workspace. Verifique se o e-mail está correto e utilize uma "Senha de App" de 16 dígitos gerada em Conta Google -> Segurança -> Verificação em duas etapas -> Senhas de App (não use a sua senha pessoal do login normal).';
+      userHelp = `Falha de autenticação no Google Workspace (BadCredentials). Verifique: 1) A Senha de App de 16 letras deve ser gerada na mesma conta do remetente (${senderEmail}). Se você gerou no seu Gmail pessoal, troque o remetente para o seu Gmail pessoal ou faça login no Google como ${senderEmail} para gerar a senha; 2) A Verificação em 2 etapas deve estar ATIVA na conta; 3) No painel de administração do Workspace, o uso de Senhas de App deve estar permitido.`;
     } else if (errorMessage.includes('ETIMEDOUT') || errorMessage.includes('ECONNREFUSED')) {
       userHelp = 'Falha de conexão com os servidores SMTP do Google (smtp.gmail.com:465). Tente novamente em instantes.';
     }
