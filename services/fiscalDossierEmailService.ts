@@ -313,8 +313,9 @@ export async function sendDossierEmailViaGoogleWorkspace(
     throw new Error('Selecione ao menos um documento para compor o dossiê.');
   }
 
-  // 1. Processar e baixar os PDFs em Base64
-  const attachments: Array<{ filename: string; base64: string; contentType: string }> = [];
+  // 1. Processar e preparar anexos de forma leve (passando URLs para o backend baixar ou Base64 quando local)
+  // Isso reduz o payload do POST de ~30MB para meros ~10KB, eliminando o erro 413 (Payload Too Large).
+  const attachments: Array<{ filename: string; url?: string; base64?: string; contentType: string }> = [];
 
   const docsWithAttachment = chosenDocs.filter(d => d.attachments && d.attachments.length > 0);
   const total = docsWithAttachment.length;
@@ -322,20 +323,29 @@ export async function sendDossierEmailViaGoogleWorkspace(
   for (let i = 0; i < total; i++) {
     const doc = docsWithAttachment[i];
     const firstAtt = doc.attachments![0];
+    const filename = sanitizeFilename(doc.title || firstAtt.name || `documento_${i + 1}`, i);
 
     onProgress?.(`Preparando anexo (${i + 1}/${total}): ${doc.title}...`, i + 1, total);
 
-    try {
-      const base64Data = await fetchFileAsBase64(firstAtt.url);
-      const filename = sanitizeFilename(doc.title || firstAtt.name || `documento_${i + 1}`, i);
-
+    // Se o arquivo tiver URL HTTP/HTTPS (ex: Supabase Storage), enviamos a URL diretamente para download no backend
+    if (firstAtt.url && (firstAtt.url.startsWith('http://') || firstAtt.url.startsWith('https://'))) {
       attachments.push({
         filename,
-        base64: base64Data,
+        url: firstAtt.url,
         contentType: 'application/pdf',
       });
-    } catch (attErr) {
-      console.warn(`[fiscalDossierEmailService] Falha ao converter anexo ${doc.title}:`, attErr);
+    } else {
+      // Fallback para blobs/arquivos locais
+      try {
+        const base64Data = await fetchFileAsBase64(firstAtt.url);
+        attachments.push({
+          filename,
+          base64: base64Data,
+          contentType: 'application/pdf',
+        });
+      } catch (attErr) {
+        console.warn(`[fiscalDossierEmailService] Falha ao converter anexo ${doc.title}:`, attErr);
+      }
     }
   }
 
@@ -399,7 +409,18 @@ TRANSCUNHA TRANSPORTES E LOGÍSTICA LTDA.
     }),
   });
 
-  const responseData = await response.json();
+  const rawText = await response.text();
+  let responseData: any = {};
+  try {
+    responseData = JSON.parse(rawText || '{}');
+  } catch {
+    if (!response.ok) {
+      if (response.status === 413) {
+        throw new Error('O volume total de arquivos selecionados excedeu o limite de envio da plataforma. Reduza a seleção de documentos ou envie em dois lotes.');
+      }
+      throw new Error(`Falha no servidor (${response.status}): ${rawText.substring(0, 150)}`);
+    }
+  }
 
   if (!response.ok) {
     const errorMsg = responseData?.error || 'Erro ao processar envio pelo Google Workspace';

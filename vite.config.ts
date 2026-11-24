@@ -256,6 +256,20 @@ export default defineConfig({
                     content: Buffer.from(raw, 'base64'),
                     contentType: att.contentType || 'application/pdf',
                   });
+                } else if (att.url) {
+                  try {
+                    const fetchRes = await fetch(att.url);
+                    if (fetchRes.ok) {
+                      const arrayBuffer = await fetchRes.arrayBuffer();
+                      processedAttachments.push({
+                        filename: att.filename || 'documento.pdf',
+                        content: Buffer.from(arrayBuffer),
+                        contentType: att.contentType || 'application/pdf',
+                      });
+                    }
+                  } catch (downloadErr) {
+                    console.warn(`[send-email] Falha ao baixar anexo remoto da URL: ${att.url}`, downloadErr);
+                  }
                 }
               }
 

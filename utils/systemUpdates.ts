@@ -27,6 +27,25 @@ export interface SystemRelease {
  */
 export const SYSTEM_RELEASES: SystemRelease[] = [
   {
+    id: 'rel_2026_11_23_v2_116_61',
+    version: 'v2.116.61',
+    date: '23/11/2026',
+    title: 'Otimização de Payload de Anexos do Dossiê Fiscal (Evita Erro 413)',
+    summary: 'Aprimorado o envio automático de dossiês com grande volume de documentos: envio direto de URLs seguras para download no backend, reduzindo o payload de 30MB para ~10KB e eliminando o erro "Request Entity Too Large".',
+    items: [
+      {
+        category: 'fix',
+        title: 'Fim do Erro "Request Entity Too Large"',
+        description: 'Os documentos agora são baixados diretamente pelo servidor de envio em vez de trafegar 30MB em Base64 pelo navegador, mantendo conformidade com os limites de requisição de proxies e da Vercel.'
+      },
+      {
+        category: 'improvement',
+        title: 'Parsing e Respostas de Erro Mais Resilientes',
+        description: 'Implementado tratamento seguro de respostas não-JSON de gateways e servidores, exibindo mensagens claras e amigáveis ao usuário.'
+      }
+    ]
+  },
+  {
     id: 'rel_2026_11_23_v2_116_60',
     version: 'v2.116.60',
     date: '23/11/2026',
