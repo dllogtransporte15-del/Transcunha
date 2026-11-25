@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import type { User, Client, Branch } from '../types';
 import { UserProfile } from '../types';
-import { isDeveloperUser, filterVisibleUsers, filterVisibleProfiles } from '../auth';
+import { isDeveloperUser, filterVisibleUsers, filterVisibleProfiles, INTERNAL_JOB_FUNCTIONS, getDefaultJobFunctionByName } from '../auth';
 import { useToast } from '../hooks/useToast';
 import { autoFormatInput, formatCPF } from '../utils/formatters';
 import { X, Copy, Check, CheckCircle2, Mail, Key, Building2 } from 'lucide-react';
@@ -54,6 +54,7 @@ const UserFormModal: React.FC<UserFormModalProps> = ({
     corporateEmailPassword: '',
     corporateEmailQuotaMb: 5120,
     corporateEmailStatus: 'Ativo',
+    jobFunction: '',
   });
 
   const [user, setUser] = useState<Omit<User, 'id' | 'password'> & { password?: string; customPermissions?: any }>(getInitialState());
@@ -129,6 +130,7 @@ Qualquer dúvida, estamos à disposição! 🚛💨`;
               corporateEmailPassword: userToEdit.corporateEmailPassword || existingCorpAccount?.password || '',
               corporateEmailQuotaMb: userToEdit.corporateEmailQuotaMb || (existingCorpAccount ? existingCorpAccount.quotaMb : 5120),
               corporateEmailStatus: userToEdit.corporateEmailStatus || existingCorpAccount?.status || 'Ativo',
+              jobFunction: userToEdit.jobFunction || getDefaultJobFunctionByName(userToEdit.name) || '',
               password: '' 
             }); // Don't load existing password
         } else {
@@ -515,6 +517,25 @@ Qualquer dúvida, estamos à disposição! 🚛💨`;
                 {selectableProfiles.map(p => <option key={p} value={p}>{p}</option>)}
               </select>
             </div>
+
+            {showCorporateFeatures && (
+              <div>
+                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-1">
+                  Função (Exibida na Assinatura Corporativa)
+                </label>
+                <select
+                  name="jobFunction"
+                  value={user.jobFunction || getDefaultJobFunctionByName(user.name) || ''}
+                  onChange={handleChange}
+                  className="p-2 w-full border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none cursor-pointer"
+                >
+                  <option value="">Selecione a função do colaborador...</option>
+                  {INTERNAL_JOB_FUNCTIONS.map(fn => (
+                    <option key={fn} value={fn}>{fn}</option>
+                  ))}
+                </select>
+              </div>
+            )}
 
           {user.profile === UserProfile.Cliente && (
             <div>

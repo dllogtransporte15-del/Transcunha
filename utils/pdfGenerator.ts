@@ -13,6 +13,47 @@ export const getStoredCompanyLogo = (): string | null => {
   );
 };
 
+export const addImageContain = (
+  doc: jsPDF,
+  imageData: string,
+  boxX: number,
+  boxY: number,
+  boxW: number,
+  boxH: number,
+  alignX: 'left' | 'center' | 'right' = 'center',
+  alignY: 'top' | 'center' | 'bottom' = 'center'
+): { x: number; y: number; w: number; h: number } | null => {
+  try {
+    const props = doc.getImageProperties(imageData);
+    const natW = props?.width || 0;
+    const natH = props?.height || 0;
+    const format = (props?.fileType || 'PNG').toUpperCase();
+
+    let drawW = boxW;
+    let drawH = boxH;
+
+    if (natW > 0 && natH > 0) {
+      const scale = Math.min(boxW / natW, boxH / natH);
+      drawW = natW * scale;
+      drawH = natH * scale;
+    }
+
+    let drawX = boxX;
+    if (alignX === 'center') drawX = boxX + (boxW - drawW) / 2;
+    else if (alignX === 'right') drawX = boxX + (boxW - drawW);
+
+    let drawY = boxY;
+    if (alignY === 'center') drawY = boxY + (boxH - drawH) / 2;
+    else if (alignY === 'bottom') drawY = boxY + (boxH - drawH);
+
+    doc.addImage(imageData, format, drawX, drawY, drawW, drawH);
+    return { x: drawX, y: drawY, w: drawW, h: drawH };
+  } catch (e) {
+    console.warn("Could not add image preserving aspect ratio to PDF", e);
+    return null;
+  }
+};
+
 export const addPdfLogo = (
   doc: jsPDF,
   logo?: string | null,
@@ -33,6 +74,7 @@ export const addPdfLogo = (
   const pageWidth = doc.internal.pageSize.getWidth();
 
   let x = options?.x;
+  let alignX: 'left' | 'center' | 'right' = options?.align || 'right';
   if (x === undefined) {
     if (options?.align === 'left') {
       x = 14;
@@ -42,15 +84,11 @@ export const addPdfLogo = (
       // Default: Top right
       x = pageWidth - 14 - w;
     }
+  } else {
+    alignX = options?.align || 'center';
   }
 
-  try {
-    doc.addImage(effectiveLogo, 'PNG', x, y, w, h);
-    return true;
-  } catch (e) {
-    console.warn("Could not add company logo to PDF", e);
-    return false;
-  }
+  return addImageContain(doc, effectiveLogo, x, y, w, h, alignX, 'center') !== null;
 };
 
 /**
@@ -382,14 +420,21 @@ export const getEffectiveCompanyInfo = (cargo?: Cargo | null, shipment?: Shipmen
   return { ...COMPANY_MINAS_INFO, uf: 'MG' as const };
 };
 
+export interface GeneratedPdfPayload {
+  filename: string;
+  base64: string;
+  sizeBytes: number;
+}
+
 export const generateConsubeLoadingOrderPDF = (
   shipment: Shipment,
   cargo: Cargo,
   clients: Client[],
   products: Product[],
   vehicles: Vehicle[],
-  companyLogo?: string | null
-) => {
+  companyLogo?: string | null,
+  options?: { returnBase64Only?: boolean }
+): GeneratedPdfPayload | void => {
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
@@ -424,18 +469,10 @@ export const generateConsubeLoadingOrderPDF = (
   // Caixa da Logo (Esquerda)
   doc.rect(margin, currentY, leftColWidth, headerHeight);
   const effectiveLogo = companyLogo || getStoredCompanyLogo();
-  if (effectiveLogo) {
-    try {
-      doc.addImage(effectiveLogo, 'PNG', margin + 4, currentY + 3, leftColWidth - 8, headerHeight - 6);
-    } catch {
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(8.5);
-      doc.setTextColor(60, 60, 60);
-      doc.text("LOGO DA TRANSPORTADORA", margin + leftColWidth / 2, currentY + 11, { align: 'center' });
-      doc.setFontSize(7.5);
-      doc.text("(OPCIONAL)", margin + leftColWidth / 2, currentY + 16, { align: 'center' });
-    }
-  } else {
+  const logoPlaced = effectiveLogo
+    ? addImageContain(doc, effectiveLogo, margin + 4, currentY + 3, leftColWidth - 8, headerHeight - 6, 'center', 'center')
+    : null;
+  if (!logoPlaced) {
     doc.setFont("helvetica", "bold");
     doc.setFontSize(8.5);
     doc.setTextColor(60, 60, 60);
@@ -690,8 +727,19 @@ export const generateConsubeLoadingOrderPDF = (
   doc.setTextColor(140, 140, 140);
   doc.text(`Documento emitido via Sistema Transcunha Logística em ${new Date().toLocaleString('pt-BR')} - Modelo Consube`, margin + contentWidth / 2, 287, { align: 'center' });
 
+  const filename = `OC_CONSUBE_${cleanOcNum}_${horsePlate}.pdf`;
+  if (options?.returnBase64Only) {
+    const dataUri = doc.output('datauristring');
+    const rawB64 = dataUri.split(',')[1] || '';
+    return {
+      filename,
+      base64: dataUri,
+      sizeBytes: Math.round((rawB64.length * 3) / 4),
+    };
+  }
+
   // Salvar PDF
-  doc.save(`OC_CONSUBE_${cleanOcNum}_${horsePlate}.pdf`);
+  doc.save(filename);
 };
 
 export const generateLoadingOrderPDF = (
@@ -701,14 +749,15 @@ export const generateLoadingOrderPDF = (
   products: Product[],
   vehicles: Vehicle[],
   companyLogo?: string | null,
-  modelIdOverride?: string
-) => {
+  modelIdOverride?: string,
+  options?: { returnBase64Only?: boolean }
+): GeneratedPdfPayload | void => {
   const client = clients.find((c) => c.id === cargo.clientId);
   const branch = client?.secondaryCnpjs?.find(b => b.id === cargo.clientBranchId || b.cnpj === cargo.clientCnpj);
   const effectiveModelId = modelIdOverride || branch?.loadingOrderModelId || branch?.ordemCarregamentoModelId || client?.loadingOrderModelId || client?.ordemCarregamentoModelId;
 
   if (effectiveModelId === 'mod_consube') {
-    return generateConsubeLoadingOrderPDF(shipment, cargo, clients, products, vehicles, companyLogo);
+    return generateConsubeLoadingOrderPDF(shipment, cargo, clients, products, vehicles, companyLogo, options);
   }
 
   const doc = new jsPDF();
@@ -733,11 +782,7 @@ export const generateLoadingOrderPDF = (
   // Logo
   const effectiveLogo = companyLogo || getStoredCompanyLogo();
   if (effectiveLogo) {
-      try {
-          doc.addImage(effectiveLogo, 'PNG', margin, 5, 35, 20); 
-      } catch (e) {
-          console.warn("Could not add company logo to PDF", e);
-      }
+      addImageContain(doc, effectiveLogo, margin, 5, 35, 20, 'left', 'center');
   }
 
   // Company Info Header (Under the logo)
@@ -893,7 +938,18 @@ export const generateLoadingOrderPDF = (
   const footerText = `Este documento é exclusivo para controle interno de carregamento da ${companyInfo.name}. As informações aqui contidas são confidenciais.`;
   doc.text(footerText, pageWidth / 2, pageHeight - 10, { align: 'center' });
 
+  const filename = `OC_${shipment.id}_${shipment.horsePlate.toUpperCase()}.pdf`;
+  if (options?.returnBase64Only) {
+    const dataUri = doc.output('datauristring');
+    const rawB64 = dataUri.split(',')[1] || '';
+    return {
+      filename,
+      base64: dataUri,
+      sizeBytes: Math.round((rawB64.length * 3) / 4),
+    };
+  }
+
   // Save PDF
-  doc.save(`OC_${shipment.id}_${shipment.horsePlate.toUpperCase()}.pdf`);
+  doc.save(filename);
 };
 

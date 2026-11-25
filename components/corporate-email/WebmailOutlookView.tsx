@@ -27,23 +27,52 @@ import {
   Archive,
   MoreVertical,
   Check,
-  X
+  X,
+  AppWindow
 } from 'lucide-react';
 import type { CorporateEmailAccount, CorporateEmailFolder, CorporateEmailMessage, CorporateEmailAttachment } from '../../types';
 import { corporateEmailService } from '../../services/corporateEmailService';
 import { ComposeEmailModal } from './ComposeEmailModal';
 import { useToast } from '../../hooks/useToast';
 
+let externalWebmailWindowRef: Window | null = null;
+
+export function openExternalWebmailWindow(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    if (externalWebmailWindowRef && !externalWebmailWindowRef.closed) {
+      externalWebmailWindowRef.focus();
+      return;
+    }
+  } catch {}
+
+  const width = Math.min(1380, Math.max(1024, window.screen.availWidth - 80));
+  const height = Math.min(860, Math.max(680, window.screen.availHeight - 80));
+  const left = Math.max(20, Math.round((window.screen.availWidth - width) / 2));
+  const top = Math.max(20, Math.round((window.screen.availHeight - height) / 2));
+
+  externalWebmailWindowRef = window.open(
+    '/webmail',
+    'transcunha_webmail_standalone',
+    `popup=yes,width=${width},height=${height},left=${left},top=${top},menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes`
+  );
+  if (externalWebmailWindowRef) {
+    externalWebmailWindowRef.focus();
+  }
+}
+
 interface WebmailOutlookViewProps {
   accounts: CorporateEmailAccount[];
   onOpenSignatures?: () => void;
   onOpenServerConfig?: () => void;
+  isStandalone?: boolean;
 }
 
 export const WebmailOutlookView: React.FC<WebmailOutlookViewProps> = ({
   accounts,
   onOpenSignatures,
   onOpenServerConfig,
+  isStandalone = false,
 }) => {
   const { showToast } = useToast();
 
@@ -60,7 +89,7 @@ export const WebmailOutlookView: React.FC<WebmailOutlookViewProps> = ({
   const [composeMode, setComposeMode] = useState<'new' | 'reply' | 'replyAll' | 'forward'>('new');
   const [targetMessageForCompose, setTargetMessageForCompose] = useState<CorporateEmailMessage | null>(null);
 
-  // Escutar eventos de atualização de mensagens em tempo real
+  // Escutar eventos de atualização de mensagens em tempo real (local, entre janelas e Supabase Realtime)
   useEffect(() => {
     const handleUpdate = () => {
       setRefreshTrigger(prev => prev + 1);
@@ -69,9 +98,14 @@ export const WebmailOutlookView: React.FC<WebmailOutlookViewProps> = ({
     window.addEventListener('corporate_messages_updated', handleUpdate);
     window.addEventListener('transcunha:new_corporate_email', handleUpdate);
 
+    const unsubscribeRealtime = corporateEmailService.subscribeToRealtime(() => {
+      setRefreshTrigger(prev => prev + 1);
+    });
+
     return () => {
       window.removeEventListener('corporate_messages_updated', handleUpdate);
       window.removeEventListener('transcunha:new_corporate_email', handleUpdate);
+      unsubscribeRealtime();
     };
   }, []);
 
@@ -222,7 +256,13 @@ export const WebmailOutlookView: React.FC<WebmailOutlookViewProps> = ({
   };
 
   return (
-    <div className="h-[calc(100vh-14rem)] min-h-[640px] flex rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xl overflow-hidden animate-fade-in">
+    <div
+      className={
+        isStandalone
+          ? 'h-full w-full flex bg-white dark:bg-slate-900 overflow-hidden animate-fade-in'
+          : 'h-[calc(100vh-14rem)] min-h-[640px] flex rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xl overflow-hidden animate-fade-in'
+      }
+    >
       
       {/* ========================================================= */}
       {/* COLUNA 1: CONTAS, PASTAS & ATALHOS                        */}
@@ -250,8 +290,8 @@ export const WebmailOutlookView: React.FC<WebmailOutlookViewProps> = ({
           </div>
         </div>
 
-        {/* Botão + Nova Mensagem */}
-        <div className="p-3">
+        {/* Botão + Nova Mensagem e Abrir Janela Externa */}
+        <div className="p-3 space-y-2">
           <button
             onClick={handleNewMessage}
             className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-blue-600 via-primary to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-black shadow-lg shadow-blue-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer transform active:scale-95"
@@ -259,6 +299,17 @@ export const WebmailOutlookView: React.FC<WebmailOutlookViewProps> = ({
             <Plus className="w-4 h-4" />
             <span>Nova Mensagem</span>
           </button>
+
+          {!isStandalone && (
+            <button
+              onClick={openExternalWebmailWindow}
+              className="w-full py-2 px-3 rounded-xl bg-slate-200/80 dark:bg-slate-800/90 hover:bg-blue-600 hover:text-white dark:hover:bg-blue-600 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 hover:border-blue-500 text-[11px] font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+              title="Abrir caixa de e-mail em janela externa independente (modo aplicativo)"
+            >
+              <AppWindow className="w-3.5 h-3.5" />
+              <span>Abrir Janela Externa</span>
+            </button>
+          )}
         </div>
 
         {/* Lista de Pastas do Outlook */}
@@ -350,13 +401,27 @@ export const WebmailOutlookView: React.FC<WebmailOutlookViewProps> = ({
               </span>
             </h3>
 
-            <button
-              onClick={() => setRefreshTrigger(c => c + 1)}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-              title="Sincronizar correio"
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-            </button>
+            <div className="flex items-center gap-1">
+              {!isStandalone && (
+                <button
+                  onClick={openExternalWebmailWindow}
+                  className="p-1.5 rounded-lg text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/60 transition-colors cursor-pointer"
+                  title="Abrir em janela externa independente"
+                >
+                  <AppWindow className="w-3.5 h-3.5" />
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  void corporateEmailService.syncFromCloud().then(() => setRefreshTrigger(c => c + 1));
+                  setRefreshTrigger(c => c + 1);
+                }}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                title="Sincronizar correio agora"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
 
           {/* Campo de Busca */}

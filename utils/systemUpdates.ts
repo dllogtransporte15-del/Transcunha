@@ -27,6 +27,199 @@ export interface SystemRelease {
  */
 export const SYSTEM_RELEASES: SystemRelease[] = [
   {
+    id: 'rel_2026_11_25_v2_118_11',
+    version: 'v2.118.11',
+    date: '25/11/2026',
+    title: 'Remoção do Atalho "E-mail Corporativo" do Cabeçalho de Usuários',
+    summary: 'Removido o botão de atalho "E-mail Corporativo" do cabeçalho da página Gerenciar Usuários conforme solicitado.',
+    items: [
+      {
+        category: 'improvement',
+        title: 'Limpeza do Cabeçalho de Gerenciar Usuários',
+        description: 'Retirado o botão "E-mail Corporativo" ao lado de "Gerenciar Permissões" e "Adicionar Usuário" na tela de Gerenciar Usuários.'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_25_v2_118_10',
+    version: 'v2.118.10',
+    date: '25/11/2026',
+    title: 'Correção da Abertura do Modal "Enviar Ordem por E-mail"',
+    summary: 'Corrigida a sobreposição (z-index) do modal de envio de e-mail para que ele abra corretamente na frente da janela de Detalhes do Embarque ao clicar em "Enviar Ordem por E-mail".',
+    items: [
+      {
+        category: 'fix',
+        title: 'Correção de Z-Index no Modal de Envio de Ordem',
+        description: 'O compositor de e-mail agora utiliza z-[10050] e lista de contas memoizada, abrindo imediatamente sobre os Detalhes do Embarque com o PDF anexado.'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_25_v2_118_9',
+    version: 'v2.118.9',
+    date: '25/11/2026',
+    title: 'Conversão CID da Logo na Assinatura e Sincronização de Dados do Remetente',
+    summary: 'As imagens em Base64 das assinaturas agora são convertidas automaticamente para anexos inline CID no envio SMTP (garantindo exibição no Gmail e Outlook sem bloqueio ou corte) e os dados do usuário conectado ficam sincronizados em todas as janelas.',
+    items: [
+      {
+        category: 'fix',
+        title: 'Exibição Garantida da Assinatura e Logo no Gmail/Outlook',
+        description: 'O servidor de envio agora converte a logo em anexo inline (cid:) para evitar bloqueio de data:image ou recorte da assinatura pelos provedores de e-mail.'
+      },
+      {
+        category: 'improvement',
+        title: 'Sincronização Completa do Usuário Remetente',
+        description: 'Nome, função, telefone e e-mail corporativo do usuário logado são sincronizados continuamente para preencher automaticamente qualquer disparo.'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_25_v2_118_8',
+    version: 'v2.118.8',
+    date: '25/11/2026',
+    title: 'Assinatura Automática do Usuário Remetente em Todos os E-mails Disparados',
+    summary: 'Todos os e-mails gerados ou disparados pelo sistema (Webmail, Ordens de Carregamento e Dossiê Fiscal) agora anexam automaticamente a assinatura executiva Transcunha com os dados do usuário conectado.',
+    items: [
+      {
+        category: 'feature',
+        title: 'Assinatura Dinâmica Automática no Envio',
+        description: 'Qualquer disparo pelo sistema agora inclui automaticamente a assinatura executiva com logo, nome, função, e-mail, celular/WhatsApp e telefone fixo (35 9872-1970) do usuário remetente.'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_24_v2_118_7',
+    version: 'v2.118.7',
+    date: '24/11/2026',
+    title: 'Função/Cargo de Usuários Internos e Exibição na Assinatura Corporativa',
+    summary: 'Adicionado o campo Função para todos os usuários internos (Diretor, Comercial, Embarcador, Administrativo, Financeiro, Gerenciamento de Risco), com pré-configuração inicial e exibição direta na assinatura de e-mail no lugar do perfil de operador.',
+    items: [
+      {
+        category: 'feature',
+        title: 'Campo Função no Cadastro de Usuários Internos',
+        description: 'Todos os usuários internos agora contam com o campo "Função" (Diretor, Comercial, Embarcador, Administrativo, Financeiro ou Gerenciamento de Risco), já preenchido para Dione, Celso, Felipe, Talita, Otávio e Samantha.'
+      },
+      {
+        category: 'improvement',
+        title: 'Assinatura Corporativa com a Função do Colaborador',
+        description: 'O gerador de assinaturas passou a exibir a função cadastrada do colaborador no lugar do perfil de operador do sistema.'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_24_v2_118_6',
+    version: 'v2.118.6',
+    date: '24/11/2026',
+    title: 'Atualização do Telefone Fixo Padrão da Empresa na Assinatura',
+    summary: 'Definido o número padrão "35 9872-1970" no campo Telefone Fixo da Empresa no gerador de assinaturas corporativas.',
+    items: [
+      {
+        category: 'improvement',
+        title: 'Telefone Fixo Padrão Atualizado',
+        description: 'O campo "Telefone Fixo da Empresa" e o padrão das assinaturas corporativas agora vêm preenchidos com "35 9872-1970".'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_24_v2_118_5',
+    version: 'v2.118.5',
+    date: '24/11/2026',
+    title: 'Múltiplos Destinatários no Disparo do Dossiê Fiscal',
+    summary: 'O campo "E-mail do Destinatário" no modal de Dossiê de Homologação agora permite adicionar múltiplos e-mails em formato de tags/chips com suporte a Enter, vírgula, ponto e vírgula ou colagem em lote.',
+    items: [
+      {
+        category: 'improvement',
+        title: 'Campo Multi-E-mail no Dossiê Fiscal',
+        description: 'Adicione vários destinatários no campo "E-mail do Destinatário *" com remoção individual, validação de formato e preenchimento automático ao selecionar o cliente.'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_24_v2_118_4',
+    version: 'v2.118.4',
+    date: '24/11/2026',
+    title: 'Envio Direto da Ordem de Carregamento por E-mail nos Detalhes do Embarque',
+    summary: 'Substituído o botão "Trocar Carga" no cabeçalho dos Detalhes do Embarque pela opção "Enviar Ordem por E-mail", que abre o compositor com o PDF da ordem já anexado e assunto/corpo preenchidos.',
+    items: [
+      {
+        category: 'feature',
+        title: 'Enviar Ordem de Carregamento por E-mail',
+        description: 'Ao clicar em "Enviar Ordem por E-mail" no modal de Detalhes do Embarque, o sistema gera o PDF oficial da ordem em segundo plano, anexa automaticamente e preenche assunto e corpo com todos os dados do embarque, restando apenas informar os destinatários.'
+      },
+      {
+        category: 'improvement',
+        title: 'Limpeza do Cabeçalho do Embarque',
+        description: 'Removido o botão "Trocar Carga" do cabeçalho do modal de Detalhes do Embarque conforme solicitado.'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_24_v2_118_3',
+    version: 'v2.118.3',
+    date: '24/11/2026',
+    title: 'Restrição do Botão OC Modelo Consube apenas para Embarques da Consube',
+    summary: 'O botão e modelo de Ordem de Carregamento "Mod. Consube" agora é exibido exclusivamente nos embarques em que a Consube for o cliente pagador.',
+    items: [
+      {
+        category: 'fix',
+        title: 'Filtro de Exibição do Modelo Consube',
+        description: 'No modal de detalhes do embarque, o botão "Mod. Consube" e a identificação "Ordem Consube" só aparecem quando o cliente pagador vinculado à carga for a Consube.'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_24_v2_118_2',
+    version: 'v2.118.2',
+    date: '24/11/2026',
+    title: 'Preservação da Proporção Original da Logo nos PDFs do Sistema',
+    summary: 'Corrigida a renderização da logo da Transcunha em todos os PDFs gerados pelo sistema (Ordem de Carregamento, Relatórios e Históricos) para respeitar sempre a proporção original sem esticar na horizontal ou vertical.',
+    items: [
+      {
+        category: 'fix',
+        title: 'Proporção Original da Logo em PDFs',
+        description: 'Implementado cálculo proporcional automático (contain) via getImageProperties do jsPDF para centralizar e ajustar a logo dentro da caixa sem distorções.'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_24_v2_118_1',
+    version: 'v2.118.1',
+    date: '24/11/2026',
+    title: 'Assinatura Corporativa Executiva com Telefone e Dados Dinâmicos do Colaborador',
+    summary: 'Corrigida a sincronização do gerador de assinatura com o colaborador selecionado, preenchimento automático do telefone cadastrado no Usuário Interno e novo layout corporativo moderno e sofisticado.',
+    items: [
+      {
+        category: 'fix',
+        title: 'Sincronização Direta com Colaborador Selecionado',
+        description: 'A pré-visualização e os códigos copiados da assinatura agora sempre refletem exatamente o nome, perfil, departamento, e-mail e telefone do Usuário Interno selecionado.'
+      },
+      {
+        category: 'improvement',
+        title: 'Layout Executivo Corporativo e Cópia Rich-Text',
+        description: 'Novo design corporativo sofisticado em cartão branco com barra lateral institucional, logo, divisores e cópia em Rich HTML para colar diretamente formatado no Gmail e Outlook.'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_24_v2_118_0',
+    version: 'v2.118.0',
+    date: '24/11/2026',
+    title: 'Webmail em Janela Externa Independente com Sincronização em Tempo Real',
+    summary: 'Adicionada a opção "Abrir Janela Externa" na caixa de e-mail corporativo para abrir o Webmail como aplicativo independente (/webmail) com sincronização em tempo real refinada entre janelas e nuvem.',
+    items: [
+      {
+        category: 'feature',
+        title: 'Janela Externa Independente do Webmail',
+        description: 'Novo botão "Abrir Janela Externa" no Webmail Corporativo abre a rota dedicada /webmail em janela popup sem barras de navegação, permitindo usar o correio externamente enquanto opera o sistema principal.'
+      },
+      {
+        category: 'improvement',
+        title: 'Sincronização em Tempo Real Refinada',
+        description: 'Sincronização instantânea via BroadcastChannel entre janelas do navegador e Supabase Realtime (broadcast + postgres_changes + persistência em nuvem) para manter mensagens, leitura, estrelas e pastas sempre atualizadas.'
+      }
+    ]
+  },
+  {
     id: 'rel_2026_11_24_v2_117_9',
     version: 'v2.117.9',
     date: '24/11/2026',

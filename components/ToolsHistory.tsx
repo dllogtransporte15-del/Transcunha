@@ -4,7 +4,7 @@ import { format, parseISO, isWithinInterval, startOfDay, endOfDay } from 'date-f
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { getStays, getQuotes, StayRecord, QuoteRecord } from '../utils/storage';
-import { getStoredCompanyLogo } from '../utils/pdfGenerator';
+import { getStoredCompanyLogo, addImageContain } from '../utils/pdfGenerator';
 
 interface HistoryProps {
   companyId: string;
@@ -108,11 +108,7 @@ export default function History({ companyId, companyLogo }: HistoryProps) {
     const logoSize = 12;
 
     if (hasLogo && logo) {
-      try {
-        doc.addImage(logo, 'PNG', 14, 10, logoSize, logoSize);
-      } catch (e) {
-        console.error("Erro ao adicionar logo ao PDF", e);
-      }
+      addImageContain(doc, logo, 14, 10, logoSize, logoSize, 'center', 'center');
     }
 
     doc.setFontSize(20);
@@ -157,11 +153,7 @@ export default function History({ companyId, companyLogo }: HistoryProps) {
     const logoSize = 12; // Menor e mais discreto
 
     if (hasLogo && logo) {
-      try {
-        doc.addImage(logo, 'PNG', 14, 10, logoSize, logoSize);
-      } catch (e) {
-        console.error("Erro ao adicionar logo ao PDF", e);
-      }
+      addImageContain(doc, logo, 14, 10, logoSize, logoSize, 'center', 'center');
     }
 
     doc.setFontSize(20);

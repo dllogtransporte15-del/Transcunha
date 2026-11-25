@@ -10,7 +10,7 @@ import type {
   Client,
   Branch
 } from '../types';
-import { isDeveloperUser, filterVisibleUsers } from '../auth';
+import { isDeveloperUser, filterVisibleUsers, getUserJobFunction } from '../auth';
 import {
   corporateEmailService,
   DEFAULT_EMAIL_SERVER_CONFIG,
@@ -151,7 +151,7 @@ export const CorporateEmailPage: React.FC<CorporateEmailPageProps> = ({
 
   // Signature State
   const [selectedSignatureAccountId, setSelectedSignatureAccountId] = useState<string>('');
-  const [signatureExtraPhone, setSignatureExtraPhone] = useState('(66) 3544-0000');
+  const [signatureExtraPhone, setSignatureExtraPhone] = useState('35 9872-1970');
   const [signatureExtraWhatsapp, setSignatureExtraWhatsapp] = useState('(66) 99999-0000');
 
   // Compose / Test Email State
@@ -220,11 +220,16 @@ export const CorporateEmailPage: React.FC<CorporateEmailPageProps> = ({
     window.addEventListener('corporate_messages_updated', handleUpdate);
     window.addEventListener('transcunha:new_corporate_email', handleUpdate);
 
+    const unsubscribeRealtime = corporateEmailService.subscribeToRealtime(() => {
+      handleUpdate();
+    });
+
     return () => {
       window.removeEventListener('corporate_emails_updated', handleUpdate);
       window.removeEventListener('corporate_email_config_updated', handleUpdate);
       window.removeEventListener('corporate_messages_updated', handleUpdate);
       window.removeEventListener('transcunha:new_corporate_email', handleUpdate);
+      unsubscribeRealtime();
     };
   }, [users]);
 
@@ -487,17 +492,33 @@ export const CorporateEmailPage: React.FC<CorporateEmailPageProps> = ({
     });
   }, [visibleUsersForEmail, accounts, serverConfig.domain, serverConfig.defaultQuotaMb]);
 
-  // Conta selecionada para assinatura
+  // Conta selecionada para assinatura (sempre priorizando os Usuários Internos quando disponíveis)
   const selectedSignatureAccount = useMemo(() => {
-    return (
-      internalSignatureOptions.find(
-        a => a.id === selectedSignatureAccountId || a.userId === selectedSignatureAccountId
-      ) ||
-      accounts.find(a => a.id === selectedSignatureAccountId) ||
-      internalSignatureOptions[0] ||
-      accounts[0]
-    );
+    if (internalSignatureOptions.length > 0) {
+      return (
+        internalSignatureOptions.find(
+          a => a.id === selectedSignatureAccountId || a.userId === selectedSignatureAccountId
+        ) || internalSignatureOptions[0]
+      );
+    }
+    return accounts.find(a => a.id === selectedSignatureAccountId) || accounts[0];
   }, [internalSignatureOptions, accounts, selectedSignatureAccountId]);
+
+  const selectedSignatureUser = useMemo(() => {
+    if (!selectedSignatureAccount?.userId) return undefined;
+    return visibleUsersForEmail.find(u => u.id === selectedSignatureAccount.userId);
+  }, [visibleUsersForEmail, selectedSignatureAccount]);
+
+  const selectedSignatureJobFunction = useMemo(() => {
+    return getUserJobFunction(selectedSignatureUser);
+  }, [selectedSignatureUser]);
+
+  // Atualiza automaticamente o telefone do colaborador selecionado conforme seu cadastro de Usuário Interno
+  useEffect(() => {
+    if (!selectedSignatureAccount) return;
+    const registeredPhone = selectedSignatureUser?.phone?.trim();
+    setSignatureExtraWhatsapp(registeredPhone || '(66) 99999-0000');
+  }, [selectedSignatureAccount?.id, selectedSignatureUser?.phone]);
 
   // Enviar e-mail de teste
   const handleSendTestEmail = (e: React.FormEvent) => {
@@ -1522,7 +1543,7 @@ export const CorporateEmailPage: React.FC<CorporateEmailPageProps> = ({
                     type="text"
                     value={signatureExtraPhone}
                     onChange={(e) => setSignatureExtraPhone(e.target.value)}
-                    placeholder="(66) 3544-0000"
+                    placeholder="35 9872-1970"
                     className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs sm:text-sm text-slate-800 dark:text-slate-100"
                   />
                 </div>
@@ -1541,39 +1562,67 @@ export const CorporateEmailPage: React.FC<CorporateEmailPageProps> = ({
                 </div>
               </div>
 
-              {/* Pré-visualização ao Vivo */}
+              {/* Pré-visualização ao Vivo (Padrão Executivo Corporativo) */}
               <div className="space-y-2">
                 <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
                   Pré-visualização da Assinatura:
                 </span>
-                <div className="p-6 bg-slate-50 dark:bg-slate-900/60 rounded-2xl border border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row items-start gap-4">
-                  {companyLogo ? (
-                    <img
-                      src={companyLogo}
-                      alt="Logo Transcunha"
-                      className="h-16 max-w-[140px] object-contain rounded shrink-0 bg-white p-1 border border-slate-200"
-                    />
-                  ) : (
-                    <div className="h-16 w-32 bg-blue-600 rounded-lg flex items-center justify-center font-black text-white text-sm shrink-0">
-                      TRANSCUNHA
+                <div className="p-6 bg-slate-100/80 dark:bg-slate-900/60 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-x-auto">
+                  <div className="bg-white text-slate-800 rounded-xl border border-slate-200 shadow-sm p-5 max-w-[600px] flex flex-col sm:flex-row items-start sm:items-center gap-5">
+                    <div className="sm:pr-5 sm:border-r-[3px] border-blue-700 shrink-0 flex items-center justify-center">
+                      {companyLogo ? (
+                        <img
+                          src={companyLogo}
+                          alt="Logo Transcunha"
+                          className="h-16 max-w-[120px] object-contain"
+                        />
+                      ) : (
+                        <div className="h-14 w-28 bg-gradient-to-br from-slate-900 to-blue-700 rounded-lg flex items-center justify-center font-black text-white text-xs tracking-widest shadow-sm">
+                          TRANSCUNHA
+                        </div>
+                      )}
                     </div>
-                  )}
 
-                  <div className="border-l-4 border-blue-600 pl-4 space-y-1">
-                    <div className="text-base font-black text-slate-900 dark:text-white">
-                      {selectedSignatureAccount.displayName}
+                    <div className="flex-1 min-w-0 space-y-2">
+                      <div>
+                        <div className="text-base font-extrabold text-slate-900 tracking-tight leading-tight">
+                          {selectedSignatureAccount.displayName}
+                        </div>
+                        <div className="text-[11px] font-bold text-blue-700 uppercase tracking-wider mt-0.5">
+                          {selectedSignatureJobFunction || selectedSignatureAccount.department} — Transcunha Logística
+                        </div>
+                      </div>
+
+                      <div className="h-px bg-slate-200" />
+
+                      <div className="text-xs text-slate-700 space-y-1">
+                        <p>
+                          <strong className="text-slate-900">E-mail:</strong>{' '}
+                          <a href={`mailto:${selectedSignatureAccount.email}`} className="text-blue-700 font-semibold hover:underline">
+                            {selectedSignatureAccount.email}
+                          </a>
+                        </p>
+                        <p>
+                          <strong className="text-slate-900">Celular / WhatsApp:</strong> {signatureExtraWhatsapp}
+                          {signatureExtraPhone && signatureExtraPhone !== signatureExtraWhatsapp && (
+                            <>
+                              {' '}<span className="text-slate-400">|</span>{' '}
+                              <strong className="text-slate-900">Fixo:</strong> {signatureExtraPhone}
+                            </>
+                          )}
+                        </p>
+                        <p>
+                          <strong className="text-slate-900">Website:</strong>{' '}
+                          <a href="https://transcunhaoficial.com.br" target="_blank" rel="noreferrer" className="text-blue-700 font-semibold hover:underline">
+                            www.transcunhaoficial.com.br
+                          </a>
+                        </p>
+                      </div>
+
+                      <div className="pt-2 border-t border-dashed border-slate-200 text-[10px] text-slate-500">
+                        <strong className="text-slate-800">TRANSCUNHA TRANSPORTES E LOGÍSTICA LTDA.</strong> • Excelência, Segurança e Eficiência no Transporte Rodoviário.
+                      </div>
                     </div>
-                    <div className="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider">
-                      {selectedSignatureAccount.department} — Transcunha Logística
-                    </div>
-                    <div className="text-xs text-slate-600 dark:text-slate-300 pt-1 space-y-0.5">
-                      <p><strong>E-mail:</strong> <a href={`mailto:${selectedSignatureAccount.email}`} className="text-blue-600 hover:underline">{selectedSignatureAccount.email}</a></p>
-                      <p><strong>Telefone / WhatsApp:</strong> {signatureExtraWhatsapp} | {signatureExtraPhone}</p>
-                      <p><strong>Website:</strong> <a href="https://transcunhaoficial.com.br" target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">www.transcunhaoficial.com.br</a></p>
-                    </div>
-                    <p className="text-[11px] text-slate-400 italic pt-1">
-                      Transcunha Logística & Transportes — Excelência, Segurança e Eficiência no Transporte Rodoviário.
-                    </p>
                   </div>
                 </div>
               </div>
@@ -1582,7 +1631,13 @@ export const CorporateEmailPage: React.FC<CorporateEmailPageProps> = ({
               <div className="flex items-center justify-end gap-3 pt-2">
                 <button
                   onClick={() => {
-                    const html = corporateEmailService.generateSignatureHtml(selectedSignatureAccount, companyLogo, signatureExtraWhatsapp);
+                    const html = corporateEmailService.generateSignatureHtml(
+                      selectedSignatureAccount,
+                      companyLogo,
+                      signatureExtraWhatsapp,
+                      signatureExtraPhone,
+                      selectedSignatureJobFunction || undefined
+                    );
                     handleCopyText(html, 'signature_html');
                   }}
                   className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2"
@@ -1592,14 +1647,36 @@ export const CorporateEmailPage: React.FC<CorporateEmailPageProps> = ({
                 </button>
 
                 <button
-                  onClick={() => {
-                    const text = `${selectedSignatureAccount.displayName}\n${selectedSignatureAccount.department} — Transcunha Logística\nE-mail: ${selectedSignatureAccount.email}\nWhatsApp: ${signatureExtraWhatsapp} | Fixo: ${signatureExtraPhone}\nWebsite: www.transcunhaoficial.com.br`;
+                  onClick={async () => {
+                    const html = corporateEmailService.generateSignatureHtml(
+                      selectedSignatureAccount,
+                      companyLogo,
+                      signatureExtraWhatsapp,
+                      signatureExtraPhone,
+                      selectedSignatureJobFunction || undefined
+                    );
+                    const roleLabel = selectedSignatureJobFunction || selectedSignatureAccount.department;
+                    const text = `${selectedSignatureAccount.displayName}\n${roleLabel} — Transcunha Logística\nE-mail: ${selectedSignatureAccount.email}\nCelular / WhatsApp: ${signatureExtraWhatsapp}${signatureExtraPhone && signatureExtraPhone !== signatureExtraWhatsapp ? ` | Fixo: ${signatureExtraPhone}` : ''}\nWebsite: www.transcunhaoficial.com.br\nTRANSCUNHA TRANSPORTES E LOGÍSTICA LTDA. • Excelência, Segurança e Eficiência no Transporte Rodoviário.`;
+                    try {
+                      if (typeof ClipboardItem !== 'undefined' && navigator.clipboard?.write) {
+                        await navigator.clipboard.write([
+                          new ClipboardItem({
+                            'text/html': new Blob([html], { type: 'text/html' }),
+                            'text/plain': new Blob([text], { type: 'text/plain' }),
+                          }),
+                        ]);
+                        setCopiedKey('signature_text');
+                        setTimeout(() => setCopiedKey(null), 2500);
+                        showToast('Assinatura formatada copiada! Cole diretamente no Gmail ou Outlook.', 'success');
+                        return;
+                      }
+                    } catch {}
                     handleCopyText(text, 'signature_text');
                   }}
                   className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-600/30 transition-all cursor-pointer flex items-center gap-2"
                 >
                   <Copy className="w-4 h-4" />
-                  <span>{copiedKey === 'signature_text' ? 'Texto Copiado!' : 'Copiar Assinatura Formatada'}</span>
+                  <span>{copiedKey === 'signature_text' ? 'Assinatura Copiada!' : 'Copiar Assinatura Formatada'}</span>
                 </button>
               </div>
 

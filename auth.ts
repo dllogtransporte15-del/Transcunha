@@ -2,6 +2,39 @@
 import type { User, Page, ProfilePermissions, CrudPermissions } from './types';
 import { UserProfile } from './types';
 
+export const INTERNAL_JOB_FUNCTIONS = [
+  'Diretor',
+  'Comercial',
+  'Embarcador',
+  'Administrativo',
+  'Financeiro',
+  'Gerenciamento de Risco',
+] as const;
+
+export function getDefaultJobFunctionByName(name?: string): string | undefined {
+  if (!name) return undefined;
+  const normalized = name
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase()
+    .trim();
+  const tokens = normalized.split(/\s+/);
+  const first = tokens[0] || '';
+
+  if (first === 'DIONE' || tokens.includes('DIONE')) return 'Diretor';
+  if (first === 'CELSO' || tokens.includes('CELSO')) return 'Comercial';
+  if (first === 'FELIPE' || tokens.includes('FELIPE')) return 'Administrativo';
+  if (first === 'TALITA' || tokens.includes('TALITA')) return 'Financeiro';
+  if (first === 'OTAVIO' || tokens.includes('OTAVIO')) return 'Financeiro';
+  if (first === 'SAMANTHA' || tokens.includes('SAMANTHA')) return 'Gerenciamento de Risco';
+  return undefined;
+}
+
+export function getUserJobFunction(user?: Pick<User, 'name' | 'jobFunction'> | null): string {
+  if (!user) return '';
+  return (user.jobFunction && user.jobFunction.trim()) || getDefaultJobFunctionByName(user.name) || '';
+}
+
 const allPages: Page[] = ['dashboard', 'clients', 'owners', 'embarcadores', 'drivers', 'vehicles', 'loads', 'locations', 'products', 'shipments', 'financial', 'reports', 'operational-loads', 'operational-map', 'users-register', 'corporate-email', 'commissions', 'appearance', 'shipment-history', 'load-history', 'layover-calculator', 'freight-quote', 'atua-reconciliation', 'ai-assistant', 'tools-history', 'branches', 'system-monitor', 'freight-offers-history', 'risk-management', 'risk-query-types', 'whatsapp', 'messenger'];
 
 const createPermissions = (pages: Page[], readOnly = false): { [key in Page]?: CrudPermissions } => {

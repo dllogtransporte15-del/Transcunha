@@ -1,4 +1,5 @@
 import type { FiscalDocument, Client, Branch } from '../types';
+import { corporateEmailService } from './corporateEmailService';
 
 export const GWORKSPACE_APP_PASSWORD_KEY = 'transcunha_gworkspace_app_password';
 export const GWORKSPACE_SENDER_EMAIL_KEY = 'transcunha_gworkspace_sender_email';
@@ -256,13 +257,12 @@ export function buildDossierHtmlEmail(params: {
           Estamos à inteira disposição para agendarmos uma reunião de alinhamento, apresentar detalhadamente nossa estrutura operacional e realizar cotações de fretes para as rotas e demandas logísticas de sua empresa.
         </p>
 
-        <p style="font-size: 13px; line-height: 1.6; margin: 0; color: #1e293b;">
+        <p style="font-size: 13px; line-height: 1.6; margin: 0 0 12px 0; color: #1e293b;">
           Aguardamos seu retorno para iniciarmos esta promissora parceria!<br /><br />
-          Atenciosamente,<br />
-          <strong>Equipe Comercial & Controladoria Regulatória</strong><br />
-          TRANSCUNHA TRANSPORTES E LOGÍSTICA LTDA.<br />
-          <span style="color: #64748b; font-size: 12px;">E-mail: ${senderEmail} | Website: <a href="https://transcunhaoficial.com.br" style="color: #2563eb; text-decoration: none;">transcunhaoficial.com.br</a></span>
+          Atenciosamente,
         </p>
+
+        ${corporateEmailService.buildSignatureForSender(senderEmail).html}
 
       </td>
     </tr>
@@ -385,8 +385,8 @@ DADOS DA TRANSPORTADORA:
 Estamos à inteira disposição para cotações de fretes e início de nossa parceria!
 
 Atenciosamente,
-Equipe Comercial & Controladoria
-TRANSCUNHA TRANSPORTES E LOGÍSTICA LTDA.
+
+${corporateEmailService.buildSignatureForSender(senderEmail).text}
   `.trim();
 
   const normalizedTo = to

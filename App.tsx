@@ -30,6 +30,7 @@ const FinancialPage = React.lazy(() => import('./pages/FinancialPage'));
 const ReportsPage = React.lazy(() => import('./pages/ReportsPage'));
 const UsersPage = React.lazy(() => import('./pages/UsersPage'));
 const CorporateEmailPage = React.lazy(() => import('./pages/CorporateEmailPage'));
+const WebmailWindowPage = React.lazy(() => import('./pages/WebmailWindowPage'));
 const AppearancePage = React.lazy(() => import('./pages/AppearancePage'));
 const ShipmentHistoryPage = React.lazy(() => import('./pages/ShipmentHistoryPage'));
 const LoadHistoryPage = React.lazy(() => import('./pages/LoadHistoryPage'));
@@ -809,12 +810,51 @@ const App: React.FC = () => {
   useEffect(() => {
     if (currentUser && users.length > 0) {
       const dbMatch = users.find(u => u.id === currentUser.id || u.email?.toLowerCase() === currentUser.email?.toLowerCase());
-      if (dbMatch && (dbMatch.name !== currentUser.name || dbMatch.profile !== currentUser.profile || JSON.stringify(dbMatch.customPermissions) !== JSON.stringify(currentUser.customPermissions))) {
+      if (
+        dbMatch &&
+        (dbMatch.name !== currentUser.name ||
+          dbMatch.profile !== currentUser.profile ||
+          dbMatch.phone !== currentUser.phone ||
+          dbMatch.jobFunction !== currentUser.jobFunction ||
+          dbMatch.corporateEmail !== currentUser.corporateEmail ||
+          JSON.stringify(dbMatch.customPermissions) !== JSON.stringify(currentUser.customPermissions))
+      ) {
         console.log('[Auth] Sincronizando perfil atualizado do usuário no estado local:', dbMatch.profile);
-        setCurrentUser(prev => prev ? { ...prev, name: dbMatch.name, profile: dbMatch.profile, customPermissions: dbMatch.customPermissions } : null);
+        setCurrentUser(prev =>
+          prev
+            ? {
+                ...prev,
+                name: dbMatch.name,
+                profile: dbMatch.profile,
+                phone: dbMatch.phone,
+                jobFunction: dbMatch.jobFunction,
+                corporateEmail: dbMatch.corporateEmail,
+                customPermissions: dbMatch.customPermissions,
+              }
+            : null
+        );
       }
     }
   }, [users, currentUser]);
+
+  useEffect(() => {
+    try {
+      if (currentUser) {
+        localStorage.setItem(
+          'transcunha_active_signature_user',
+          JSON.stringify({
+            id: currentUser.id,
+            name: currentUser.name,
+            email: currentUser.email,
+            corporateEmail: currentUser.corporateEmail,
+            phone: currentUser.phone,
+            jobFunction: currentUser.jobFunction,
+            profile: currentUser.profile,
+          })
+        );
+      }
+    } catch {}
+  }, [currentUser]);
 
   const nextStatusMap: Partial<Record<ShipmentStatus, ShipmentStatus>> = {
     [ShipmentStatus.PreCadastro]: ShipmentStatus.AguardandoSeguradora,            // 1 -> 2
@@ -4972,6 +5012,17 @@ const App: React.FC = () => {
           currentUser={currentUser}
           onBackToApp={currentUser ? () => navigate('/') : undefined}
         />
+      </React.Suspense>
+    );
+  }
+
+  if (location.pathname === '/webmail' && currentUser) {
+    if (!can('read', currentUser, 'corporate-email', profilePermissions)) {
+      return <Navigate to="/" replace />;
+    }
+    return (
+      <React.Suspense fallback={<PageLoadingFallback />}>
+        <WebmailWindowPage currentUser={currentUser} users={visibleUsers} />
       </React.Suspense>
     );
   }

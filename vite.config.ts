@@ -277,7 +277,27 @@ export default defineConfig({
                   return null;
                 })
               );
-              const processedAttachments = attachmentResults.filter(Boolean);
+              const processedAttachments: any[] = attachmentResults.filter(Boolean);
+
+              let finalHtml = html;
+              if (typeof finalHtml === 'string' && finalHtml.includes('data:image/')) {
+                let cidIdx = 0;
+                finalHtml = finalHtml.replace(
+                  /(src=["'])(data:image\/([a-zA-Z0-9+.-]+);base64,([^"']+))(["'])/g,
+                  (_match: string, prefix: string, _dataUri: string, extRaw: string, b64Data: string, suffix: string) => {
+                    const ext = extRaw.toLowerCase().replace('jpeg', 'jpg').replace(/[^a-z0-9]/g, '') || 'png';
+                    const cid = `transcunha_inline_${cidIdx++}@transcunhaoficial.com.br`;
+                    processedAttachments.push({
+                      filename: `logo_transcunha_${cidIdx}.${ext}`,
+                      content: Buffer.from(b64Data, 'base64'),
+                      contentType: `image/${extRaw}`,
+                      cid,
+                      contentDisposition: 'inline',
+                    });
+                    return `${prefix}cid:${cid}${suffix}`;
+                  }
+                );
+              }
 
               const nodemailerModule = await import('nodemailer');
               const nodemailer = nodemailerModule.default || nodemailerModule;
@@ -331,7 +351,7 @@ export default defineConfig({
                   replyTo: replyTo || senderEmail,
                   subject,
                   text: text || undefined,
-                  html: html || undefined,
+                  html: finalHtml || undefined,
                   attachments: processedAttachments,
                 });
               } catch (primaryErr: any) {
@@ -352,7 +372,7 @@ export default defineConfig({
                     replyTo: replyTo || senderEmail,
                     subject,
                     text: text || undefined,
-                    html: html || undefined,
+                    html: finalHtml || undefined,
                     attachments: processedAttachments,
                   });
                 } else {

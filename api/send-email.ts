@@ -107,7 +107,28 @@ export default async function handler(req: any, res: any) {
         return null;
       })
     );
-    const processedAttachments = attachmentResults.filter((a): a is NonNullable<typeof a> => a !== null);
+    const processedAttachments: any[] = attachmentResults.filter((a): a is NonNullable<typeof a> => a !== null);
+
+    // Converte imagens data:image/... em anexos inline CID para que Gmail/Outlook exibam a logo da assinatura corretamente
+    let finalHtml = html;
+    if (typeof finalHtml === 'string' && finalHtml.includes('data:image/')) {
+      let cidIdx = 0;
+      finalHtml = finalHtml.replace(
+        /(src=["'])(data:image\/([a-zA-Z0-9+.-]+);base64,([^"']+))(["'])/g,
+        (_match, prefix, _dataUri, extRaw, b64Data, suffix) => {
+          const ext = extRaw.toLowerCase().replace('jpeg', 'jpg').replace(/[^a-z0-9]/g, '') || 'png';
+          const cid = `transcunha_inline_${cidIdx++}@transcunhaoficial.com.br`;
+          processedAttachments.push({
+            filename: `logo_transcunha_${cidIdx}.${ext}`,
+            content: Buffer.from(b64Data, 'base64'),
+            contentType: `image/${extRaw}`,
+            cid,
+            contentDisposition: 'inline',
+          });
+          return `${prefix}cid:${cid}${suffix}`;
+        }
+      );
+    }
 
     const rawTo = Array.isArray(to) ? to.join(',') : to;
     const toAddresses = rawTo
@@ -157,7 +178,7 @@ export default async function handler(req: any, res: any) {
         replyTo: replyTo || senderEmail,
         subject: subject,
         text: text || undefined,
-        html: html || undefined,
+        html: finalHtml || undefined,
         attachments: processedAttachments,
       });
     } catch (primaryErr: any) {
@@ -179,7 +200,7 @@ export default async function handler(req: any, res: any) {
           replyTo: replyTo || senderEmail,
           subject: subject,
           text: text || undefined,
-          html: html || undefined,
+          html: finalHtml || undefined,
           attachments: processedAttachments,
         });
       } else {

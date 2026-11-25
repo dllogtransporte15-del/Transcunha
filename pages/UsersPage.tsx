@@ -186,14 +186,6 @@ const UsersPage: React.FC<UsersPageProps> = ({
                   Gerenciar Permissões
               </button>
           )}
-          <a
-              href="/corporate-email"
-              className="px-4 py-2 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 rounded-lg hover:bg-blue-100 font-medium text-sm transition-colors flex items-center gap-1.5 cursor-pointer"
-              title="Gerenciar e-mails corporativos @transcunhaoficial.com.br"
-          >
-              <Mail className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-              <span>E-mail Corporativo</span>
-          </a>
           {canCreateUser && (
               <button
                   onClick={handleOpenUserModal}

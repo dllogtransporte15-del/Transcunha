@@ -168,6 +168,7 @@ export interface User {
   agencyRole?: 'lider' | 'embarque';
   agencyLeaderId?: string;
   customPermissions?: { [key in Page]?: CrudPermissions };
+  jobFunction?: string;
   corporateEmail?: string;
   corporateEmailPassword?: string;
   corporateEmailQuotaMb?: number;

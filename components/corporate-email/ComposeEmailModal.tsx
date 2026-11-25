@@ -28,6 +28,10 @@ interface ComposeEmailModalProps {
   accounts: CorporateEmailAccount[];
   initialMode?: 'new' | 'reply' | 'replyAll' | 'forward';
   replyToMessage?: CorporateEmailMessage | null;
+  initialTo?: string;
+  initialSubject?: string;
+  initialBody?: string;
+  initialAttachments?: CorporateEmailAttachment[];
   onSuccess?: (msg: CorporateEmailMessage) => void;
 }
 
@@ -37,6 +41,10 @@ export const ComposeEmailModal: React.FC<ComposeEmailModalProps> = ({
   accounts,
   initialMode = 'new',
   replyToMessage = null,
+  initialTo = '',
+  initialSubject = '',
+  initialBody = '',
+  initialAttachments = [],
   onSuccess,
 }) => {
   const { showToast } = useToast();
@@ -81,18 +89,18 @@ export const ComposeEmailModal: React.FC<ComposeEmailModalProps> = ({
         setAttachments(replyToMessage.attachments || []);
       }
     } else {
-      // Nova mensagem
+      // Nova mensagem (com suporte a pré-preenchimento externo, ex: envio de Ordem de Carregamento)
       if (accounts.length > 0) {
         setFromEmail(accounts[0].email);
       }
-      setTo('');
+      setTo(initialTo || '');
       setCc('');
       setShowCc(false);
-      setSubject('');
-      setBody('');
-      setAttachments([]);
+      setSubject(initialSubject || '');
+      setBody(initialBody || '');
+      setAttachments(initialAttachments || []);
     }
-  }, [isOpen, replyToMessage, initialMode, accounts]);
+  }, [isOpen, replyToMessage, initialMode, initialTo, initialSubject, initialBody, initialAttachments]);
 
   const handlePasswordChange = (val: string) => {
     setAppPassword(val);
@@ -149,37 +157,26 @@ export const ComposeEmailModal: React.FC<ComposeEmailModalProps> = ({
       const toAddresses = to.split(/[,;]/).map(s => s.trim()).filter(Boolean);
       const ccAddresses = cc ? cc.split(/[,;]/).map(s => s.trim()).filter(Boolean) : [];
 
+      const sig = corporateEmailService.buildSignatureForSender(fromEmail);
       const currentAcc = accounts.find(a => a.email === fromEmail);
-      const senderName = currentAcc?.displayName || 'Transcunha Transportes e Logística';
-
-      // Monta corpo HTML com assinatura profissional
-      const signatureHtml = corporateEmailService.generateSignatureHtml(currentAcc || {
-        id: 'default',
-        email: fromEmail,
-        displayName: senderName,
-        department: 'Operacional',
-        status: 'Ativo',
-        quotaMb: 5120,
-        usedMb: 0,
-        aliases: [],
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      });
+      const senderName = sig.displayName || currentAcc?.displayName || 'Transcunha Transportes e Logística';
 
       const fullHtml = `
 <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 14px; color: #1e293b; line-height: 1.6;">
   ${body.replace(/\n/g, '<br/>')}
   <br/><br/>
-  ${signatureHtml}
+  ${sig.html}
 </div>
       `.trim();
+
+      const fullText = `${body.trim()}\n\n${sig.text}`;
 
       const result = await corporateEmailService.sendOutgoingEmail({
         to: toAddresses,
         cc: ccAddresses.length > 0 ? ccAddresses : undefined,
         subject: subject.trim(),
         bodyHtml: fullHtml,
-        bodyText: body.trim(),
+        bodyText: fullText,
         accountEmail: fromEmail,
         senderName,
         appPassword,
@@ -199,7 +196,7 @@ export const ComposeEmailModal: React.FC<ComposeEmailModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/75 backdrop-blur-xs animate-fade-in overflow-y-auto">
+    <div className="fixed inset-0 z-[10050] flex items-center justify-center p-2 sm:p-4 bg-black/75 backdrop-blur-xs animate-fade-in overflow-y-auto">
       <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-4xl max-h-[94vh] flex flex-col shadow-2xl overflow-hidden my-auto">
         
         {/* CABEÇALHO DO MODAL */}

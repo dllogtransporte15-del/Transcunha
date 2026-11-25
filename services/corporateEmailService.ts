@@ -8,11 +8,23 @@ import type {
   CorporateEmailMessage,
   User 
 } from '../types';
-import { isDeveloperUser, isDemoUser } from '../auth';
+import { isDeveloperUser, isDemoUser, getUserJobFunction } from '../auth';
+import { getStoredCompanyLogo } from '../utils/pdfGenerator';
+import { supabase } from '../supabase';
 
 const STORAGE_EMAILS_KEY = 'transcunha_corporate_emails';
 const STORAGE_CONFIG_KEY = 'transcunha_corporate_email_config';
 const STORAGE_MESSAGES_KEY = 'transcunha_corporate_messages_v1';
+const SUPABASE_CORPORATE_EMAIL_RECORD_ID = 891;
+const CORPORATE_EMAIL_REALTIME_CHANNEL = 'transcunha_corporate_email_realtime';
+
+const localEmailBroadcast =
+  typeof window !== 'undefined' && 'BroadcastChannel' in window
+    ? new BroadcastChannel('transcunha_corporate_email_sync')
+    : null;
+
+let emailRealtimeChannel: ReturnType<typeof supabase.channel> | null = null;
+let cloudPersistTimeout: ReturnType<typeof setTimeout> | null = null;
 
 const INITIAL_MESSAGES: CorporateEmailMessage[] = [
   {
@@ -238,7 +250,7 @@ const INITIAL_ACCOUNTS: CorporateEmailAccount[] = [
     quotaMb: 10240, // 10 GB
     usedMb: 3410,
     aliases: ['cobranca@transcunhaoficial.com.br', 'pagamentos@transcunhaoficial.com.br', 'fiscal@transcunhaoficial.com.br'],
-    signature: 'Setor Financeiro — Transcunha Logística\nTel: (66) 3544-0000 | financeiro@transcunhaoficial.com.br',
+    signature: 'Setor Financeiro — Transcunha Logística\nTel: 35 9872-1970 | financeiro@transcunhaoficial.com.br',
     notes: 'Recepção de NFs, boletos e conciliação bancária.',
     createdAt: '2026-01-10T10:00:00.000Z',
     updatedAt: '2026-10-12T10:00:00.000Z',
@@ -517,26 +529,140 @@ class CorporateEmailService {
   }
 
   /**
-   * Gera o código HTML padronizado para assinatura de e-mail da Transcunha Logística.
+   * Gera o código HTML padronizado e sofisticado para assinatura de e-mail da Transcunha Logística.
    */
   generateSignatureHtml(
-    account: CorporateEmailAccount, 
+    account: CorporateEmailAccount,
     companyLogo?: string | null,
-    extraPhone = '(66) 3544-0000'
+    collaboratorPhone = '(66) 99999-0000',
+    landlinePhone = '35 9872-1970',
+    roleTitle?: string
   ): string {
-    const logoUrl = companyLogo || 'https://transcunhaoficial.com.br/logo.png';
-    return `<div style="font-family: Arial, Helvetica, sans-serif; font-size: 13px; color: #1e293b; line-height: 1.4; border-left: 4px solid #2563eb; padding-left: 14px; margin-top: 16px;">
-  <div style="font-size: 15px; font-weight: bold; color: #0f172a;">${account.displayName}</div>
-  <div style="font-size: 12px; color: #64748b; font-weight: 600; text-transform: uppercase;">${account.department} — Transcunha Logística</div>
-  <div style="margin-top: 6px; font-size: 12px; color: #334155;">
-    <strong>E-mail:</strong> <a href="mailto:${account.email}" style="color: #2563eb; text-decoration: none;">${account.email}</a><br/>
-    <strong>Telefone / WhatsApp:</strong> ${extraPhone}<br/>
-    <strong>Website:</strong> <a href="https://transcunhaoficial.com.br" target="_blank" style="color: #2563eb; text-decoration: none;">www.transcunhaoficial.com.br</a>
-  </div>
-  <div style="margin-top: 8px; font-size: 11px; color: #94a3b8; font-style: italic;">
-    Transcunha Logística & Transportes — Excelência, Segurança e Eficiência no Transporte Rodoviário.
-  </div>
-</div>`;
+    const logoHtml = companyLogo
+      ? `<img src="${companyLogo}" alt="Transcunha Logística" width="110" style="display:block;max-width:110px;max-height:72px;object-fit:contain;border:0;" />`
+      : `<div style="width:96px;height:60px;background:linear-gradient(135deg,#0f172a,#1d4ed8);border-radius:8px;color:#ffffff;font-family:'Segoe UI',Arial,sans-serif;font-weight:800;font-size:13px;letter-spacing:0.08em;text-align:center;line-height:60px;">TRANSCUNHA</div>`;
+
+    const subtitle = roleTitle
+      ? `${roleTitle} — Transcunha Logística`
+      : `${account.department} — Transcunha Logística`;
+
+    const cleanCollabPhone = (collaboratorPhone || '').trim();
+    const cleanLandline = (landlinePhone || '').trim();
+    const phonesLine = [
+      cleanCollabPhone ? `<span><strong>Celular / WhatsApp:</strong> ${cleanCollabPhone}</span>` : '',
+      cleanLandline && cleanLandline !== cleanCollabPhone ? `<span><strong>Fixo:</strong> ${cleanLandline}</span>` : '',
+    ]
+      .filter(Boolean)
+      .join(' &nbsp;|&nbsp; ');
+
+    return `<table cellpadding="0" cellspacing="0" border="0" style="font-family:'Segoe UI',Roboto,Arial,Helvetica,sans-serif;background-color:#ffffff;border:1px solid #e2e8f0;border-radius:10px;padding:16px 20px;max-width:580px;color:#1e293b;margin-top:16px;">
+  <tr>
+    <td valign="middle" style="padding-right:18px;border-right:3px solid #1d4ed8;">
+      ${logoHtml}
+    </td>
+    <td valign="middle" style="padding-left:18px;">
+      <div style="font-size:16px;font-weight:800;color:#0f172a;letter-spacing:-0.01em;line-height:1.2;">${account.displayName}</div>
+      <div style="font-size:11px;font-weight:700;color:#1d4ed8;text-transform:uppercase;letter-spacing:0.08em;margin-top:3px;">${subtitle}</div>
+      <div style="height:1px;background-color:#e2e8f0;margin:10px 0;"></div>
+      <div style="font-size:12px;color:#334155;line-height:1.6;">
+        <div><strong>E-mail:</strong> <a href="mailto:${account.email}" style="color:#1d4ed8;text-decoration:none;font-weight:600;">${account.email}</a></div>
+        ${phonesLine ? `<div>${phonesLine}</div>` : ''}
+        <div><strong>Website:</strong> <a href="https://transcunhaoficial.com.br" target="_blank" style="color:#1d4ed8;text-decoration:none;font-weight:600;">www.transcunhaoficial.com.br</a></div>
+      </div>
+      <div style="margin-top:10px;padding-top:8px;border-top:1px dashed #e2e8f0;font-size:10px;color:#64748b;letter-spacing:0.02em;">
+        <strong style="color:#0f172a;">TRANSCUNHA TRANSPORTES E LOGÍSTICA LTDA.</strong> &bull; Excelência, Segurança e Eficiência no Transporte Rodoviário.
+      </div>
+    </td>
+  </tr>
+</table>`;
+  }
+
+  /**
+   * Obtém o usuário logado na sessão atual (sessionStorage ou espelho em localStorage).
+   */
+  getCurrentSessionUser(): User | null {
+    try {
+      if (typeof window === 'undefined') return null;
+      const rawSession = sessionStorage.getItem('trancunha_currentUser');
+      if (rawSession) return JSON.parse(rawSession) as User;
+      const rawMirror = localStorage.getItem('transcunha_active_signature_user');
+      return rawMirror ? (JSON.parse(rawMirror) as User) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Gera automaticamente a assinatura executiva padrão Transcunha com os dados do usuário remetente.
+   */
+  buildSignatureForSender(
+    senderEmail?: string,
+    explicitUser?: User | null
+  ): { html: string; text: string; displayName: string; email: string; roleTitle: string; phone: string } {
+    const user = explicitUser || this.getCurrentSessionUser();
+    const accounts = this.getEmailAccounts();
+    const matchedAcc =
+      (user &&
+        accounts.find(
+          a =>
+            a.userId === user.id ||
+            (user.corporateEmail && a.email.toLowerCase() === user.corporateEmail.toLowerCase()) ||
+            (user.email && a.email.toLowerCase() === user.email.toLowerCase())
+        )) ||
+      (senderEmail ? accounts.find(a => a.email.toLowerCase() === senderEmail.toLowerCase()) : undefined);
+
+    const displayName =
+      (user?.name && user.name.trim()) ||
+      matchedAcc?.displayName ||
+      'Transcunha Transportes e Logística';
+
+    const email =
+      (user?.corporateEmail && user.corporateEmail.trim()) ||
+      matchedAcc?.email ||
+      (user?.email && user.email.trim()) ||
+      (senderEmail && senderEmail.trim()) ||
+      'contato@transcunhaoficial.com.br';
+
+    const jobFn = getUserJobFunction(user);
+    const department = matchedAcc?.department || this.mapProfileToDepartment(user?.profile);
+    const roleTitle = jobFn || department;
+    const phone = (user?.phone && user.phone.trim()) || '';
+    const landline = '35 9872-1970';
+    const companyLogo = getStoredCompanyLogo();
+
+    const syntheticAccount: CorporateEmailAccount = {
+      id: matchedAcc?.id || (user ? `user_${user.id}` : 'default'),
+      email,
+      displayName,
+      userId: user?.id,
+      userName: displayName,
+      department,
+      status: 'Ativo',
+      quotaMb: 5120,
+      usedMb: 0,
+      aliases: [],
+      createdAt: matchedAcc?.createdAt || '',
+      updatedAt: matchedAcc?.updatedAt || '',
+    };
+
+    const html = this.generateSignatureHtml(syntheticAccount, companyLogo, phone, landline, roleTitle);
+    const phoneParts = [
+      phone ? `Celular / WhatsApp: ${phone}` : '',
+      `Fixo: ${landline}`,
+    ]
+      .filter(Boolean)
+      .join(' | ');
+
+    const text = [
+      displayName,
+      `${roleTitle} — Transcunha Logística`,
+      `E-mail: ${email}`,
+      phoneParts,
+      `Website: www.transcunhaoficial.com.br`,
+      `TRANSCUNHA TRANSPORTES E LOGÍSTICA LTDA. • Excelência, Segurança e Eficiência no Transporte Rodoviário.`,
+    ].join('\n');
+
+    return { html, text, displayName, email, roleTitle, phone };
   }
 
   // --- GESTÃO DE MENSAGENS (WEBMAIL OUTLOOK STYLE) ---
@@ -676,7 +802,15 @@ class CorporateEmailService {
     appPassword?: string;
     attachments?: CorporateEmailAttachment[];
   }): Promise<{ success: boolean; messageId?: string; error?: string }> {
-    const { to, cc, subject, bodyHtml, bodyText, accountEmail, senderName = 'Transcunha Transportes e Logística', appPassword, attachments = [] } = data;
+    const { to, cc, subject, accountEmail, appPassword, attachments = [] } = data;
+    const sig = this.buildSignatureForSender(accountEmail);
+    const senderName = data.senderName || sig.displayName || 'Transcunha Transportes e Logística';
+    const bodyHtml = data.bodyHtml.includes('TRANSCUNHA TRANSPORTES E LOGÍSTICA LTDA.')
+      ? data.bodyHtml
+      : `${data.bodyHtml}<br/><br/>${sig.html}`;
+    const bodyText = data.bodyText.includes('TRANSCUNHA TRANSPORTES E LOGÍSTICA LTDA.')
+      ? data.bodyText
+      : `${data.bodyText}\n\n${sig.text}`;
 
     let messageId: string | undefined;
 
@@ -840,20 +974,226 @@ class CorporateEmailService {
     } catch {}
   }
 
-  private saveMessagesToStorage(messages: CorporateEmailMessage[]): void {
+  private saveMessagesToStorage(messages: CorporateEmailMessage[], skipRemoteSync = false): void {
     try {
       localStorage.setItem(STORAGE_MESSAGES_KEY, JSON.stringify(messages));
+      if (!skipRemoteSync) {
+        this.broadcastLocalSync('messages');
+        this.scheduleCloudPersist('messages');
+      }
     } catch (e) {
       console.error('[CorporateEmailService] Erro ao salvar mensagens no localStorage:', e);
     }
   }
 
-  private saveAccountsToStorage(accounts: CorporateEmailAccount[]): void {
+  private saveAccountsToStorage(accounts: CorporateEmailAccount[], skipRemoteSync = false): void {
     try {
       localStorage.setItem(STORAGE_EMAILS_KEY, JSON.stringify(accounts));
+      if (!skipRemoteSync) {
+        this.broadcastLocalSync('accounts');
+        this.scheduleCloudPersist('accounts');
+      }
     } catch (e) {
       console.error('[CorporateEmailService] Erro ao salvar contas no localStorage:', e);
     }
+  }
+
+  private broadcastLocalSync(scope: 'messages' | 'accounts' | 'config' | 'all'): void {
+    try {
+      localEmailBroadcast?.postMessage({
+        scope,
+        timestamp: Date.now(),
+      });
+    } catch {}
+  }
+
+  private scheduleCloudPersist(reason: string): void {
+    if (cloudPersistTimeout) {
+      clearTimeout(cloudPersistTimeout);
+    }
+    cloudPersistTimeout = setTimeout(() => {
+      void this.persistToCloud(reason);
+    }, 250);
+  }
+
+  async persistToCloud(reason = 'update'): Promise<void> {
+    try {
+      const messagesRaw = localStorage.getItem(STORAGE_MESSAGES_KEY);
+      const accountsRaw = localStorage.getItem(STORAGE_EMAILS_KEY);
+      const configRaw = localStorage.getItem(STORAGE_CONFIG_KEY);
+
+      const payload = {
+        messages: messagesRaw ? JSON.parse(messagesRaw) : [],
+        accounts: accountsRaw ? JSON.parse(accountsRaw) : [],
+        config: configRaw ? JSON.parse(configRaw) : null,
+        updatedAt: new Date().toISOString(),
+        reason,
+      };
+
+      await supabase.from('profile_permissions').upsert({
+        id: SUPABASE_CORPORATE_EMAIL_RECORD_ID,
+        permissions: payload,
+      });
+
+      const channel = this.getRealtimeChannel();
+      channel.send({
+        type: 'broadcast',
+        event: 'corporate_email_sync',
+        payload: {
+          reason,
+          updatedAt: payload.updatedAt,
+        },
+      }).catch(() => {});
+    } catch (err) {
+      console.warn('[CorporateEmailService] Falha ao persistir sincronização em nuvem:', err);
+    }
+  }
+
+  async syncFromCloud(): Promise<{ updated: boolean; timestamp: string }> {
+    const nowIso = new Date().toISOString();
+    try {
+      const { data, error } = await supabase
+        .from('profile_permissions')
+        .select('permissions')
+        .eq('id', SUPABASE_CORPORATE_EMAIL_RECORD_ID)
+        .maybeSingle();
+
+      if (error || !data?.permissions) {
+        return { updated: false, timestamp: nowIso };
+      }
+
+      const remote = data.permissions as {
+        messages?: CorporateEmailMessage[];
+        accounts?: CorporateEmailAccount[];
+        config?: CorporateEmailServerConfig | null;
+        updatedAt?: string;
+      };
+
+      let changed = false;
+
+      if (Array.isArray(remote.messages) && remote.messages.length > 0) {
+        const localRaw = localStorage.getItem(STORAGE_MESSAGES_KEY);
+        const remoteStr = JSON.stringify(remote.messages);
+        if (localRaw !== remoteStr) {
+          this.saveMessagesToStorage(remote.messages, true);
+          window.dispatchEvent(new CustomEvent('corporate_messages_updated', { detail: { source: 'cloud' } }));
+          changed = true;
+        }
+      }
+
+      if (Array.isArray(remote.accounts) && remote.accounts.length > 0) {
+        const localAccRaw = localStorage.getItem(STORAGE_EMAILS_KEY);
+        const remoteAccStr = JSON.stringify(remote.accounts);
+        if (localAccRaw !== remoteAccStr) {
+          this.saveAccountsToStorage(remote.accounts, true);
+          window.dispatchEvent(new CustomEvent('corporate_emails_updated', { detail: { source: 'cloud' } }));
+          changed = true;
+        }
+      }
+
+      if (remote.config) {
+        const localCfgRaw = localStorage.getItem(STORAGE_CONFIG_KEY);
+        const remoteCfgStr = JSON.stringify(remote.config);
+        if (localCfgRaw !== remoteCfgStr) {
+          localStorage.setItem(STORAGE_CONFIG_KEY, remoteCfgStr);
+          window.dispatchEvent(new CustomEvent('corporate_email_config_updated', { detail: remote.config }));
+          changed = true;
+        }
+      }
+
+      return { updated: changed, timestamp: remote.updatedAt || nowIso };
+    } catch (err) {
+      console.warn('[CorporateEmailService] Erro ao sincronizar da nuvem:', err);
+      return { updated: false, timestamp: nowIso };
+    }
+  }
+
+  private getRealtimeChannel(): ReturnType<typeof supabase.channel> {
+    if (!emailRealtimeChannel) {
+      emailRealtimeChannel = supabase.channel(CORPORATE_EMAIL_REALTIME_CHANNEL, {
+        config: {
+          broadcast: { ack: false, self: false },
+        },
+      });
+      emailRealtimeChannel.subscribe();
+    }
+    return emailRealtimeChannel;
+  }
+
+  /**
+   * Inscreve em tempo real refinado: BroadcastChannel (mesmo navegador entre janelas),
+   * storage events e Supabase Realtime (broadcast + postgres_changes).
+   */
+  subscribeToRealtime(onSync: (source: string) => void): () => void {
+    const handleLocalBroadcast = (event: MessageEvent) => {
+      const scope = event?.data?.scope || 'all';
+      if (scope === 'messages' || scope === 'all') {
+        window.dispatchEvent(new CustomEvent('corporate_messages_updated', { detail: { source: 'broadcast' } }));
+      }
+      if (scope === 'accounts' || scope === 'all') {
+        window.dispatchEvent(new CustomEvent('corporate_emails_updated', { detail: { source: 'broadcast' } }));
+      }
+      if (scope === 'config' || scope === 'all') {
+        window.dispatchEvent(new CustomEvent('corporate_email_config_updated', { detail: { source: 'broadcast' } }));
+      }
+      onSync('broadcast');
+    };
+
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === STORAGE_MESSAGES_KEY) {
+        window.dispatchEvent(new CustomEvent('corporate_messages_updated', { detail: { source: 'storage' } }));
+        onSync('storage');
+      } else if (event.key === STORAGE_EMAILS_KEY) {
+        window.dispatchEvent(new CustomEvent('corporate_emails_updated', { detail: { source: 'storage' } }));
+        onSync('storage');
+      } else if (event.key === STORAGE_CONFIG_KEY) {
+        window.dispatchEvent(new CustomEvent('corporate_email_config_updated', { detail: { source: 'storage' } }));
+        onSync('storage');
+      }
+    };
+
+    if (localEmailBroadcast) {
+      localEmailBroadcast.addEventListener('message', handleLocalBroadcast);
+    }
+    if (typeof window !== 'undefined') {
+      window.addEventListener('storage', handleStorage);
+    }
+
+    const rtChannel = supabase
+      .channel(`corporate_email_listener_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`)
+      .on('broadcast', { event: 'corporate_email_sync' }, async () => {
+        await this.syncFromCloud();
+        onSync('supabase_broadcast');
+      })
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'profile_permissions' },
+        async (payload: any) => {
+          const rowId = payload?.new?.id ?? payload?.old?.id;
+          if (rowId === SUPABASE_CORPORATE_EMAIL_RECORD_ID) {
+            await this.syncFromCloud();
+            onSync('postgres_changes');
+          }
+        }
+      )
+      .subscribe();
+
+    // Sincronização inicial imediata com a nuvem
+    void this.syncFromCloud().then((res) => {
+      if (res.updated) onSync('initial_cloud');
+    });
+
+    return () => {
+      if (localEmailBroadcast) {
+        localEmailBroadcast.removeEventListener('message', handleLocalBroadcast);
+      }
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('storage', handleStorage);
+      }
+      try {
+        void supabase.removeChannel(rtChannel);
+      } catch {}
+    };
   }
 }
 

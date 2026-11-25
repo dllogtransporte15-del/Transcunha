@@ -7,6 +7,7 @@ import type {
 } from '../types';
 import { DEFAULT_RISK_QUERY_OPTIONS, FreightCalculationType, DEFAULT_LOADING_ORDER_MODELS, TicketStatus } from '../types';
 import { broadcastShipmentChange, broadcastCargoChange, broadcastTicketChange, broadcastRdoChange, broadcastSigaChange } from '../services/realtimeOperationsHub';
+import { getDefaultJobFunctionByName } from '../auth';
 
 
 // ─────────────────────────────────────────────
@@ -1093,6 +1094,7 @@ export const toUser = (row: any): User => {
     operatorCommissionPercentage: perms.operatorCommissionPercentage !== undefined ? Number(perms.operatorCommissionPercentage) : (row.operator_commission_percentage !== undefined ? Number(row.operator_commission_percentage) : undefined),
     agencyRole: perms.agencyRole ?? row.agency_role ?? (row.profile === 'Agenciador' ? 'lider' : undefined),
     agencyLeaderId: perms.agencyLeaderId ?? row.agency_leader_id ?? undefined,
+    jobFunction: perms.jobFunction ?? getDefaultJobFunctionByName(row.name),
   };
 };
 
@@ -1117,6 +1119,7 @@ export const fromUser = (u: User | Omit<User, 'id'>) => {
     operatorCommissionPercentage: u.operatorCommissionPercentage,
     agencyRole: u.agencyRole,
     agencyLeaderId: u.agencyLeaderId,
+    jobFunction: u.jobFunction ?? getDefaultJobFunctionByName(u.name),
   };
 
   return {

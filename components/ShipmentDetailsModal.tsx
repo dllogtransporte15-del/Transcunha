@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
-import type { Shipment, Cargo, User, Client, Product, Vehicle } from '../types';
+import type { Shipment, Cargo, User, Client, Product, Vehicle, CorporateEmailAttachment } from '../types';
 import { UserProfile, ShipmentStatus, VehicleSetType, VehicleBodyType, DriverPaymentMethod, AnttModality, EtcTaxRegime } from '../types';
 import { generateLoadingOrderPDF, isGoiasOrigin, isMinasOrigin, isSpOrigin } from '../utils/pdfGenerator';
-import { FileTextIcon, Trash2, ArrowRightLeft, Edit2, Check, X, Copy, AlertCircle } from 'lucide-react';
+import { FileTextIcon, Trash2, ArrowRightLeft, Edit2, Check, X, Copy, AlertCircle, Mail } from 'lucide-react';
 import { getToolStaysByShipment, StayRecord } from '../utils/toolStorage';
 import { getShipmentAttachmentUrl } from '../lib/db';
 import { autoFormatInput } from '../utils/formatters';
 import DocumentPreviewModal from './DocumentPreviewModal';
 import SwapCargoModal from './SwapCargoModal';
 import { StatusPendingModal } from './StatusPendingModal';
+import { ComposeEmailModal } from './corporate-email/ComposeEmailModal';
+import { corporateEmailService } from '../services/corporateEmailService';
 import { openDocumentInNewTab, normalizeDocumentUrl, isActualDocumentUrl, isDocumentMetadataKey } from '../utils/documentViewer';
 import { getShipmentCte, getShipmentCteEmissionDate, isCteApplicableForStatus, getShipmentCiotNumber } from '../utils';
 import { isDemoUser, isDeveloperUser } from '../auth';
@@ -136,6 +138,88 @@ const ShipmentDetailsModal: React.FC<ShipmentDetailsModalProps> = ({
       console.error('Erro ao atualizar forma de pagamento:', err);
     } finally {
       setIsSavingPaymentMethod(false);
+    }
+  };
+
+  const emailAccounts = React.useMemo(() => corporateEmailService.getEmailAccounts(users), [users]);
+
+  const [isOrderEmailModalOpen, setIsOrderEmailModalOpen] = useState(false);
+  const [orderEmailSubject, setOrderEmailSubject] = useState('');
+  const [orderEmailBody, setOrderEmailBody] = useState('');
+  const [orderEmailAttachments, setOrderEmailAttachments] = useState<CorporateEmailAttachment[]>([]);
+
+  const handleOpenOrderEmailModal = () => {
+    if (!shipment || !cargo) return;
+    try {
+      const pdfResult = generateLoadingOrderPDF(
+        shipment,
+        cargo,
+        clients,
+        products,
+        vehicles,
+        companyLogo,
+        undefined,
+        { returnBase64Only: true }
+      );
+      if (!pdfResult || !pdfResult.base64) {
+        showToast('Não foi possível gerar o PDF da Ordem de Carregamento.', 'error');
+        return;
+      }
+
+      const linkedClient = clients.find(c => c.id === cargo.clientId);
+      const clientName = linkedClient?.nomeFantasia || linkedClient?.razaoSocial || 'Cliente';
+      const product = products.find(p => p.id === cargo.productId);
+      const productName = product?.name || 'Mercadoria';
+      const plates = [
+        shipment.horsePlate,
+        shipment.trailer1Plate,
+        shipment.trailer2Plate,
+        shipment.trailer3Plate,
+      ]
+        .filter(Boolean)
+        .map(p => String(p).toUpperCase())
+        .join(' / ');
+
+      const scheduledLabel = shipment.scheduledDate
+        ? `${shipment.scheduledDate.split('-').reverse().join('/')}${shipment.scheduledTime ? ` às ${shipment.scheduledTime}` : ''}`
+        : '';
+
+      const subject = `Ordem de Carregamento #${shipment.id} | ${clientName} | ${cargo.origin} -> ${cargo.destination} | Placa ${shipment.horsePlate.toUpperCase()}`;
+      const bodyLines = [
+        `Prezados(as),`,
+        ``,
+        `Segue em anexo a Ordem de Carregamento referente ao embarque #${shipment.id}.`,
+        ``,
+        `DADOS DO EMBARQUE:`,
+        `• Embarque: #${shipment.id}`,
+        `• Cliente: ${clientName}`,
+        `• Produto: ${productName}`,
+        `• Rota: ${cargo.origin} -> ${cargo.destination}`,
+        `• Motorista: ${shipment.driverName}${shipment.driverCpf ? ` (CPF: ${shipment.driverCpf})` : ''}`,
+        `• Veículo / Placas: ${plates || 'N/A'}`,
+        shipment.shipmentTonnage ? `• Peso / Volume: ${shipment.shipmentTonnage.toLocaleString('pt-BR')} ton` : '',
+        scheduledLabel ? `• Previsão de Carregamento: ${scheduledLabel}` : '',
+        shipment.statusPendingObservation ? `• Observações: ${shipment.statusPendingObservation}` : '',
+        ``,
+        `Atenciosamente,`,
+        `Transcunha Transportes e Logística LTDA.`,
+      ].filter(line => line !== '');
+
+      setOrderEmailSubject(subject);
+      setOrderEmailBody(bodyLines.join('\n'));
+      setOrderEmailAttachments([
+        {
+          id: `att_oc_${shipment.id}_${Date.now()}`,
+          filename: pdfResult.filename,
+          sizeBytes: pdfResult.sizeBytes,
+          contentType: 'application/pdf',
+          base64: pdfResult.base64,
+        },
+      ]);
+      setIsOrderEmailModalOpen(true);
+    } catch (err) {
+      console.error('Erro ao preparar Ordem de Carregamento por e-mail:', err);
+      showToast('Falha ao preparar o e-mail da Ordem de Carregamento.', 'error');
     }
   };
 
@@ -364,22 +448,27 @@ const ShipmentDetailsModal: React.FC<ShipmentDetailsModalProps> = ({
             <div>
                 <div className="flex items-center gap-3">
                     <h2 className="text-2xl font-bold text-gray-800 dark:text-white">Detalhes do Embarque</h2>
-                    {onSwapCargo && !isDemo && shipment && shipment.status !== ShipmentStatus.Cancelado && (
+                    {!isDemo && shipment && cargo && ![ShipmentStatus.AguardandoSeguradora, ShipmentStatus.PreCadastro, ShipmentStatus.Cancelado].includes(shipment.status) && (
                         <button
                             type="button"
-                            onClick={() => setIsSwapModalOpen(true)}
-                            title="Trocar Carga do Embarque"
+                            onClick={handleOpenOrderEmailModal}
+                            title="Enviar Ordem de Carregamento por E-mail com PDF anexado"
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 dark:text-blue-300 rounded-md text-xs font-bold transition-all shadow-sm border border-blue-200 dark:border-blue-800/60 cursor-pointer"
                         >
-                            <ArrowRightLeft size={14} />
-                            <span>Trocar Carga</span>
+                            <Mail size={14} />
+                            <span>Enviar Ordem por E-mail</span>
                         </button>
                     )}
                     {shipment && ![ShipmentStatus.AguardandoSeguradora, ShipmentStatus.PreCadastro, ShipmentStatus.Cancelado].includes(shipment.status) && (() => {
                         const linkedClient = clients.find(c => c.id === cargo?.clientId);
                         const linkedBranch = linkedClient?.secondaryCnpjs?.find(b => b.id === cargo?.clientBranchId || b.cnpj === cargo?.clientCnpj);
                         const activeLoadingOrderModelId = linkedBranch?.loadingOrderModelId || linkedBranch?.ordemCarregamentoModelId || linkedClient?.loadingOrderModelId || linkedClient?.ordemCarregamentoModelId;
-                        const isConsubeModel = activeLoadingOrderModelId === 'mod_consube';
+                        const isConsubePayingClient = [
+                            linkedClient?.nomeFantasia,
+                            linkedClient?.razaoSocial,
+                            linkedBranch?.razaoSocial,
+                        ].some(name => String(name || '').toUpperCase().includes('CONSUBE'));
+                        const isConsubeModel = activeLoadingOrderModelId === 'mod_consube' && isConsubePayingClient;
                         const isGoias = cargo ? isGoiasOrigin(cargo, shipment) : false;
                         const isSp = cargo ? isSpOrigin(cargo, shipment) : false;
                         const isMinas = cargo ? isMinasOrigin(cargo, shipment) : false;
@@ -418,7 +507,7 @@ const ShipmentDetailsModal: React.FC<ShipmentDetailsModalProps> = ({
                                         </span>
                                     )}
                                 </button>
-                                {!isConsubeModel && (
+                                {!isConsubeModel && isConsubePayingClient && (
                                     <button
                                         onClick={() => cargo && generateLoadingOrderPDF(shipment, cargo, clients, products, vehicles, companyLogo, 'mod_consube')}
                                         title={`Emitir Ordem de Carregamento no Modelo Consube${originBranchTitle}`}
@@ -1558,6 +1647,16 @@ const ShipmentDetailsModal: React.FC<ShipmentDetailsModalProps> = ({
             await onUpdateShipmentData(shipmentId, { statusPendingObservation: pendingObs });
           }
         }}
+      />
+
+      <ComposeEmailModal
+        isOpen={isOrderEmailModalOpen}
+        onClose={() => setIsOrderEmailModalOpen(false)}
+        accounts={emailAccounts}
+        initialMode="new"
+        initialSubject={orderEmailSubject}
+        initialBody={orderEmailBody}
+        initialAttachments={orderEmailAttachments}
       />
 </>
   );
