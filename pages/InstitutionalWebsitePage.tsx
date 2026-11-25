@@ -5,6 +5,7 @@ import {
   Route, Sparkles, Send, MessageCircle, LogIn, Package, Headphones, Zap, ArrowUpRight
 } from 'lucide-react';
 import InstitutionalCoverageMap from '../components/InstitutionalCoverageMap';
+import { STRATEGIC_CLIENTS } from '../utils/clientLogosData';
 
 interface InstitutionalWebsitePageProps {
   companyLogo?: string | null;
@@ -27,17 +28,7 @@ const NAV_LINKS = [
   { id: 'contato', label: 'Contato' }
 ];
 
-const CLIENTS = [
-  { name: 'Mantiqueira Brasil', logo: '/clients/mantiqueira.png' },
-  { name: 'Consube Agro', logo: '/clients/consube.png' },
-  { name: 'Morroverde', logo: '/clients/morroverde.png' },
-  { name: 'Grão de Ouro', logo: '/clients/grao_de_ouro.png' },
-  { name: 'Grupo Organics', logo: '/clients/organics.png' },
-  { name: 'USJ S. João', logo: '/clients/usj.png' },
-  { name: 'Black Bio', logo: '/clients/black_bio.png' },
-  { name: 'Adecoagro', logo: '/clients/adecoagro.png' },
-  { name: 'Agrobom', logo: '/clients/agrobom.png' }
-];
+const CLIENTS = STRATEGIC_CLIENTS;
 
 const SERVICES = [
   {

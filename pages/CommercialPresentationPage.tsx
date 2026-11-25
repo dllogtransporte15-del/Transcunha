@@ -8,6 +8,7 @@ import {
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import InstitutionalCoverageMap from '../components/InstitutionalCoverageMap';
+import { STRATEGIC_CLIENTS } from '../utils/clientLogosData';
 
 interface CommercialPresentationPageProps {
   companyLogo?: string | null;
@@ -35,17 +36,7 @@ export const CommercialPresentationPage: React.FC<CommercialPresentationPageProp
   const logoSrc = companyLogo || '/logo.png';
   const clientsLogoSrc = '/logos_clientes.png';
 
-  const clientBrands = [
-    { name: 'Mantiqueira Brasil', segment: 'Avicultura & Alimentos', logo: '/clients/mantiqueira.png' },
-    { name: 'Consube Agro', segment: 'Nutrição Animal & Grãos', logo: '/clients/consube.png' },
-    { name: 'Morroverde', segment: 'Agronegócio & Grãos', logo: '/clients/morroverde.png' },
-    { name: 'Grão de Ouro', segment: 'Armazenagem & Grãos', logo: '/clients/grao_de_ouro.png' },
-    { name: 'Grupo Organics', segment: 'Biofertilizantes', logo: '/clients/organics.png' },
-    { name: 'USJ S. João', segment: 'Açúcar, Etanol & Bioenergia', logo: '/clients/usj.png' },
-    { name: 'Black Bio', segment: 'Biotecnologia Agrícola', logo: '/clients/black_bio.png' },
-    { name: 'Adecoagro', segment: 'Produção Agroindustrial', logo: '/clients/adecoagro.png' },
-    { name: 'Agrobom', segment: 'Sementes & Insumos', logo: '/clients/agrobom.png' }
-  ];
+  const clientBrands = STRATEGIC_CLIENTS;
 
   // Keyboard navigation for presentation deck
   useEffect(() => {

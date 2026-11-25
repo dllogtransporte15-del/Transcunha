@@ -27,6 +27,20 @@ export interface SystemRelease {
  */
 export const SYSTEM_RELEASES: SystemRelease[] = [
   {
+    id: 'rel_2026_11_25_v2_118_22',
+    version: 'v2.118.22',
+    date: '25/11/2026',
+    title: 'Website: Incorporação Direta das Logos dos Parceiros (Resiliência Offline e Anti-Bloqueio)',
+    summary: 'Embarcadas todas as 9 logos dos clientes parceiros diretamente no pacote do website em formato Data URI Base64 de alta resolução, garantindo exibição instantânea sem dependência de requisições de rede ou riscos de bloqueio por firewalls e proxies corporativos.',
+    items: [
+      {
+        category: 'improvement',
+        title: 'Logos Embarcadas em Base64',
+        description: 'Imagens de parceiros estratégicos compiladas diretamente no código-fonte, garantindo carregamento imediato no mobile mesmo em redes corporativas com inspeção SSL ou bloqueios parciais.'
+      }
+    ]
+  },
+  {
     id: 'rel_2026_11_25_v2_118_21',
     version: 'v2.118.21',
     date: '25/11/2026',
