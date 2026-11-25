@@ -27,6 +27,63 @@ export interface SystemRelease {
  */
 export const SYSTEM_RELEASES: SystemRelease[] = [
   {
+    id: 'rel_2026_11_25_v2_118_18',
+    version: 'v2.118.18',
+    date: '25/11/2026',
+    title: 'Website: Redirecionamento Direto para transcunha.digital e Limpeza de Seção',
+    summary: 'Configurados todos os botões de "Área do Cliente" e "Acessar o Portal" do website para direcionar ao domínio transcunha.digital, e removida a faixa duplicada "Empresas que confiam na Transcunha".',
+    items: [
+      {
+        category: 'improvement',
+        title: 'Redirecionamento para transcunha.digital',
+        description: 'Os botões de "Área do Cliente" (cabeçalho desktop/mobile e rodapé) e "Acessar o Portal" agora abrem diretamente o link oficial https://transcunha.digital.'
+      },
+      {
+        category: 'improvement',
+        title: 'Remoção de Faixa Duplicada',
+        description: 'Removido o campo "Empresas que confiam na Transcunha" abaixo do Hero, mantendo apenas a seção principal de Parcerias Estratégicas com as marcas padronizadas.'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_25_v2_118_17',
+    version: 'v2.118.17',
+    date: '25/11/2026',
+    title: 'Website: Mapa Interativo do Brasil no Painel "Forte Atuação Interestadual"',
+    summary: 'Substituída a lista estática de estados no painel "Forte Atuação Interestadual" do website institucional pelo mapa vetorial interativo do Brasil em estilo radar neon de "Entregas por Região", com corredores logísticos, polos de carga e filtros por macrorregiões.',
+    items: [
+      {
+        category: 'feature',
+        title: 'Mapa Interativo do Brasil no Website',
+        description: 'Integração do mapa vetorial completo com os 27 estados e DF, rotas ativas interestaduais animadas, polos de origem/descarga e radar com efeito glow neon.'
+      },
+      {
+        category: 'improvement',
+        title: 'Filtro Dinâmico por Regiões e Tooltip Detalhado',
+        description: 'Possibilidade de selecionar macrorregiões (Sudeste, Centro-Oeste, Sul, Nordeste, Norte), visualizar a participação da frota e interagir com polos estratégicos no hover.'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_25_v2_118_16',
+    version: 'v2.118.16',
+    date: '25/11/2026',
+    title: 'Atualização e Padronização das Logos de Parcerias Estratégicas',
+    summary: 'Substituição completa de todas as marcas da seção de Parcerias Estratégicas do website institucional e apresentação comercial pelas novas logos de clientes, com fundo transparente e proporções padronizadas, mantendo a Mantiqueira Brasil.',
+    items: [
+      {
+        category: 'improvement',
+        title: 'Novas Logos com Fundo Transparente',
+        description: 'Padronização visual em alta definição das logos de Mantiqueira Brasil, ConSube Agro, Morroverde, Grupo Grão de Ouro, Grupo Organics, USJ S. João, Black Bio, Adecoagro e Agrobom.'
+      },
+      {
+        category: 'improvement',
+        title: 'Layout 3x3 Otimizado',
+        description: 'Ajuste nas grades de exibição do website institucional e da apresentação comercial para distribuição equilibrada e proporções consistentes de todas as marcas.'
+      }
+    ]
+  },
+  {
     id: 'rel_2026_11_25_v2_118_15',
     version: 'v2.118.15',
     date: '25/11/2026',

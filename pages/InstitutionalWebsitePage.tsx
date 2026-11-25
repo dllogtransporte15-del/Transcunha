@@ -4,6 +4,7 @@ import {
   CheckCircle2, Clock, FileSpreadsheet, Monitor, Award, Users, Wheat, Factory,
   Route, Sparkles, Send, MessageCircle, LogIn, Package, Headphones, Zap, ArrowUpRight
 } from 'lucide-react';
+import InstitutionalCoverageMap from '../components/InstitutionalCoverageMap';
 
 interface InstitutionalWebsitePageProps {
   companyLogo?: string | null;
@@ -15,6 +16,7 @@ interface InstitutionalWebsitePageProps {
 const WHATSAPP_COMERCIAL = '5535991030469';
 const WHATSAPP_OPERACOES = '5535998721970';
 const EMAIL_COMERCIAL = 'contato@transcunhaoficial.com.br';
+const CLIENT_PORTAL_URL = 'https://transcunha.digital';
 
 const NAV_LINKS = [
   { id: 'inicio', label: 'Início' },
@@ -26,16 +28,15 @@ const NAV_LINKS = [
 ];
 
 const CLIENTS = [
-  { name: 'Morroverde', logo: '/clients/morroverde.png' },
+  { name: 'Mantiqueira Brasil', logo: '/clients/mantiqueira.png' },
   { name: 'Consube Agro', logo: '/clients/consube.png' },
-  { name: 'Agrobom', logo: '/clients/agrobom.png' },
+  { name: 'Morroverde', logo: '/clients/morroverde.png' },
   { name: 'Grão de Ouro', logo: '/clients/grao_de_ouro.png' },
   { name: 'Grupo Organics', logo: '/clients/organics.png' },
-  { name: 'Mantiqueira', logo: '/clients/mantiqueira.png' },
-  { name: 'DF Grãos', logo: '/clients/df_graos.png' },
   { name: 'USJ S. João', logo: '/clients/usj.png' },
   { name: 'Black Bio', logo: '/clients/black_bio.png' },
-  { name: 'Adecoagro', logo: '/clients/adecoagro.png' }
+  { name: 'Adecoagro', logo: '/clients/adecoagro.png' },
+  { name: 'Agrobom', logo: '/clients/agrobom.png' }
 ];
 
 const SERVICES = [
@@ -279,14 +280,25 @@ export const InstitutionalWebsitePage: React.FC<InstitutionalWebsitePageProps> =
           </div>
 
           <div className="hidden lg:flex items-center gap-2">
-            <button
+            {isLoggedIn && onGoToSystem && (
+              <button
+                id="nav-back-system"
+                onClick={onGoToSystem}
+                className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold text-sky-300 border border-sky-500/40 hover:bg-sky-500/10 transition-all cursor-pointer"
+              >
+                Voltar ao Sistema
+              </button>
+            )}
+            <a
               id="nav-client-area"
-              onClick={onGoToSystem}
+              href={CLIENT_PORTAL_URL}
+              target="_blank"
+              rel="noopener noreferrer"
               className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold text-slate-200 border border-slate-700 hover:border-sky-400/60 hover:text-white transition-all cursor-pointer"
             >
               <LogIn className="w-4 h-4" />
-              {isLoggedIn ? 'Voltar ao Sistema' : 'Área do Cliente'}
-            </button>
+              Área do Cliente
+            </a>
             <a
               id="nav-quote"
               href="#contato"
@@ -321,9 +333,15 @@ export const InstitutionalWebsitePage: React.FC<InstitutionalWebsitePageProps> =
               </button>
             ))}
             <div className="grid grid-cols-2 gap-2 pt-2">
-              <button onClick={onGoToSystem} className="px-4 py-3 rounded-xl text-sm font-semibold border border-slate-700 cursor-pointer">
-                {isLoggedIn ? 'Sistema' : 'Área do Cliente'}
-              </button>
+              <a
+                href={CLIENT_PORTAL_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-4 py-3 rounded-xl text-sm font-semibold border border-slate-700 cursor-pointer flex items-center justify-center gap-2 text-slate-200"
+              >
+                <LogIn className="w-4 h-4" />
+                Área do Cliente
+              </a>
               <button onClick={() => scrollTo('contato')} className="px-4 py-3 rounded-xl text-sm font-bold bg-blue-600 cursor-pointer">
                 Cotação
               </button>
@@ -459,7 +477,7 @@ export const InstitutionalWebsitePage: React.FC<InstitutionalWebsitePageProps> =
           </div>
 
           <button
-            onClick={() => scrollTo('clientes-strip')}
+            onClick={() => scrollTo('sobre')}
             className="absolute bottom-6 left-1/2 -translate-x-1/2 hidden md:flex flex-col items-center gap-2 text-slate-500 hover:text-sky-300 transition-colors cursor-pointer"
             aria-label="Rolar para baixo"
           >
@@ -468,20 +486,6 @@ export const InstitutionalWebsitePage: React.FC<InstitutionalWebsitePageProps> =
               <span className="w-1 h-1.5 rounded-full bg-current tc-float" style={{ animationDuration: '1.6s' }} />
             </span>
           </button>
-        </section>
-
-        {/* ================= CLIENT MARQUEE ================= */}
-        <section id="clientes-strip" className="relative py-10 border-y border-slate-800/80 bg-[#060c1b]">
-          <p className="text-center text-xs uppercase tracking-[0.3em] text-slate-500 mb-6">Empresas que confiam na Transcunha</p>
-          <div className="relative overflow-hidden [mask-image:linear-gradient(90deg,transparent,black_12%,black_88%,transparent)]">
-            <div className="flex w-max tc-marquee">
-              {[...CLIENTS, ...CLIENTS].map((c, i) => (
-                <div key={i} className="flex items-center justify-center w-48 h-16 mx-6 shrink-0 opacity-70 hover:opacity-100 transition-opacity">
-                  <img src={c.logo} alt={c.name} className="max-h-12 max-w-full object-contain" loading="lazy" />
-                </div>
-              ))}
-            </div>
-          </div>
         </section>
 
         {/* ================= SOBRE ================= */}
@@ -600,59 +604,79 @@ export const InstitutionalWebsitePage: React.FC<InstitutionalWebsitePageProps> =
                   </li>
                 ))}
               </ul>
-              <button
+              <a
                 id="tech-access-portal"
-                onClick={onGoToSystem}
+                href={CLIENT_PORTAL_URL}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="group inline-flex items-center gap-2 px-6 py-3 rounded-full font-bold bg-white text-slate-900 hover:bg-sky-100 transition-all cursor-pointer"
               >
                 Acessar o Portal
                 <ArrowUpRight className="w-5 h-5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
-              </button>
+              </a>
             </div>
           </div>
         </section>
 
         {/* ================= COBERTURA + SEGURANÇA ================= */}
         <section className="relative py-24 sm:py-28 bg-[#060c1b] border-y border-slate-800/80">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 grid lg:grid-cols-2 gap-8">
-            <div data-reveal="left" className="p-8 sm:p-10 rounded-[2rem] bg-gradient-to-br from-blue-950/60 to-slate-900/80 border border-blue-500/25">
-              <div className="flex items-center gap-3 mb-6">
-                <Globe className="w-6 h-6 text-sky-400" />
-                <h3 className="text-2xl font-black">Forte atuação interestadual</h3>
-              </div>
-              <p className="text-slate-400 text-sm mb-7">Rotas estratégicas conectando áreas produtoras aos principais centros industriais e portos de exportação.</p>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {STATES.map(s => (
-                  <div key={s.uf} className="tc-card flex items-center gap-3 p-3 rounded-2xl bg-slate-900/80 border border-slate-800">
-                    <span className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-sky-500 font-black text-sm flex items-center justify-center shrink-0">{s.uf}</span>
-                    <div className="min-w-0">
-                      <div className="text-xs font-bold truncate">{s.name}</div>
-                      {s.tag && <div className="text-[10px] text-sky-400 uppercase tracking-wider">{s.tag}</div>}
-                    </div>
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 grid lg:grid-cols-2 gap-8 items-stretch">
+            <div data-reveal="left" className="p-6 sm:p-8 rounded-[2rem] bg-gradient-to-br from-blue-950/60 to-slate-900/80 border border-blue-500/25 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-10 h-10 rounded-2xl bg-sky-500/20 border border-sky-400/30 flex items-center justify-center text-sky-400 shadow-[0_0_15px_rgba(56,189,248,0.25)] shrink-0">
+                    <Globe className="w-5 h-5" />
                   </div>
-                ))}
+                  <div>
+                    <h3 className="text-2xl font-black text-white tracking-tight">Forte atuação interestadual</h3>
+                    <p className="text-slate-400 text-xs sm:text-sm mt-0.5">Rotas estratégicas conectando áreas produtoras aos principais centros industriais e portos de exportação.</p>
+                  </div>
+                </div>
+
+                {/* Mapa Interativo de Cobertura e Entregas por Região */}
+                <div className="mt-4">
+                  <InstitutionalCoverageMap />
+                </div>
               </div>
             </div>
 
-            <div data-reveal="right" className="p-8 sm:p-10 rounded-[2rem] bg-gradient-to-br from-emerald-950/40 to-slate-900/80 border border-emerald-500/25">
-              <div className="flex items-center gap-3 mb-6">
-                <ShieldCheck className="w-6 h-6 text-emerald-400" />
-                <h3 className="text-2xl font-black">Segurança 360°</h3>
-              </div>
-              <div className="space-y-4">
-                {[
-                  { title: 'Gerenciamento rígido de risco', text: 'Consulta de antecedentes, CNH e homologação nas maiores gerenciadoras de risco a cada embarque.' },
-                  { title: '100% das cargas asseguradas', text: 'Apólices RCTR-C e RCF-DC cobrindo qualquer trajeto, sem franquia repassada ao cliente.' },
-                  { title: 'Suporte operacional 24h', text: 'Plantão dedicado e relacionamento próximo com motoristas parceiros em todas as viagens.' }
-                ].map(item => (
-                  <div key={item.title} className="flex gap-4 p-4 rounded-2xl bg-slate-900/70 border border-slate-800">
-                    <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
-                    <div>
-                      <div className="font-bold text-sm">{item.title}</div>
-                      <div className="text-xs text-slate-400 mt-1 leading-relaxed">{item.text}</div>
-                    </div>
+            <div data-reveal="right" className="p-8 sm:p-10 rounded-[2rem] bg-gradient-to-br from-emerald-950/40 to-slate-900/80 border border-emerald-500/25 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.25)] shrink-0">
+                    <ShieldCheck className="w-5 h-5" />
                   </div>
-                ))}
+                  <div>
+                    <h3 className="text-2xl font-black text-white tracking-tight">Segurança 360°</h3>
+                    <p className="text-slate-400 text-xs sm:text-sm mt-0.5">Padrão máximo de conformidade em cada quilômetro rodado.</p>
+                  </div>
+                </div>
+                <div className="space-y-4">
+                  {[
+                    { title: 'Gerenciamento rígido de risco', text: 'Consulta de antecedentes, CNH e homologação nas maiores gerenciadoras de risco a cada embarque.' },
+                    { title: '100% das cargas asseguradas', text: 'Apólices RCTR-C e RCF-DC cobrindo qualquer trajeto, sem franquia repassada ao cliente.' },
+                    { title: 'Suporte operacional 24h', text: 'Plantão dedicado e relacionamento próximo com motoristas parceiros em todas as viagens.' }
+                  ].map(item => (
+                    <div key={item.title} className="flex gap-4 p-4 rounded-2xl bg-slate-900/70 border border-slate-800">
+                      <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+                      <div>
+                        <div className="font-bold text-sm text-white">{item.title}</div>
+                        <div className="text-xs text-slate-400 mt-1 leading-relaxed">{item.text}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Destaque de Garantia & Confiabilidade */}
+              <div className="mt-6 pt-5 border-t border-slate-800/80 flex items-center justify-between gap-3 text-xs flex-wrap">
+                <div className="flex items-center gap-2 text-emerald-400 font-semibold">
+                  <Award className="w-4 h-4" />
+                  <span>Apólices Ativas & Rastreamento Integral</span>
+                </div>
+                <span className="text-[11px] text-slate-400 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/30">
+                  Sinistralidade Controlada
+                </span>
               </div>
             </div>
           </div>
@@ -666,16 +690,16 @@ export const InstitutionalWebsitePage: React.FC<InstitutionalWebsitePageProps> =
               <h2 className="text-4xl sm:text-5xl font-black tracking-tight mt-3 mb-4">Grandes marcas que confiam na Transcunha</h2>
               <p className="text-slate-400">Relações de longo prazo, safra após safra, com os maiores grupos do agronegócio e da indústria nacional.</p>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 gap-5 max-w-5xl mx-auto">
               {CLIENTS.map((c, i) => (
                 <div
                   key={c.name}
                   data-reveal="zoom"
-                  style={{ transitionDelay: `${(i % 5) * 0.07}s` }}
-                  className="tc-card group h-32 rounded-3xl bg-gradient-to-b from-slate-900/80 to-[#0b1530]/80 border border-slate-800 flex flex-col items-center justify-center gap-3 p-4"
+                  style={{ transitionDelay: `${(i % 3) * 0.08}s` }}
+                  className="tc-card group h-36 rounded-3xl bg-gradient-to-b from-slate-900/80 to-[#0b1530]/80 border border-slate-800 flex flex-col items-center justify-center gap-3 p-5 shadow-lg hover:border-sky-500/40 transition-all"
                 >
-                  <img src={c.logo} alt={c.name} className="max-h-12 max-w-[85%] object-contain opacity-80 group-hover:opacity-100 group-hover:scale-105 transition-all" loading="lazy" />
-                  <span className="text-[11px] text-slate-500 group-hover:text-sky-300 transition-colors">{c.name}</span>
+                  <img src={c.logo} alt={c.name} className="max-h-14 max-w-[85%] object-contain opacity-85 group-hover:opacity-100 group-hover:scale-105 transition-all filter drop-shadow-md" loading="lazy" />
+                  <span className="text-xs font-medium text-slate-400 group-hover:text-sky-300 transition-colors">{c.name}</span>
                 </div>
               ))}
             </div>
@@ -819,7 +843,16 @@ export const InstitutionalWebsitePage: React.FC<InstitutionalWebsitePageProps> =
           <div>
             <div className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500 mb-4">Acesso rápido</div>
             <ul className="space-y-2.5 text-sm">
-              <li><button onClick={onGoToSystem} className="text-slate-300 hover:text-sky-300 transition-colors cursor-pointer">Área do Cliente</button></li>
+              <li>
+                <a
+                  href={CLIENT_PORTAL_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-slate-300 hover:text-sky-300 transition-colors cursor-pointer"
+                >
+                  Área do Cliente
+                </a>
+              </li>
               {onOpenPresentation && <li><button onClick={onOpenPresentation} className="text-slate-300 hover:text-sky-300 transition-colors cursor-pointer">Apresentação Comercial</button></li>}
               <li><a href={`mailto:${EMAIL_COMERCIAL}`} className="text-slate-300 hover:text-sky-300 transition-colors">{EMAIL_COMERCIAL}</a></li>
               <li className="text-slate-400">Pratápolis - MG</li>

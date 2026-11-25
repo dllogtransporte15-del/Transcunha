@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
+import InstitutionalCoverageMap from '../components/InstitutionalCoverageMap';
 
 interface CommercialPresentationPageProps {
   companyLogo?: string | null;
@@ -35,16 +36,15 @@ export const CommercialPresentationPage: React.FC<CommercialPresentationPageProp
   const clientsLogoSrc = '/logos_clientes.png';
 
   const clientBrands = [
-    { name: 'Morroverde', segment: 'Agronegócio & Grãos', logo: '/clients/morroverde.png' },
+    { name: 'Mantiqueira Brasil', segment: 'Avicultura & Alimentos', logo: '/clients/mantiqueira.png' },
     { name: 'Consube Agro', segment: 'Nutrição Animal & Grãos', logo: '/clients/consube.png' },
-    { name: 'Agrobom', segment: 'Sementes & Insumos', logo: '/clients/agrobom.png' },
+    { name: 'Morroverde', segment: 'Agronegócio & Grãos', logo: '/clients/morroverde.png' },
     { name: 'Grão de Ouro', segment: 'Armazenagem & Grãos', logo: '/clients/grao_de_ouro.png' },
     { name: 'Grupo Organics', segment: 'Biofertilizantes', logo: '/clients/organics.png' },
-    { name: 'Mantiqueira', segment: 'Avicultura & Alimentos', logo: '/clients/mantiqueira.png' },
-    { name: 'DF Grãos', segment: 'Trading & Exportação', logo: '/clients/df_graos.png' },
     { name: 'USJ S. João', segment: 'Açúcar, Etanol & Bioenergia', logo: '/clients/usj.png' },
     { name: 'Black Bio', segment: 'Biotecnologia Agrícola', logo: '/clients/black_bio.png' },
-    { name: 'Adecoagro', segment: 'Produção Agroindustrial', logo: '/clients/adecoagro.png' }
+    { name: 'Adecoagro', segment: 'Produção Agroindustrial', logo: '/clients/adecoagro.png' },
+    { name: 'Agrobom', segment: 'Sementes & Insumos', logo: '/clients/agrobom.png' }
   ];
 
   // Keyboard navigation for presentation deck
@@ -438,9 +438,9 @@ export const CommercialPresentationPage: React.FC<CommercialPresentationPageProp
               </div>
 
               {/* Right Column */}
-              <div className="col-span-5 flex flex-col justify-between bg-gradient-to-b from-blue-950/50 to-slate-900/90 p-6 rounded-2xl border border-blue-500/30 shadow-xl">
+              <div className="col-span-5 flex flex-col justify-between bg-gradient-to-b from-blue-950/50 to-slate-900/90 p-5 rounded-2xl border border-blue-500/30 shadow-xl overflow-hidden">
                 <div>
-                  <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center justify-between mb-2">
                     <h4 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
                       <Globe className="w-5 h-5 text-sky-400" />
                       Forte Atuação Interestadual
@@ -451,8 +451,8 @@ export const CommercialPresentationPage: React.FC<CommercialPresentationPageProp
                         display: 'inline-flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        height: '26px',
-                        padding: '0 12px',
+                        height: '24px',
+                        padding: '0 10px',
                         lineHeight: 1,
                         boxSizing: 'border-box'
                       }}
@@ -461,107 +461,16 @@ export const CommercialPresentationPage: React.FC<CommercialPresentationPageProp
                     </div>
                   </div>
 
-                  <p className="text-xs text-slate-300 mb-4">
+                  <p className="text-xs text-slate-300 mb-3">
                     Rotas estratégicas conectando áreas produtoras aos principais centros industriais e portos de exportação:
                   </p>
 
-                  <div className="grid grid-cols-2 gap-2.5">
-                    <div className="flex items-center gap-2.5 p-2 rounded-xl bg-slate-800/90 border border-slate-700">
-                      <div 
-                        className="rounded-lg bg-blue-600 font-black text-white text-xs select-none shrink-0"
-                        style={{
-                          width: '32px',
-                          height: '32px',
-                          lineHeight: '32px',
-                          textAlign: 'center',
-                          boxSizing: 'border-box'
-                        }}
-                      >
-                        MG
-                      </div>
-                      <span className="text-xs text-slate-100 font-bold">Minas Gerais (Matriz)</span>
-                    </div>
-                    <div className="flex items-center gap-2.5 p-2 rounded-xl bg-slate-800/90 border border-slate-700">
-                      <div 
-                        className="rounded-lg bg-sky-600 font-black text-white text-xs select-none shrink-0"
-                        style={{
-                          width: '32px',
-                          height: '32px',
-                          lineHeight: '32px',
-                          textAlign: 'center',
-                          boxSizing: 'border-box'
-                        }}
-                      >
-                        SP
-                      </div>
-                      <span className="text-xs text-slate-100 font-bold">São Paulo</span>
-                    </div>
-                    <div className="flex items-center gap-2.5 p-2 rounded-xl bg-slate-800/90 border border-slate-700">
-                      <div 
-                        className="rounded-lg bg-indigo-600 font-black text-white text-xs select-none shrink-0"
-                        style={{
-                          width: '32px',
-                          height: '32px',
-                          lineHeight: '32px',
-                          textAlign: 'center',
-                          boxSizing: 'border-box'
-                        }}
-                      >
-                        MS
-                      </div>
-                      <span className="text-xs text-slate-100 font-bold">Mato Grosso do Sul</span>
-                    </div>
-                    <div className="flex items-center gap-2.5 p-2 rounded-xl bg-slate-800/90 border border-slate-700">
-                      <div 
-                        className="rounded-lg bg-blue-700 font-black text-white text-xs select-none shrink-0"
-                        style={{
-                          width: '32px',
-                          height: '32px',
-                          lineHeight: '32px',
-                          textAlign: 'center',
-                          boxSizing: 'border-box'
-                        }}
-                      >
-                        PR
-                      </div>
-                      <span className="text-xs text-slate-100 font-bold">Paraná</span>
-                    </div>
-                    <div className="flex items-center gap-2.5 p-2 rounded-xl bg-slate-800/90 border border-slate-700">
-                      <div 
-                        className="rounded-lg bg-sky-700 font-black text-white text-xs select-none shrink-0"
-                        style={{
-                          width: '32px',
-                          height: '32px',
-                          lineHeight: '32px',
-                          textAlign: 'center',
-                          boxSizing: 'border-box'
-                        }}
-                      >
-                        GO
-                      </div>
-                      <span className="text-xs text-slate-100 font-bold">Goiás</span>
-                    </div>
-                    <div className="flex items-center gap-2.5 p-2 rounded-xl bg-slate-800/90 border border-slate-700">
-                      <div 
-                        className="rounded-lg bg-teal-600 font-black text-white text-xs select-none shrink-0"
-                        style={{
-                          width: '32px',
-                          height: '32px',
-                          lineHeight: '32px',
-                          textAlign: 'center',
-                          boxSizing: 'border-box'
-                        }}
-                      >
-                        ES
-                      </div>
-                      <span className="text-xs text-slate-100 font-bold">Espírito Santo</span>
-                    </div>
-                  </div>
+                  <InstitutionalCoverageMap compact />
                 </div>
 
-                <div className="p-3.5 rounded-xl bg-blue-900/40 border border-blue-500/40 text-xs text-sky-200 flex items-center gap-3 mt-4">
-                  <MapPin className="w-5 h-5 text-sky-400 shrink-0" />
-                  <span>Sede Operacional em <strong>Pratápolis - MG (CEP 37970-000)</strong>, no centro logístico do agronegócio.</span>
+                <div className="p-2.5 rounded-xl bg-blue-900/40 border border-blue-500/40 text-[11px] text-sky-200 flex items-center gap-2.5 mt-2">
+                  <MapPin className="w-4 h-4 text-sky-400 shrink-0" />
+                  <span>Sede Operacional em <strong>Pratápolis - MG</strong>, no centro estratégico do agronegócio nacional.</span>
                 </div>
               </div>
             </div>
@@ -960,8 +869,8 @@ export const CommercialPresentationPage: React.FC<CommercialPresentationPageProp
                 Soluções rodoviárias consolidadas e atendimento de excelência aos maiores grupos do agronegócio e da indústria nacional:
               </p>
 
-              {/* 10 Transparent Logo Cards in 5x2 High-End Grid */}
-              <div className="grid grid-cols-5 gap-3 max-w-5xl w-full mx-auto flex-1 items-stretch">
+              {/* 9 Transparent Logo Cards in 3x3 High-End Grid */}
+              <div className="grid grid-cols-3 gap-3.5 max-w-4xl w-full mx-auto flex-1 items-stretch">
                 {clientBrands.map((client) => (
                   <div
                     key={client.name}
