@@ -14,7 +14,7 @@ import { REQUIRED_DOCUMENT_MAP } from '../types';
 import type { Cargo, Client, Product, Driver, Shipment, Vehicle, User, ProfilePermissions, VehicleSetType, VehicleBodyType, Branch, RiskQueryOption, Owner } from '../types';
 import { can, isDemoUser } from '../auth';
 import { CopyIcon } from '../components/icons/CopyIcon';
-import { CargoStatus, UserProfile, ShipmentStatus } from '../types';
+import { CargoStatus, UserProfile, ShipmentStatus, FreightCalculationType } from '../types';
 import ShipmentTable from '../components/ShipmentTable';
 import { StayRecord } from '../utils/toolStorage';
 import { formatFretebrasVehicleTypes } from '../utils/formatters';
@@ -274,14 +274,44 @@ const OperationalLoadsPage: React.FC<OperationalLoadsPageProps> = ({
       const product = products.find(p => p.id === load.productId)?.name?.toUpperCase() || 'N/A';
       const origin = load.origin.toUpperCase();
       const destination = load.destination.toUpperCase();
-      const hasToll = load.driverFreightHasToll || load.freightLegs?.some(l => l.driverFreightHasToll);
-      const tollText = hasToll ? ' + Ped' : '';
-      const priceText = (load.driverFreightValuePerTon && load.driverFreightValuePerTon > 0)
-        ? `R$ ${load.driverFreightValuePerTon.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${tollText}`
+      
+      const isFixed = load.freightCalculationType === FreightCalculationType.FixedTotal;
+      const freightLegs = (load.freightLegs && load.freightLegs.length > 0) ? load.freightLegs : null;
+
+      // Cálculo e formatação do Frete Motorista PJ
+      const pjValue = isFixed
+        ? (load.driverFreightTotalFixedPj || (freightLegs ? freightLegs.reduce((sum, l) => sum + (l.driverFreightTotalFixedPj || 0), 0) : 0) || load.driverFreightValuePerTon || 0)
+        : (freightLegs ? freightLegs.reduce((sum, l) => sum + (Number(l.driverFreightValuePerTon) || 0), 0) : (Number(load.driverFreightValuePerTon) || 0));
+
+      const hasPjToll = load.driverFreightHasToll || freightLegs?.some(l => l.driverFreightHasToll);
+      const pjTollText = hasPjToll ? ' + Ped' : '';
+      const pjPrice = pjValue > 0
+        ? `R$ ${pjValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${pjTollText}`
         : 'A combinar';
+
+      // Cálculo e formatação do Frete Motorista PF
+      const isPfDisabled = freightLegs ? freightLegs.every(l => l.disablePfFreight) : Boolean((load as any).disablePfFreight);
+      const loadPfDirect = (load as any).driverFreightValuePerTonPf;
+      const pfValue = isFixed
+        ? (load.driverFreightTotalFixedPf || (freightLegs ? freightLegs.reduce((sum, l) => sum + (l.driverFreightTotalFixedPf || 0), 0) : 0) || load.driverFreightValuePerTon || 0)
+        : (freightLegs
+            ? freightLegs.reduce((sum, l) => {
+                if (l.disablePfFreight) return sum;
+                return sum + (Number(l.driverFreightValuePerTonPf ?? l.driverFreightValuePerTon) || 0);
+              }, 0)
+            : (Number(loadPfDirect ?? load.driverFreightValuePerTon) || 0));
+
+      const hasPfToll = load.driverFreightPfHasToll || freightLegs?.some(l => l.driverFreightPfHasToll);
+      const pfTollText = hasPfToll ? ' + Ped' : '';
+      const pfPrice = isPfDisabled
+        ? 'A combinar'
+        : pfValue > 0
+        ? `R$ ${pfValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${pfTollText}`
+        : 'A combinar';
+
       const bodyTypes = formatAllowedVehicleTypes(load.allowedVehicleTypes);
 
-      let text = `📍 ${origin} x ${destination} \n🌾 ${product} - 💲 ${priceText}\t\n🚛 ${bodyTypes} 🚛`;
+      let text = `📍 ${origin} x ${destination} \n🌾 ${product} - \n💲 ${pjPrice} PJ - ${pfPrice} PF \n🚛 ${bodyTypes} 🚛`;
       
       if (load.originMapLink) {
         text += `\n📍Coleta - ${load.originMapLink}`;

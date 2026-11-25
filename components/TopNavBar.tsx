@@ -568,11 +568,11 @@ const TopNavBar: React.FC<TopNavBarProps> = ({
                           <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">PDF</span>
                       </button>
 
-                      <button 
-                        onClick={() => {
-                          handleDropdownToggle('user');
-                          setCurrentPage('website' as Page);
-                        }} 
+                      <a 
+                        href="https://transcunhaoficial.com.br"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={() => handleDropdownToggle('user')} 
                         className="w-full text-left flex items-center justify-between px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-all cursor-pointer group"
                       >
                           <div className="flex items-center gap-2.5">
@@ -581,8 +581,11 @@ const TopNavBar: React.FC<TopNavBarProps> = ({
                             </div>
                             <span>Website Institucional</span>
                           </div>
-                          <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">Site</span>
-                      </button>
+                          <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
+                            Site
+                            <ExternalLink className="w-2.5 h-2.5" />
+                          </span>
+                      </a>
 
                       {user.profile !== UserProfile.Cliente && (
                         <button 
@@ -765,19 +768,22 @@ const TopNavBar: React.FC<TopNavBarProps> = ({
                    </div>
                    <span className="text-xs font-bold uppercase px-2 py-0.5 rounded bg-blue-500/10 text-blue-500 border border-blue-500/20">PDF</span>
                 </button>
-                <button
-                   onClick={() => {
-                      setIsMobileMenuOpen(false);
-                      setCurrentPage('website' as Page);
-                   }}
+                <a
+                   href="https://transcunhaoficial.com.br"
+                   target="_blank"
+                   rel="noopener noreferrer"
+                   onClick={() => setIsMobileMenuOpen(false)}
                    className="w-full flex items-center justify-between px-3 py-2 rounded-md text-base font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
                 >
                    <div className="flex items-center">
                       <Globe className="w-5 h-5 mr-3 text-emerald-500" />
                       Website Institucional
                    </div>
-                   <span className="text-xs font-bold uppercase px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">Site</span>
-                </button>
+                   <span className="text-xs font-bold uppercase px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 flex items-center gap-1">
+                     Site
+                     <ExternalLink className="w-3 h-3" />
+                   </span>
+                </a>
                 {isInternalUser(user) && (
                   <a
                     href="/curso-embarcador"

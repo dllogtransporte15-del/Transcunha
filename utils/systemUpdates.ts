@@ -27,6 +27,48 @@ export interface SystemRelease {
  */
 export const SYSTEM_RELEASES: SystemRelease[] = [
   {
+    id: 'rel_2026_11_25_v2_118_21',
+    version: 'v2.118.21',
+    date: '25/11/2026',
+    title: 'Liberação do E-mail Corporativo para Todos os Usuários Internos (Exceto Embarcador)',
+    summary: 'Liberado o acesso completo ao módulo E-mail Corporativo e Webmail para todos os usuários internos (Comercial, Fiscal, Financeiro, Agenciador, Diretor, Supervisor, Gerenciamento de Risco e Admin), mantendo o bloqueio exclusivo para o perfil Embarcador.',
+    items: [
+      {
+        category: 'feature',
+        title: 'Acesso Universal Interno ao E-mail Corporativo',
+        description: 'Todos os usuários internos agora visualizam e utilizam a ferramenta E-mail Corporativo no menu Ferramentas e a janela externa /webmail; apenas o perfil Embarcador (e externos) permanece sem acesso.'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_25_v2_118_20',
+    version: 'v2.118.20',
+    date: '25/11/2026',
+    title: 'Navegação: Link Direto para o Website Oficial transcunhaoficial.com.br',
+    summary: 'Configurado o atalho "Website Institucional" do menu de usuário e menu móvel para abrir diretamente o domínio oficial https://transcunhaoficial.com.br em nova aba.',
+    items: [
+      {
+        category: 'improvement',
+        title: 'Atalho Website Institucional',
+        description: 'O item no menu de usuário agora abre o endereço oficial https://transcunhaoficial.com.br com indicador de link externo.'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_25_v2_118_19',
+    version: 'v2.118.19',
+    date: '25/11/2026',
+    title: 'Divulgação de Cargas: Discriminação Exata de Frete PJ e PF nos Liberados',
+    summary: 'Atualizado o modelo de mensagem de compartilhamento "LIBERADOS TRANSCUNHA" para discriminar explicitamente os valores de Frete Motorista PJ e Frete Motorista PF cadastrados em cada carga.',
+    items: [
+      {
+        category: 'improvement',
+        title: 'Modelo com Frete PJ e PF',
+        description: 'Formatação atualizada para "🌾 PRODUTO - \\n💲 R$ XX,XX PJ - R$ YY,YY PF", calculando com precisão os valores por tonelada ou fixos de ambos os regimes com indicação de pedágio quando aplicável.'
+      }
+    ]
+  },
+  {
     id: 'rel_2026_11_25_v2_118_18',
     version: 'v2.118.18',
     date: '25/11/2026',

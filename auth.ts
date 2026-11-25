@@ -71,11 +71,11 @@ const gerenciadoraDeRiscoPages = allPages.filter(p => p !== 'financial' && p !==
 export const INITIAL_PERMISSIONS: ProfilePermissions = {
   [UserProfile.Desenvolvedor]: createPermissions(allPages),
   [UserProfile.Admin]: createPermissions(allPages),
-  [UserProfile.Comercial]: createPermissions(['dashboard', 'clients', 'owners', 'drivers', 'vehicles', 'loads', 'locations', 'shipments', 'reports', 'operational-loads', 'financial', 'operational-map', 'commissions', 'shipment-history', 'load-history', 'layover-calculator', 'freight-quote', 'atua-reconciliation', 'freight-offers-history', 'risk-management', 'risk-query-types', 'messenger']),
-  [UserProfile.Fiscal]: createPermissions(['dashboard', 'shipments', 'reports', 'atua-reconciliation', 'shipment-history', 'load-history', 'risk-management', 'risk-query-types'], true),
-  [UserProfile.Financeiro]: createPermissions(['dashboard', 'shipments', 'reports', 'financial', 'commissions', 'atua-reconciliation', 'shipment-history', 'load-history', 'risk-management', 'risk-query-types', 'messenger'], true),
+  [UserProfile.Comercial]: createPermissions(['dashboard', 'clients', 'owners', 'drivers', 'vehicles', 'loads', 'locations', 'shipments', 'reports', 'operational-loads', 'financial', 'operational-map', 'commissions', 'shipment-history', 'load-history', 'layover-calculator', 'freight-quote', 'atua-reconciliation', 'freight-offers-history', 'risk-management', 'risk-query-types', 'messenger', 'corporate-email']),
+  [UserProfile.Fiscal]: createPermissions(['dashboard', 'shipments', 'reports', 'atua-reconciliation', 'shipment-history', 'load-history', 'risk-management', 'risk-query-types', 'corporate-email'], true),
+  [UserProfile.Financeiro]: createPermissions(['dashboard', 'shipments', 'reports', 'financial', 'commissions', 'atua-reconciliation', 'shipment-history', 'load-history', 'risk-management', 'risk-query-types', 'messenger', 'corporate-email'], true),
   [UserProfile.Embarcador]: createPermissions(['dashboard', 'reports', 'operational-loads', 'shipments', 'operational-map', 'shipment-history', 'load-history', 'layover-calculator', 'risk-management'], true),
-  [UserProfile.Agenciador]: createPermissions(['dashboard', 'reports', 'operational-loads', 'shipments', 'operational-map', 'shipment-history', 'load-history', 'layover-calculator', 'risk-management', 'clients', 'loads', 'locations', 'products', 'vehicles', 'drivers', 'embarcadores', 'freight-quote', 'messenger']),
+  [UserProfile.Agenciador]: createPermissions(['dashboard', 'reports', 'operational-loads', 'shipments', 'operational-map', 'shipment-history', 'load-history', 'layover-calculator', 'risk-management', 'clients', 'loads', 'locations', 'products', 'vehicles', 'drivers', 'embarcadores', 'freight-quote', 'messenger', 'corporate-email']),
   [UserProfile.Cliente]: createPermissions(['dashboard', 'loads', 'shipments', 'shipment-history', 'load-history', 'operational-loads', 'freight-offers-history', 'reports'], true),
   [UserProfile.Supervisor]: createPermissions(supervisorAndDiretorPages),
   [UserProfile.Diretor]: createPermissions(supervisorAndDiretorPages, true),
@@ -213,6 +213,17 @@ export const can = (
 
   // Explicitly block 'reports' for 'Fiscal' profile as requested, overriding DB
   if (user.profile === UserProfile.Fiscal && page === 'reports') return false;
+
+  // E-mail Corporativo: liberado para todos os usuários internos, exceto perfil Embarcador (e externos)
+  if (page === 'corporate-email') {
+    if (user.profile === UserProfile.Embarcador || (user.profile as string) === 'Embarcador') {
+      return false;
+    }
+    if (isInternalUser(user)) {
+      return true;
+    }
+    return false;
+  }
 
   // Check User-specific custom permissions first
   if (user.customPermissions && user.customPermissions[page]) {
