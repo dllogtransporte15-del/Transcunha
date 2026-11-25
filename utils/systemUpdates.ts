@@ -27,6 +27,49 @@ export interface SystemRelease {
  */
 export const SYSTEM_RELEASES: SystemRelease[] = [
   {
+    id: 'rel_2026_11_24_v2_117_9',
+    version: 'v2.117.9',
+    date: '24/11/2026',
+    title: 'Botão de Disparo Automático do Dossiê de Homologação na Central de E-mail',
+    summary: 'Substituição do banner informativo pelo botão oficial "Disparar com PDFs Anexados (Automático)" do Dossiê de Homologação de Fornecedor na tela de E-mail Corporativo, integrando documentos fiscais e disparo via Google Workspace.',
+    items: [
+      {
+        category: 'feature',
+        title: 'Disparo de Dossiê Fiscal na Central de E-mail',
+        description: 'Inserido card oficial com botão de disparo automático do Dossiê de Homologação na tela de E-mail Corporativo, permitindo enviar todas as CNDs e apólices em PDF com um clique.'
+      },
+      {
+        category: 'improvement',
+        title: 'Remoção de Banners Legados de Provedor',
+        description: 'Eliminada a notificação residual do Microsoft 365, alinhando a interface com a padronização oficial do Google Workspace.'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_24_v2_117_8',
+    version: 'v2.117.8',
+    date: '24/11/2026',
+    title: 'Padronização Integral para Google Workspace e Diagnóstico SMTP',
+    summary: 'Padronização completa de todo o projeto de e-mail integrado para o Google Workspace (@transcunhaoficial.com.br), transporte SMTP com fallback automático de portas (465 SSL para 587 STARTTLS), autenticação mestre e ferramenta de diagnóstico de envio.',
+    items: [
+      {
+        category: 'feature',
+        title: 'Diagnóstico e Teste de Conexão Google Workspace em Tempo Real',
+        description: 'Nova ferramenta interativa na aba de Servidores de E-mail para disparar mensagens de diagnóstico, testar a autenticação SMTP e inspecionar a resposta do Google Workspace.'
+      },
+      {
+        category: 'improvement',
+        title: 'Fallback Automático de Portas SMTP (465 SSL / 587 TLS)',
+        description: 'O transportador SMTP tenta envio direto via SSL na porta 465 e, caso ocorra bloqueio de firewall ou timeout de socket, alterna automaticamente para a porta 587 com STARTTLS.'
+      },
+      {
+        category: 'improvement',
+        title: 'Padronização 100% Google Workspace e Checklist de Entregabilidade',
+        description: 'Preset oficial definido como Google Workspace (Gmail Corporativo) e checklist instrutivo para ativação de SPF, DKIM e DMARC no DNS do domínio transcunhaoficial.com.br.'
+      }
+    ]
+  },
+  {
     id: 'rel_2026_11_24_v2_117_7',
     version: 'v2.117.7',
     date: '24/11/2026',

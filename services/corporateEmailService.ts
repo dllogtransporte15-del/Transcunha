@@ -127,17 +127,17 @@ const INITIAL_MESSAGES: CorporateEmailMessage[] = [
 
 export const DEFAULT_EMAIL_SERVER_CONFIG: CorporateEmailServerConfig = {
   domain: 'transcunhaoficial.com.br',
-  webmailUrl: 'https://outlook.office.com',
-  smtpHost: 'smtp.office365.com',
-  smtpPort: 587,
-  smtpSecure: 'tls',
-  imapHost: 'outlook.office365.com',
+  webmailUrl: 'https://mail.google.com/a/transcunhaoficial.com.br',
+  smtpHost: 'smtp.gmail.com',
+  smtpPort: 465,
+  smtpSecure: 'ssl',
+  imapHost: 'imap.gmail.com',
   imapPort: 993,
   imapSecure: 'ssl',
-  popHost: 'outlook.office365.com',
+  popHost: 'pop.gmail.com',
   popPort: 995,
-  defaultQuotaMb: 51200, // 50 GB (Padrão Microsoft 365 / Exchange)
-  providerPreset: 'microsoft_365',
+  defaultQuotaMb: 30720, // 30 GB (Padrão Google Workspace Business)
+  providerPreset: 'google_workspace',
 };
 
 export const PROVIDER_PRESETS: Record<CorporateEmailServerConfig['providerPreset'], {
@@ -150,8 +150,18 @@ export const PROVIDER_PRESETS: Record<CorporateEmailServerConfig['providerPreset
   imapSecure: 'ssl' | 'tls' | 'none';
   webmailUrl: string;
 }> = {
+  google_workspace: {
+    label: 'Google Workspace Oficial (transcunhaoficial.com.br)',
+    smtpHost: 'smtp.gmail.com',
+    smtpPort: 465,
+    smtpSecure: 'ssl',
+    imapHost: 'imap.gmail.com',
+    imapPort: 993,
+    imapSecure: 'ssl',
+    webmailUrl: 'https://mail.google.com/a/transcunhaoficial.com.br',
+  },
   cpanel: {
-    label: 'cPanel / Hospedagem Própria (Padrão Transcunha)',
+    label: 'cPanel / Servidor Secundário',
     smtpHost: 'mail.transcunhaoficial.com.br',
     smtpPort: 465,
     smtpSecure: 'ssl',
@@ -159,16 +169,6 @@ export const PROVIDER_PRESETS: Record<CorporateEmailServerConfig['providerPreset
     imapPort: 993,
     imapSecure: 'ssl',
     webmailUrl: 'https://webmail.transcunhaoficial.com.br',
-  },
-  google_workspace: {
-    label: 'Google Workspace (Gmail Corporativo)',
-    smtpHost: 'smtp.gmail.com',
-    smtpPort: 587,
-    smtpSecure: 'tls',
-    imapHost: 'imap.gmail.com',
-    imapPort: 993,
-    imapSecure: 'ssl',
-    webmailUrl: 'https://mail.google.com/a/transcunhaoficial.com.br',
   },
   microsoft_365: {
     label: 'Microsoft 365 / Outlook Corporativo',
@@ -313,10 +313,10 @@ class CorporateEmailService {
           parsed.imapHost = parsed.imapHost.replace('transcunha.com.br', 'transcunhaoficial.com.br');
         }
 
-        if (parsed.providerPreset === 'cpanel' || parsed.providerPreset === 'google_workspace' || parsed.smtpHost === 'mail.transcunha.com.br' || parsed.smtpHost === 'smtp.gmail.com') {
+        if (parsed.providerPreset === 'cpanel' || parsed.providerPreset === 'microsoft_365' || !parsed.providerPreset) {
           return { ...DEFAULT_EMAIL_SERVER_CONFIG, domain: 'transcunhaoficial.com.br' };
         }
-        return { ...DEFAULT_EMAIL_SERVER_CONFIG, ...parsed, domain: parsed.domain || 'transcunhaoficial.com.br' };
+        return { ...DEFAULT_EMAIL_SERVER_CONFIG, ...parsed, domain: 'transcunhaoficial.com.br' };
       }
     } catch (e) {
       console.error('[CorporateEmailService] Erro ao ler configuração:', e);
@@ -695,6 +695,7 @@ class CorporateEmailService {
           html: bodyHtml,
           text: bodyText,
           senderEmail: accountEmail,
+          authUser: 'contato@transcunhaoficial.com.br',
           senderName,
           appPassword: appPassword.replace(/\s+/g, ''),
           attachments: attachments.map(a => ({
@@ -748,6 +749,67 @@ class CorporateEmailService {
     this.saveMessage(newMsg);
 
     return { success: true, messageId };
+  }
+
+  /**
+   * Testa a conectividade SMTP com o Google Workspace disparando uma mensagem de diagnóstico.
+   */
+  async testGoogleWorkspaceConnection(
+    testRecipient: string,
+    appPassword?: string,
+    senderEmail = 'contato@transcunhaoficial.com.br'
+  ): Promise<{ success: boolean; messageId?: string; accepted?: string[]; details?: string }> {
+    const cleanPass = (appPassword || localStorage.getItem('transcunha_gworkspace_app_password') || '').replace(/\s+/g, '');
+    if (!cleanPass) {
+      throw new Error('Informe a Senha de App de 16 caracteres do Google Workspace para realizar o teste.');
+    }
+
+    const testSubject = `[DIAGNÓSTICO TRANSCUNHA] Teste de Conexão Google Workspace — ${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR')}`;
+    const testHtml = `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; background: #ffffff;">
+        <h2 style="color: #1e3a8a; margin: 0 0 12px 0;">Teste de Conexão Google Workspace Concluído com Sucesso!</h2>
+        <p style="color: #334155; font-size: 14px; line-height: 1.6;">
+          Este e-mail confirma que a integração direta do sistema <strong>Transcunha Logística</strong> com o servidor SMTP do <strong>Google Workspace</strong> (<code>smtp.gmail.com:465 / 587</code>) está ativa e funcionando perfeitamente.
+        </p>
+        <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 12px 16px; margin: 16px 0; font-family: monospace; font-size: 13px;">
+          <div><strong>Remetente Oficial:</strong> ${senderEmail}</div>
+          <div><strong>Destinatário de Teste:</strong> ${testRecipient}</div>
+          <div><strong>Data/Hora do Disparo:</strong> ${new Date().toISOString()}</div>
+        </div>
+        <p style="color: #64748b; font-size: 12px; margin-top: 20px;">
+          Transcunha Transportes e Logística LTDA. — Sistema ERP Corporativo
+        </p>
+      </div>
+    `;
+
+    const res = await fetch('/api/send-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        to: testRecipient.trim(),
+        subject: testSubject,
+        html: testHtml,
+        text: `Teste de Conexão Google Workspace Transcunha realizado com sucesso em ${new Date().toISOString()}`,
+        senderEmail: senderEmail.trim(),
+        authUser: 'contato@transcunhaoficial.com.br',
+        senderName: 'Transcunha Logística (Diagnóstico Google Workspace)',
+        appPassword: cleanPass,
+      }),
+    });
+
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const errMsg = json?.error || 'Falha ao testar conexão com Google Workspace.';
+      const userHelp = json?.userHelp ? `\n\n👉 Dica: ${json.userHelp}` : '';
+      throw new Error(`${errMsg}${userHelp}`);
+    }
+
+    return {
+      success: true,
+      messageId: json.messageId,
+      accepted: json.accepted,
+      details: `Conexão autenticada e e-mail aceito com sucesso pelo Google Workspace (Message ID: ${json.messageId || 'OK'})`,
+    };
   }
 
   /**

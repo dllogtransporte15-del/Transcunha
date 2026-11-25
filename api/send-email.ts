@@ -15,6 +15,7 @@ interface SendEmailRequestBody {
   html?: string;
   text?: string;
   senderEmail?: string;
+  authUser?: string;
   senderName?: string;
   replyTo?: string;
   appPassword?: string;
@@ -47,6 +48,7 @@ export default async function handler(req: any, res: any) {
       html,
       text,
       senderEmail: customSender,
+      authUser: customAuthUser,
       senderName = 'Transcunha Transportes e Logística',
       replyTo,
       appPassword: customPassword,
@@ -61,8 +63,9 @@ export default async function handler(req: any, res: any) {
       return res.status(400).json({ error: 'Assunto (subject) é obrigatório.' });
     }
 
-    // Credenciais do Google Workspace
+    // Credenciais e Contas do Google Workspace
     senderEmail = (customSender || process.env.GWORKSPACE_USER || 'contato@transcunhaoficial.com.br').trim();
+    const effectiveAuthUser = (customAuthUser || process.env.GWORKSPACE_USER || senderEmail || 'contato@transcunhaoficial.com.br').trim();
     const rawPassword = (customPassword || process.env.GWORKSPACE_APP_PASSWORD || '').trim();
 
     // Remove espaços que o Google às vezes insere na senha de app (ex: "abcd efgh ijkl mnop" -> "abcdefghijklmnop")
@@ -106,20 +109,6 @@ export default async function handler(req: any, res: any) {
     );
     const processedAttachments = attachmentResults.filter((a): a is NonNullable<typeof a> => a !== null);
 
-    // Configuração do transporter SMTP Google Workspace
-    const transporter = nodemailer.createTransport({
-      host: 'smtp.gmail.com',
-      port: 465,
-      secure: true, // SSL na porta 465
-      auth: {
-        user: senderEmail,
-        pass: appPassword,
-      },
-      connectionTimeout: 20000,
-      greetingTimeout: 20000,
-      socketTimeout: 35000,
-    });
-
     const rawTo = Array.isArray(to) ? to.join(',') : to;
     const toAddresses = rawTo
       .split(/[;,]/)
@@ -138,17 +127,65 @@ export default async function handler(req: any, res: any) {
       .filter(Boolean)
       .join(', ');
 
-    // Disparo do e-mail
-    const info = await transporter.sendMail({
-      from: `"${senderName}" <${senderEmail}>`,
-      to: toAddresses,
-      cc: ccAddresses || undefined,
-      replyTo: replyTo || senderEmail,
-      subject: subject,
-      text: text || undefined,
-      html: html || undefined,
-      attachments: processedAttachments,
-    });
+    // Construtor de transporte SMTP Google Workspace com fallback de portas (465 SSL -> 587 STARTTLS)
+    const createTransporter = (port: number, secure: boolean) => {
+      return nodemailer.createTransport({
+        host: 'smtp.gmail.com',
+        port,
+        secure,
+        auth: {
+          user: effectiveAuthUser,
+          pass: appPassword,
+        },
+        tls: {
+          rejectUnauthorized: false,
+        },
+        connectionTimeout: 18000,
+        greetingTimeout: 18000,
+        socketTimeout: 35000,
+      });
+    };
+
+    let info: any;
+    try {
+      // 1ª Tentativa: porta 465 (SSL direto)
+      const transporter465 = createTransporter(465, true);
+      info = await transporter465.sendMail({
+        from: `"${senderName}" <${senderEmail}>`,
+        to: toAddresses,
+        cc: ccAddresses || undefined,
+        replyTo: replyTo || senderEmail,
+        subject: subject,
+        text: text || undefined,
+        html: html || undefined,
+        attachments: processedAttachments,
+      });
+    } catch (primaryErr: any) {
+      const msg = primaryErr?.message || '';
+      // Fallback para porta 587 (STARTTLS) caso haja bloqueio ou timeout no socket 465
+      if (
+        msg.includes('ETIMEDOUT') ||
+        msg.includes('ECONNREFUSED') ||
+        msg.includes('ESOCKET') ||
+        msg.includes('greeting') ||
+        primaryErr?.code === 'ECONNECTION'
+      ) {
+        console.warn('[send-email] Porta 465 falhou, executando fallback para porta 587 (TLS)...', primaryErr);
+        const transporter587 = createTransporter(587, false);
+        info = await transporter587.sendMail({
+          from: `"${senderName}" <${senderEmail}>`,
+          to: toAddresses,
+          cc: ccAddresses || undefined,
+          replyTo: replyTo || senderEmail,
+          subject: subject,
+          text: text || undefined,
+          html: html || undefined,
+          attachments: processedAttachments,
+        });
+      } else {
+        throw primaryErr;
+      }
+    }
 
     if (!info.accepted || info.accepted.length === 0) {
       return res.status(502).json({

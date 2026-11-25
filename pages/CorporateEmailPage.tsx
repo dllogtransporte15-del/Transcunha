@@ -5,7 +5,10 @@ import type {
   CorporateEmailAccount,
   CorporateEmailServerConfig,
   CorporateEmailDepartment,
-  CorporateEmailStatus
+  CorporateEmailStatus,
+  FiscalDocument,
+  Client,
+  Branch
 } from '../types';
 import { isDeveloperUser, filterVisibleUsers } from '../auth';
 import {
@@ -13,6 +16,9 @@ import {
   DEFAULT_EMAIL_SERVER_CONFIG,
   PROVIDER_PRESETS
 } from '../services/corporateEmailService';
+import { getFiscalDocuments, syncFiscalDataWithSupabase } from '../services/fiscalControlService';
+import { FiscalHomologationModal } from '../components/financial/FiscalHomologationModal';
+import { supabase } from '../supabase';
 import {
   Mail,
   Inbox,
@@ -52,6 +58,8 @@ interface CorporateEmailPageProps {
   currentUser: User;
   users: User[];
   companyLogo?: string | null;
+  clients?: Client[];
+  branches?: Branch[];
 }
 
 const DEPARTMENT_COLORS: Record<CorporateEmailDepartment, { bg: string; text: string; border: string }> = {
@@ -95,7 +103,9 @@ const DEPARTMENT_COLORS: Record<CorporateEmailDepartment, { bg: string; text: st
 export const CorporateEmailPage: React.FC<CorporateEmailPageProps> = ({
   currentUser,
   users,
-  companyLogo
+  companyLogo,
+  clients = [],
+  branches = [],
 }) => {
   const { showToast } = useToast();
 
@@ -150,6 +160,32 @@ export const CorporateEmailPage: React.FC<CorporateEmailPageProps> = ({
   const [composeSubject, setComposeSubject] = useState('');
   const [composeBody, setComposeBody] = useState('');
   const [isSendingTest, setIsSendingTest] = useState(false);
+
+  // Google Workspace Test Connection State
+  const [testRecipient, setTestRecipient] = useState('dllogtransporte15@gmail.com');
+  const [testAppPassword, setTestAppPassword] = useState(() => localStorage.getItem('transcunha_gworkspace_app_password') || '');
+  const [isTestingConnection, setIsTestingConnection] = useState(false);
+  const [testResult, setTestResult] = useState<{ success: boolean; message?: string } | null>(null);
+
+  // Dossiê de Homologação de Fornecedor
+  const [isHomologationModalOpen, setIsHomologationModalOpen] = useState(false);
+  const [fiscalDocs, setFiscalDocs] = useState<FiscalDocument[]>(() => getFiscalDocuments());
+  const [internalClients, setInternalClients] = useState<Client[]>(clients);
+
+  useEffect(() => {
+    if (clients && clients.length > 0) {
+      setInternalClients(clients);
+    } else {
+      supabase.from('clients').select('*').order('nomeFantasia').then(({ data, error }) => {
+        if (!error && data) setInternalClients(data);
+      });
+    }
+
+    setFiscalDocs(getFiscalDocuments());
+    syncFiscalDataWithSupabase()
+      .then(() => setFiscalDocs(getFiscalDocuments()))
+      .catch(err => console.warn('[CorporateEmailPage] Sincronização fiscal:', err));
+  }, [clients]);
 
   const visibleUsersForEmail = useMemo(() => filterVisibleUsers(users, currentUser), [users, currentUser]);
 
@@ -358,6 +394,39 @@ export const CorporateEmailPage: React.FC<CorporateEmailPageProps> = ({
         webmailUrl: preset.webmailUrl,
       }));
       showToast(`Preset "${preset.label}" aplicado. Lembre-se de salvar.`, 'info');
+    }
+  };
+
+  // Testar Conectividade com o Google Workspace
+  const handleTestGoogleWorkspaceConnection = async () => {
+    if (!testRecipient || !testRecipient.trim()) {
+      showToast('Informe o e-mail de destino para o teste.', 'warning');
+      return;
+    }
+    if (!testAppPassword || !testAppPassword.trim()) {
+      showToast('Informe a Senha de App do Google Workspace (16 letras).', 'warning');
+      return;
+    }
+    setIsTestingConnection(true);
+    setTestResult(null);
+    try {
+      const cleanPass = testAppPassword.replace(/\s+/g, '');
+      localStorage.setItem('transcunha_gworkspace_app_password', cleanPass);
+      const res = await corporateEmailService.testGoogleWorkspaceConnection(testRecipient.trim(), cleanPass);
+      setTestResult({
+        success: true,
+        message: res.details || `E-mail de teste entregue ao Google Workspace (Message-ID: ${res.messageId || 'OK'})`,
+      });
+      showToast('Conexão Google Workspace validada com sucesso! O e-mail de teste foi disparado.', 'success');
+    } catch (err: any) {
+      console.error('Falha no teste Google Workspace:', err);
+      setTestResult({
+        success: false,
+        message: err?.message || 'Falha na autenticação ou conexão SMTP.',
+      });
+      showToast('Falha no teste de conexão com o Google Workspace.', 'error');
+    } finally {
+      setIsTestingConnection(false);
     }
   };
 
@@ -652,52 +721,41 @@ export const CorporateEmailPage: React.FC<CorporateEmailPageProps> = ({
           </button>
         </div>
 
-        {/* BANNER INFORMATIVO PROVEDOR */}
-        {serverConfig.providerPreset === 'microsoft_365' && (
-          <div className="bg-gradient-to-r from-blue-600/10 via-cyan-500/10 to-indigo-500/10 border border-blue-200 dark:border-blue-800/80 p-5 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2 font-black text-sm text-blue-900 dark:text-blue-200">
-                <Globe className="w-4 h-4 text-blue-600" />
-                <span>Provedor Detectado: Microsoft 365 / Outlook (@{serverConfig.domain})</span>
-              </div>
-              <p className="text-xs text-slate-600 dark:text-slate-300">
-                Os servidores de e-mail oficiais do domínio <strong>{serverConfig.domain || 'transcunhaoficial.com.br'}</strong> estão configurados no <strong>Microsoft 365 / Exchange</strong> (<code className="text-blue-600">outlook.office.com</code>). O acesso às caixas postais corporativas é feito diretamente pelo Outlook.
-              </p>
+        {/* CARD DE AÇÃO RÁPIDA: DOSSIÊ DE HOMOLOGAÇÃO COM DISPARO DE PDFS ANEXADOS */}
+        <div className="bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 border border-blue-500/30 p-5 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xl">
+          <div className="space-y-1.5">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 inline-flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                Google Workspace Oficial • Disparo Automático
+              </span>
+              <span className="text-xs font-bold text-slate-300">
+                @{serverConfig.domain || 'transcunhaoficial.com.br'}
+              </span>
             </div>
-            <a
-              href="https://admin.google.com/?utm_source=og_am&rapt=AEjHL4NB8yUVlJhoL5PaKW0-2Moki-8dJucxxkB7CpgzglxTADO1dCZ2lA0_6Lw4lsjwRuiFEtKjR5UAOg-mpZQxL3kJTrcT3mwmtfI3RXyZBYTYLoXk2DI"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-600/30 transition-all shrink-0 flex items-center gap-1.5 cursor-pointer"
-            >
-              <ExternalLink className="w-3.5 h-3.5" />
-              <span>Acessar Outlook Web</span>
-            </a>
+            <h4 className="font-black text-sm sm:text-base text-white flex items-center gap-2">
+              <ShieldCheck className="w-5 h-5 text-emerald-400" />
+              <span>Dossiê de Homologação de Fornecedor & Certidões</span>
+            </h4>
+            <p className="text-xs text-slate-300 max-w-3xl leading-relaxed">
+              Gere e envie a documentação fiscal, certidões negativas (CNDs), licenças operacionais e apólices de seguro da Transcunha para aprovação cadastral de clientes e embarcadores com os <strong>PDFs anexados fisicamente</strong> de forma automática via Google Workspace.
+            </p>
           </div>
-        )}
 
-        {serverConfig.providerPreset === 'google_workspace' && (
-          <div className="bg-gradient-to-r from-blue-500/10 via-indigo-500/10 to-purple-500/10 border border-blue-200 dark:border-blue-800/80 p-5 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2 font-black text-sm text-blue-900 dark:text-blue-200">
-                <Globe className="w-4 h-4 text-blue-600" />
-                <span>Provedor: Google Workspace (@{serverConfig.domain})</span>
-              </div>
-              <p className="text-xs text-slate-600 dark:text-slate-300">
-                Acesse o Webmail pelo portal padrão do Gmail corporativo (<code className="text-blue-600">mail.google.com</code>).
-              </p>
-            </div>
-            <a
-              href="https://mail.google.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-600/30 transition-all shrink-0 flex items-center gap-1.5 cursor-pointer"
+          <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                setFiscalDocs(getFiscalDocuments());
+                setIsHomologationModalOpen(true);
+              }}
+              className="w-full sm:w-auto px-5 py-3 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white rounded-xl text-xs sm:text-sm font-black shadow-lg shadow-emerald-600/30 hover:shadow-emerald-500/50 transition-all flex items-center justify-center gap-2.5 cursor-pointer border border-emerald-400/40"
             >
-              <ExternalLink className="w-3.5 h-3.5" />
-              <span>Acessar Gmail</span>
-            </a>
+              <Send className="w-4 h-4" />
+              <span>Disparar com PDFs Anexados (Automático)</span>
+            </button>
           </div>
-        )}
+        </div>
 
         {/* ========================================================= */}
         {/* ABA 0: WEBMAIL CORPORATIVO (ESTILO OUTLOOK 3 COLUNAS)    */}
@@ -990,16 +1048,227 @@ export const CorporateEmailPage: React.FC<CorporateEmailPageProps> = ({
         {/* ========================================================= */}
         {activeTab === 'server' && (
           <div className="space-y-6 animate-fade-in">
+
+            {/* BANNER OFICIAL: GOOGLE WORKSPACE */}
+            <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 p-6 rounded-2xl border border-blue-500/30 text-white shadow-xl space-y-4">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-500/20 text-blue-300 border border-blue-400/30 rounded-full text-xs font-bold">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                    Provedor Oficial: Google Workspace (Gmail Corporativo)
+                  </div>
+                  <h3 className="text-xl font-black tracking-tight text-white">
+                    Integração de E-mail Corporativo @transcunhaoficial.com.br
+                  </h3>
+                  <p className="text-xs sm:text-sm text-slate-300 max-w-2xl">
+                    O sistema Transcunha está padronizado para operar integrado aos servidores mundiais do Google Workspace (<code>smtp.gmail.com:465</code> / <code>587</code> e <code>imap.gmail.com:993</code>).
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <a
+                    href="https://admin.google.com/ac/apps/gmail"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-1.5"
+                  >
+                    <span>Google Admin Console</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                  <a
+                    href="https://myaccount.google.com/apppasswords"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5"
+                  >
+                    <span>Gerar Senha de App (16 Dígitos)</span>
+                    <Key className="w-3.5 h-3.5" />
+                  </a>
+                </div>
+              </div>
+            </div>
+
+            {/* DIAGNÓSTICO E TESTE DE DISPARO REAL GOOGLE WORKSPACE */}
+            <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-700">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 rounded-xl border border-emerald-200 dark:border-emerald-800">
+                    <CheckCircle2 className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-black text-slate-900 dark:text-white">
+                      Diagnóstico de Envio & Teste de Conexão Google Workspace
+                    </h4>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Dispare uma mensagem de verificação para confirmar se a autenticação SMTP e a entrega para o destinatário estão operacionais.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                    E-mail do Destinatário para Teste *
+                  </label>
+                  <input
+                    type="email"
+                    value={testRecipient}
+                    onChange={(e) => setTestRecipient(e.target.value)}
+                    placeholder="seuemail@gmail.com ou destino@empresa.com"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs sm:text-sm font-mono text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                  />
+                  <span className="text-[11px] text-slate-400 mt-1 block">
+                    Informe a caixa postal onde você deseja verificar a chegada do e-mail de teste.
+                  </span>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                    Senha de App do Google Workspace (16 letras) *
+                  </label>
+                  <input
+                    type="password"
+                    value={testAppPassword}
+                    onChange={(e) => setTestAppPassword(e.target.value)}
+                    placeholder="potz dpjp jkdg perv"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs sm:text-sm font-mono text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                  />
+                  <span className="text-[11px] text-slate-400 mt-1 block">
+                    Gerada em <code>myaccount.google.com/apppasswords</code> logado como <code>contato@transcunhaoficial.com.br</code>.
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
+                <span className="text-xs text-slate-500 dark:text-slate-400">
+                  Remetente oficial configurado: <strong className="text-blue-600">contato@transcunhaoficial.com.br</strong>
+                </span>
+
+                <button
+                  type="button"
+                  onClick={handleTestGoogleWorkspaceConnection}
+                  disabled={isTestingConnection}
+                  className="w-full sm:w-auto px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white rounded-xl text-xs sm:text-sm font-bold shadow-lg shadow-emerald-600/30 transition-all cursor-pointer flex items-center justify-center gap-2"
+                >
+                  {isTestingConnection ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>Conectando aos servidores Google...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-4 h-4" />
+                      <span>Disparar E-mail de Teste Agora</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {testResult && (
+                <div
+                  className={`p-4 rounded-xl border text-xs sm:text-sm ${testResult.success
+                    ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200'
+                    : 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-200'
+                    }`}
+                >
+                  <div className="font-bold mb-1 flex items-center gap-1.5">
+                    {testResult.success ? (
+                      <>
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                        <span>Diagnóstico Positivo: E-mail aceito e enviado pelo Google Workspace!</span>
+                      </>
+                    ) : (
+                      <>
+                        <AlertCircle className="w-4 h-4 text-rose-600" />
+                        <span>Falha no Teste de Envio Google Workspace:</span>
+                      </>
+                    )}
+                  </div>
+                  <div className="whitespace-pre-line text-xs font-mono leading-relaxed opacity-90">
+                    {testResult.message}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* CHECKLIST DE ENTREGABILIDADE (DNS, SPF, DKIM E DMARC) */}
+            <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
+              <div className="pb-3 border-b border-slate-100 dark:border-slate-700">
+                <h4 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
+                  <ShieldCheck className="w-5 h-5 text-indigo-600" />
+                  Checklist de Configuração no Google Admin & DNS (Por que e-mails não chegam?)
+                </h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Provedores de destino (Gmail, Hotmail, Outlook e empresas) exigem autenticação rigorosa no domínio para não barrar suas mensagens.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                {/* 1. Senha de App */}
+                <div className="p-4 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2">
+                  <div className="flex items-center gap-2 font-bold text-slate-800 dark:text-slate-100">
+                    <span className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px]">1</span>
+                    <span>Senha de App na Conta Google</span>
+                  </div>
+                  <p className="text-slate-600 dark:text-slate-400 leading-relaxed">
+                    Acesse <strong>myaccount.google.com/apppasswords</strong> logado exatamente como <code>contato@transcunhaoficial.com.br</code> (não no seu Gmail pessoal) e gere a senha de 16 letras. A Verificação em 2 etapas deve estar ATIVA.
+                  </p>
+                </div>
+
+                {/* 2. Registro SPF */}
+                <div className="p-4 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2">
+                  <div className="flex items-center gap-2 font-bold text-slate-800 dark:text-slate-100">
+                    <span className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px]">2</span>
+                    <span>Registro SPF no DNS (TXT)</span>
+                  </div>
+                  <p className="text-slate-600 dark:text-slate-400 leading-relaxed">
+                    No painel onde está o DNS de <code>transcunhaoficial.com.br</code> (Registro.br / Cloudflare), adicione ou atualize o registro TXT:
+                    <br />
+                    <code className="text-blue-600 bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded font-mono block mt-1">
+                      v=spf1 include:_spf.google.com ~all
+                    </code>
+                  </p>
+                </div>
+
+                {/* 3. Registro DKIM */}
+                <div className="p-4 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2">
+                  <div className="flex items-center gap-2 font-bold text-slate-800 dark:text-slate-100">
+                    <span className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px]">3</span>
+                    <span>Registro DKIM (Google Admin)</span>
+                  </div>
+                  <p className="text-slate-600 dark:text-slate-400 leading-relaxed">
+                    No <a href="https://admin.google.com/ac/apps/gmail/authenticateemail" target="_blank" rel="noreferrer" className="text-blue-600 underline">Google Admin &gt; Autenticar E-mail</a>, gere o registro TXT <code>google._domainkey</code> e insira na zona DNS do domínio. Depois clique em "Iniciar Autenticação".
+                  </p>
+                </div>
+
+                {/* 4. Registro DMARC */}
+                <div className="p-4 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2">
+                  <div className="flex items-center gap-2 font-bold text-slate-800 dark:text-slate-100">
+                    <span className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px]">4</span>
+                    <span>Registro DMARC no DNS (TXT)</span>
+                  </div>
+                  <p className="text-slate-600 dark:text-slate-400 leading-relaxed">
+                    Crie um registro TXT com nome <code>_dmarc</code> contendo:
+                    <br />
+                    <code className="text-blue-600 bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded font-mono block mt-1">
+                      v=DMARC1; p=none; sp=none; rua=mailto:contato@transcunhaoficial.com.br;
+                    </code>
+                  </p>
+                </div>
+              </div>
+            </div>
+
             <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-6">
 
               <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-700 gap-3">
                 <div>
                   <h3 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
                     <Server className="w-5 h-5 text-blue-600" />
-                    Parâmetros de Conexão de E-mail Corporativo
+                    Parâmetros Técnicos de Servidor (Google Workspace Ativo)
                   </h3>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    Configure os servidores SMTP de envio e IMAP/POP3 de recebimento para sincronização e acesso externo.
+                    Servidores SMTP de envio e IMAP de sincronização do ecossistema Google Workspace.
                   </p>
                 </div>
 
@@ -1011,8 +1280,8 @@ export const CorporateEmailPage: React.FC<CorporateEmailPageProps> = ({
                     onChange={(e) => handleApplyPreset(e.target.value as CorporateEmailServerConfig['providerPreset'])}
                     className="px-3 py-1.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
                   >
-                    <option value="cpanel">cPanel / Servidor Próprio (Transcunha)</option>
-                    <option value="google_workspace">Google Workspace (Gmail)</option>
+                    <option value="google_workspace">Google Workspace Oficial (transcunhaoficial.com.br)</option>
+                    <option value="cpanel">cPanel / Servidor Próprio</option>
                     <option value="microsoft_365">Microsoft 365 (Outlook)</option>
                     <option value="zoho">Zoho Mail</option>
                     <option value="titan">Titan Mail</option>
@@ -1694,6 +1963,15 @@ export const CorporateEmailPage: React.FC<CorporateEmailPageProps> = ({
           </div>
         </div>
       )}
+
+      {/* MODAL DE DOSSIÊ DE HOMOLOGAÇÃO COM DISPARO DE PDFS ANEXADOS */}
+      <FiscalHomologationModal
+        isOpen={isHomologationModalOpen}
+        onClose={() => setIsHomologationModalOpen(false)}
+        documents={fiscalDocs}
+        clients={internalClients}
+        branches={branches}
+      />
 
     </div>
   );

@@ -235,6 +235,7 @@ export default defineConfig({
               }
 
               const senderEmail = (customSender || process.env.GWORKSPACE_USER || 'contato@transcunhaoficial.com.br').trim();
+              const effectiveAuthUser = (body.authUser || process.env.GWORKSPACE_USER || senderEmail || 'contato@transcunhaoficial.com.br').trim();
               const rawPassword = (customPassword || process.env.GWORKSPACE_APP_PASSWORD || '').trim();
               const appPassword = rawPassword.replace(/\s+/g, '');
 
@@ -281,19 +282,6 @@ export default defineConfig({
               const nodemailerModule = await import('nodemailer');
               const nodemailer = nodemailerModule.default || nodemailerModule;
 
-              const transporter = nodemailer.createTransport({
-                host: 'smtp.gmail.com',
-                port: 465,
-                secure: true,
-                auth: {
-                  user: senderEmail,
-                  pass: appPassword,
-                },
-                connectionTimeout: 20000,
-                greetingTimeout: 20000,
-                socketTimeout: 35000,
-              });
-
               const rawTo = Array.isArray(to) ? to.join(',') : String(to || '');
               const toAddresses = rawTo
                 .split(/[;,]/)
@@ -315,16 +303,62 @@ export default defineConfig({
                 .filter(Boolean)
                 .join(', ');
 
-              const info = await transporter.sendMail({
-                from: `"${senderName}" <${senderEmail}>`,
-                to: toAddresses,
-                cc: ccAddresses || undefined,
-                replyTo: replyTo || senderEmail,
-                subject,
-                text: text || undefined,
-                html: html || undefined,
-                attachments: processedAttachments,
-              });
+              const createTransporter = (port: number, secure: boolean) => {
+                return nodemailer.createTransport({
+                  host: 'smtp.gmail.com',
+                  port,
+                  secure,
+                  auth: {
+                    user: effectiveAuthUser,
+                    pass: appPassword,
+                  },
+                  tls: {
+                    rejectUnauthorized: false,
+                  },
+                  connectionTimeout: 18000,
+                  greetingTimeout: 18000,
+                  socketTimeout: 35000,
+                });
+              };
+
+              let info: any;
+              try {
+                const transporter465 = createTransporter(465, true);
+                info = await transporter465.sendMail({
+                  from: `"${senderName}" <${senderEmail}>`,
+                  to: toAddresses,
+                  cc: ccAddresses || undefined,
+                  replyTo: replyTo || senderEmail,
+                  subject,
+                  text: text || undefined,
+                  html: html || undefined,
+                  attachments: processedAttachments,
+                });
+              } catch (primaryErr: any) {
+                const msg = primaryErr?.message || '';
+                if (
+                  msg.includes('ETIMEDOUT') ||
+                  msg.includes('ECONNREFUSED') ||
+                  msg.includes('ESOCKET') ||
+                  msg.includes('greeting') ||
+                  primaryErr?.code === 'ECONNECTION'
+                ) {
+                  console.warn('[vite:send-email] Porta 465 falhou, tentando fallback porta 587 (TLS)...', primaryErr);
+                  const transporter587 = createTransporter(587, false);
+                  info = await transporter587.sendMail({
+                    from: `"${senderName}" <${senderEmail}>`,
+                    to: toAddresses,
+                    cc: ccAddresses || undefined,
+                    replyTo: replyTo || senderEmail,
+                    subject,
+                    text: text || undefined,
+                    html: html || undefined,
+                    attachments: processedAttachments,
+                  });
+                } else {
+                  throw primaryErr;
+                }
+              }
 
               if (!info.accepted || info.accepted.length === 0) {
                 res.statusCode = 502;
