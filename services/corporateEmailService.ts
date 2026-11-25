@@ -818,6 +818,11 @@ class CorporateEmailService {
     if (appPassword && appPassword.trim()) {
       const allTo = to.filter(Boolean).join(', ');
       const allCc = cc && cc.length > 0 ? cc.filter(Boolean).join(', ') : undefined;
+      const savedAuthUser =
+        typeof window !== 'undefined'
+          ? localStorage.getItem('transcunha_gworkspace_sender_email')
+          : null;
+      const authUser = (savedAuthUser && savedAuthUser.trim()) || accountEmail;
 
       const res = await fetch('/api/send-email', {
         method: 'POST',
@@ -829,7 +834,7 @@ class CorporateEmailService {
           html: bodyHtml,
           text: bodyText,
           senderEmail: accountEmail,
-          authUser: 'contato@transcunhaoficial.com.br',
+          authUser,
           senderName,
           appPassword: appPassword.replace(/\s+/g, ''),
           attachments: attachments.map(a => ({
@@ -841,11 +846,30 @@ class CorporateEmailService {
         }),
       });
 
-      const json = await res.json().catch(() => ({}));
+      const rawText = await res.text();
+      let json: any = null;
+      try {
+        json = JSON.parse(rawText || '{}');
+      } catch {
+        if (!res.ok) {
+          throw new Error(`Falha no servidor (${res.status}): ${rawText.substring(0, 150)}`);
+        }
+        throw new Error(
+          'O servidor de envio (/api/send-email) não retornou uma resposta JSON válida. Verifique se a API está ativa neste ambiente.'
+        );
+      }
+
       if (!res.ok) {
         const errMsg = json?.error || 'Erro no servidor de envio ao disparar e-mail';
         const userHelp = json?.userHelp ? `\n\n👉 Dica: ${json.userHelp}` : '';
         throw new Error(`${errMsg}${userHelp}`);
+      }
+
+      if (!json?.success || !json?.messageId) {
+        throw new Error(
+          json?.error ||
+            'O servidor não confirmou o disparo do e-mail (messageId ausente).'
+        );
       }
 
       if (Array.isArray(json?.rejected) && json.rejected.length > 0) {
@@ -1105,6 +1129,111 @@ class CorporateEmailService {
     } catch (err) {
       console.warn('[CorporateEmailService] Erro ao sincronizar da nuvem:', err);
       return { updated: false, timestamp: nowIso };
+    }
+  }
+
+  /**
+   * Sincroniza mensagens reais da conta Gmail / Google Workspace via IMAP (/api/fetch-emails).
+   */
+  async syncFromGmailImap(options?: {
+    folder?: CorporateEmailFolder;
+    email?: string;
+    appPassword?: string;
+    limit?: number;
+  }): Promise<{ synced: number; newUnread: number; error?: string }> {
+    try {
+      if (typeof window === 'undefined') return { synced: 0, newUnread: 0 };
+
+      const appPassword = (
+        options?.appPassword ||
+        localStorage.getItem('transcunha_gworkspace_app_password') ||
+        ''
+      )
+        .replace(/\s+/g, '')
+        .trim();
+
+      if (!appPassword) {
+        return { synced: 0, newUnread: 0, error: 'MISSING_APP_PASSWORD' };
+      }
+
+      const sessionUser = this.getCurrentSessionUser();
+      const email = (
+        options?.email ||
+        localStorage.getItem('transcunha_gworkspace_sender_email') ||
+        sessionUser?.corporateEmail ||
+        'contato@transcunhaoficial.com.br'
+      ).trim();
+
+      const folder = options?.folder || 'inbox';
+
+      const res = await fetch('/api/fetch-emails', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          appPassword,
+          folder,
+          limit: options?.limit || 25,
+        }),
+      });
+
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json?.success || !Array.isArray(json.messages)) {
+        return {
+          synced: 0,
+          newUnread: 0,
+          error: json?.userHelp || json?.error || `Erro IMAP (${res.status})`,
+        };
+      }
+
+      const incoming: CorporateEmailMessage[] = json.messages;
+      if (incoming.length === 0) {
+        return { synced: 0, newUnread: 0 };
+      }
+
+      const currentAll = this.getMessages();
+      const existingMap = new Map<string, CorporateEmailMessage>();
+      currentAll.forEach(m => existingMap.set(m.id, m));
+
+      let newUnread = 0;
+      const newUnreadMsgs: CorporateEmailMessage[] = [];
+
+      for (const msg of incoming) {
+        const existing = existingMap.get(msg.id);
+        if (!existing) {
+          if (msg.folder === 'inbox' && !msg.isRead) {
+            newUnread++;
+            newUnreadMsgs.push(msg);
+          }
+        }
+        existingMap.set(msg.id, {
+          ...msg,
+          isRead: existing ? existing.isRead : msg.isRead,
+          isStarred: existing ? existing.isStarred : msg.isStarred,
+        });
+      }
+
+      // Remove mensagens mock iniciais se já houver mensagens reais do IMAP na caixa de entrada
+      const merged = Array.from(existingMap.values()).filter(m => {
+        if (m.id.startsWith('msg_00') && incoming.some(im => im.folder === 'inbox')) {
+          return false;
+        }
+        return true;
+      });
+
+      merged.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+      this.saveMessagesToStorage(merged);
+      window.dispatchEvent(new CustomEvent('corporate_messages_updated', { detail: { source: 'imap' } }));
+
+      if (newUnreadMsgs.length > 0) {
+        this.notifyNewEmail(newUnreadMsgs[0]);
+      }
+
+      return { synced: incoming.length, newUnread };
+    } catch (err: any) {
+      console.warn('[CorporateEmailService] Falha na sincronização IMAP:', err);
+      return { synced: 0, newUnread: 0, error: err?.message || 'Erro de rede IMAP' };
     }
   }
 

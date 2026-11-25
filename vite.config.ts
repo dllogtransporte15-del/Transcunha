@@ -323,13 +323,13 @@ export default defineConfig({
                 .filter(Boolean)
                 .join(', ');
 
-              const createTransporter = (port: number, secure: boolean) => {
+              const createTransporter = (port: number, secure: boolean, authUserOverride?: string) => {
                 return nodemailer.createTransport({
                   host: 'smtp.gmail.com',
                   port,
                   secure,
                   auth: {
-                    user: effectiveAuthUser,
+                    user: authUserOverride || effectiveAuthUser,
                     pass: appPassword,
                   },
                   tls: {
@@ -341,10 +341,8 @@ export default defineConfig({
                 });
               };
 
-              let info: any;
-              try {
-                const transporter465 = createTransporter(465, true);
-                info = await transporter465.sendMail({
+              const sendWithFallbackPorts = async (authUserToUse: string) => {
+                const mailOptions = {
                   from: `"${senderName}" <${senderEmail}>`,
                   to: toAddresses,
                   cc: ccAddresses || undefined,
@@ -353,31 +351,53 @@ export default defineConfig({
                   text: text || undefined,
                   html: finalHtml || undefined,
                   attachments: processedAttachments,
-                });
-              } catch (primaryErr: any) {
-                const msg = primaryErr?.message || '';
-                if (
-                  msg.includes('ETIMEDOUT') ||
-                  msg.includes('ECONNREFUSED') ||
-                  msg.includes('ESOCKET') ||
-                  msg.includes('greeting') ||
-                  primaryErr?.code === 'ECONNECTION'
-                ) {
-                  console.warn('[vite:send-email] Porta 465 falhou, tentando fallback porta 587 (TLS)...', primaryErr);
-                  const transporter587 = createTransporter(587, false);
-                  info = await transporter587.sendMail({
-                    from: `"${senderName}" <${senderEmail}>`,
-                    to: toAddresses,
-                    cc: ccAddresses || undefined,
-                    replyTo: replyTo || senderEmail,
-                    subject,
-                    text: text || undefined,
-                    html: finalHtml || undefined,
-                    attachments: processedAttachments,
-                  });
-                } else {
+                };
+                try {
+                  const transporter465 = createTransporter(465, true, authUserToUse);
+                  return await transporter465.sendMail(mailOptions);
+                } catch (primaryErr: any) {
+                  const msg = primaryErr?.message || '';
+                  if (
+                    msg.includes('ETIMEDOUT') ||
+                    msg.includes('ECONNREFUSED') ||
+                    msg.includes('ESOCKET') ||
+                    msg.includes('greeting') ||
+                    primaryErr?.code === 'ECONNECTION'
+                  ) {
+                    console.warn('[vite:send-email] Porta 465 falhou, tentando fallback porta 587 (TLS)...', primaryErr);
+                    const transporter587 = createTransporter(587, false, authUserToUse);
+                    return await transporter587.sendMail(mailOptions);
+                  }
                   throw primaryErr;
                 }
+              };
+
+              const authCandidates = Array.from(
+                new Set(
+                  [effectiveAuthUser, senderEmail, 'contato@transcunhaoficial.com.br', process.env.GWORKSPACE_USER]
+                    .filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
+                    .map(v => v.trim())
+                )
+              );
+
+              let info: any;
+              let lastAuthErr: any = null;
+              for (const candidateAuth of authCandidates) {
+                try {
+                  info = await sendWithFallbackPorts(candidateAuth);
+                  lastAuthErr = null;
+                  break;
+                } catch (authErr: any) {
+                  lastAuthErr = authErr;
+                  const errMsg = authErr?.message || '';
+                  const isBadCreds = errMsg.includes('Invalid login') || errMsg.includes('535') || authErr?.responseCode === 535;
+                  if (!isBadCreds) {
+                    throw authErr;
+                  }
+                }
+              }
+              if (lastAuthErr) {
+                throw lastAuthErr;
               }
 
               if (!info.accepted || info.accepted.length === 0) {
@@ -413,6 +433,41 @@ export default defineConfig({
                 userHelp,
               }));
             }
+          });
+        });
+      }
+    },
+    {
+      name: 'fetch-emails-endpoint',
+      configureServer(server) {
+        server.middlewares.use('/api/fetch-emails', async (req, res) => {
+          const chunks: any[] = [];
+          req.on('data', chunk => { chunks.push(chunk); });
+          req.on('end', async () => {
+            try {
+              const bodyStr = Buffer.concat(chunks).toString('utf-8');
+              (req as any).body = bodyStr ? JSON.parse(bodyStr) : {};
+            } catch {
+              (req as any).body = {};
+            }
+            const expressLikeRes = {
+              status(code: number) {
+                res.statusCode = code;
+                return expressLikeRes;
+              },
+              setHeader(k: string, v: string) {
+                res.setHeader(k, v);
+              },
+              json(obj: any) {
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify(obj));
+              },
+              end(data?: any) {
+                res.end(data);
+              },
+            };
+            const mod = await import('./api/fetch-emails');
+            await mod.default(req, expressLikeRes);
           });
         });
       }

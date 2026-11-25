@@ -20,6 +20,7 @@ import {
 import type { CorporateEmailAccount, CorporateEmailAttachment, CorporateEmailMessage } from '../../types';
 import { corporateEmailService } from '../../services/corporateEmailService';
 import { getSavedAppPassword, saveAppPassword, DEFAULT_GWORKSPACE_SENDER } from '../../services/fiscalDossierEmailService';
+import { getUserJobFunction } from '../../auth';
 import { useToast } from '../../hooks/useToast';
 
 interface ComposeEmailModalProps {
@@ -49,6 +50,62 @@ export const ComposeEmailModal: React.FC<ComposeEmailModalProps> = ({
 }) => {
   const { showToast } = useToast();
 
+  const senderOptions = React.useMemo(() => {
+    const loggedUser = corporateEmailService.getCurrentSessionUser();
+    const loggedEmail = (
+      (loggedUser?.corporateEmail && loggedUser.corporateEmail.trim()) ||
+      (loggedUser?.email && loggedUser.email.trim()) ||
+      ''
+    ).toLowerCase();
+
+    const loggedRole =
+      getUserJobFunction(loggedUser) ||
+      corporateEmailService.mapProfileToDepartment(loggedUser?.profile);
+
+    const list: Array<{ id: string; email: string; displayName: string; roleLabel: string }> = [];
+    const seenEmails = new Set<string>();
+
+    if (loggedUser && loggedEmail && loggedEmail.includes('@')) {
+      const matched = accounts.find(
+        a =>
+          a.userId === loggedUser.id ||
+          a.email.toLowerCase() === loggedEmail
+      );
+      const emailToUse = matched?.email || loggedEmail;
+      seenEmails.add(emailToUse.toLowerCase());
+      list.push({
+        id: matched?.id || `logged_${loggedUser.id}`,
+        email: emailToUse,
+        displayName: loggedUser.name || matched?.displayName || emailToUse,
+        roleLabel: loggedRole || matched?.department || 'Usuário Logado',
+      });
+    }
+
+    accounts.forEach(acc => {
+      const lower = acc.email.toLowerCase();
+      if (!seenEmails.has(lower)) {
+        seenEmails.add(lower);
+        list.push({
+          id: acc.id,
+          email: acc.email,
+          displayName: acc.displayName,
+          roleLabel: acc.department,
+        });
+      }
+    });
+
+    if (!seenEmails.has(DEFAULT_GWORKSPACE_SENDER.toLowerCase())) {
+      list.push({
+        id: 'default_gworkspace',
+        email: DEFAULT_GWORKSPACE_SENDER,
+        displayName: 'Transcunha Oficial',
+        roleLabel: 'Geral',
+      });
+    }
+
+    return list;
+  }, [accounts, isOpen]);
+
   const [fromEmail, setFromEmail] = useState<string>(DEFAULT_GWORKSPACE_SENDER);
   const [to, setTo] = useState<string>('');
   const [cc, setCc] = useState<string>('');
@@ -59,9 +116,20 @@ export const ComposeEmailModal: React.FC<ComposeEmailModalProps> = ({
   const [appPassword, setAppPassword] = useState<string>(() => getSavedAppPassword());
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [isSending, setIsSending] = useState<boolean>(false);
+  const [sendError, setSendError] = useState<string | null>(null);
+  const wasOpenRef = React.useRef<boolean>(false);
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) {
+      wasOpenRef.current = false;
+      return;
+    }
+
+    // Só inicializa os campos na abertura do modal (evita apagar o que o usuário está digitando quando o pai re-renderiza)
+    if (wasOpenRef.current && !replyToMessage) {
+      return;
+    }
+    wasOpenRef.current = true;
 
     // Se houver mensagem para responder ou encaminhar
     if (replyToMessage) {
@@ -89,9 +157,9 @@ export const ComposeEmailModal: React.FC<ComposeEmailModalProps> = ({
         setAttachments(replyToMessage.attachments || []);
       }
     } else {
-      // Nova mensagem (com suporte a pré-preenchimento externo, ex: envio de Ordem de Carregamento)
-      if (accounts.length > 0) {
-        setFromEmail(accounts[0].email);
+      // Nova mensagem (prioriza sempre o usuário interno logado no campo "De:")
+      if (senderOptions.length > 0) {
+        setFromEmail(senderOptions[0].email);
       }
       setTo(initialTo || '');
       setCc('');
@@ -100,7 +168,7 @@ export const ComposeEmailModal: React.FC<ComposeEmailModalProps> = ({
       setBody(initialBody || '');
       setAttachments(initialAttachments || []);
     }
-  }, [isOpen, replyToMessage, initialMode, initialTo, initialSubject, initialBody, initialAttachments]);
+  }, [isOpen, replyToMessage?.id, initialMode]);
 
   const handlePasswordChange = (val: string) => {
     setAppPassword(val);
@@ -152,6 +220,7 @@ export const ComposeEmailModal: React.FC<ComposeEmailModalProps> = ({
     }
 
     setIsSending(true);
+    setSendError(null);
 
     try {
       const toAddresses = to.split(/[,;]/).map(s => s.trim()).filter(Boolean);
@@ -187,7 +256,9 @@ export const ComposeEmailModal: React.FC<ComposeEmailModalProps> = ({
       onClose();
     } catch (err: any) {
       console.error('Erro ao enviar e-mail:', err);
-      showToast(err?.message || 'Falha ao disparar e-mail corporativo.', 'error');
+      const errMsg = err?.message || 'Falha ao disparar e-mail corporativo.';
+      setSendError(errMsg);
+      showToast(errMsg, 'error', 7000);
     } finally {
       setIsSending(false);
     }
@@ -230,6 +301,12 @@ export const ComposeEmailModal: React.FC<ComposeEmailModalProps> = ({
 
         {/* CORPO DO FORMULÁRIO */}
         <form onSubmit={handleSend} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
+          {sendError && (
+            <div className="p-3 rounded-xl bg-rose-500/15 border border-rose-500/40 text-rose-200 text-xs whitespace-pre-line">
+              <strong className="font-bold block mb-0.5">Não foi possível enviar o e-mail:</strong>
+              {sendError}
+            </div>
+          )}
           
           {/* DE / REMETENTE */}
           <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
@@ -242,16 +319,11 @@ export const ComposeEmailModal: React.FC<ComposeEmailModalProps> = ({
                 onChange={(e) => setFromEmail(e.target.value)}
                 className="w-full px-3 py-2 text-xs font-semibold rounded-xl border border-slate-700 bg-slate-950 text-white outline-none focus:border-blue-500 cursor-pointer"
               >
-                {accounts.map(acc => (
-                  <option key={acc.id} value={acc.email}>
-                    {acc.email} — {acc.displayName} ({acc.department})
+                {senderOptions.map(opt => (
+                  <option key={opt.id} value={opt.email}>
+                    {opt.email} — {opt.displayName} ({opt.roleLabel})
                   </option>
                 ))}
-                {!accounts.some(a => a.email === DEFAULT_GWORKSPACE_SENDER) && (
-                  <option value={DEFAULT_GWORKSPACE_SENDER}>
-                    {DEFAULT_GWORKSPACE_SENDER} — Transcunha Oficial
-                  </option>
-                )}
               </select>
             </div>
           </div>

@@ -27,6 +27,67 @@ export interface SystemRelease {
  */
 export const SYSTEM_RELEASES: SystemRelease[] = [
   {
+    id: 'rel_2026_11_25_v2_118_15',
+    version: 'v2.118.15',
+    date: '25/11/2026',
+    title: 'Fallback Automático de Conta Google Workspace no Disparo SMTP',
+    summary: 'Adicionada cadeia automática de autenticação SMTP (conta da Senha de App, remetente selecionado e conta principal contato@transcunhaoficial.com.br) tanto em produção quanto no servidor local, eliminando erros 535 BadCredentials.',
+    items: [
+      {
+        category: 'fix',
+        title: 'Resolução Automática de Autenticação 535',
+        description: 'Caso a conta selecionada em "De:" não corresponda à conta da Senha de App informada, o servidor tenta autenticar automaticamente com as contas vinculadas antes de retornar erro.'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_25_v2_118_14',
+    version: 'v2.118.14',
+    date: '25/11/2026',
+    title: 'Correção de Autenticação e Validação de Envio no Webmail Corporativo',
+    summary: 'Corrigida a autenticação dinâmica do remetente no envio pelo Webmail, adicionada validação estrita de confirmação SMTP em sendOutgoingEmail e exibido feedback de erro visível no modal de composição.',
+    items: [
+      {
+        category: 'fix',
+        title: 'Autenticação Dinâmica e Confirmação Real de Envio',
+        description: 'O disparo via Webmail agora utiliza a conta configurada na Senha de App (com fallback automático para o e-mail do remetente em caso de 535), valida a resposta JSON/messageId e exibe alertas claros em caso de falha.'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_25_v2_118_13',
+    version: 'v2.118.13',
+    date: '25/11/2026',
+    title: 'Usuário Logado Selecionado por Padrão no Campo "De:" do E-mail',
+    summary: 'O campo "De:" da janela de composição de e-mails agora exibe e pré-seleciona automaticamente o usuário interno logado no sistema.',
+    items: [
+      {
+        category: 'improvement',
+        title: 'Remetente Padrão Baseado no Usuário Logado',
+        description: 'Ao abrir a composição de uma nova mensagem ou envio de ordem, o usuário interno logado aparece como primeira opção e já vem selecionado no campo "De:".'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_25_v2_118_12',
+    version: 'v2.118.12',
+    date: '25/11/2026',
+    title: 'Correção do Campo Destinatário no Webmail e Sincronização Real IMAP com Gmail',
+    summary: 'Corrigido o bug que impedia a digitação no campo "Para:" da janela de composição de e-mail e implementada a sincronização real em tempo real via IMAP (imap.gmail.com:993) com a conta Gmail / Google Workspace.',
+    items: [
+      {
+        category: 'fix',
+        title: 'Correção da Digitação no Campo Destinatário (Para:)',
+        description: 'Corrigida a reinicialização acidental dos campos durante re-renderizações no ComposeEmailModal e removida a restrição select-none na janela externa /webmail.'
+      },
+      {
+        category: 'feature',
+        title: 'Sincronização Real IMAP com Gmail / Google Workspace',
+        description: 'Criado o endpoint /api/fetch-emails (imapflow + mailparser) e polling em tempo real a cada 15s para buscar e exibir os e-mails reais da conta Gmail integrada.'
+      }
+    ]
+  },
+  {
     id: 'rel_2026_11_25_v2_118_11',
     version: 'v2.118.11',
     date: '25/11/2026',

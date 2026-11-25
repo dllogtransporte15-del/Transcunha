@@ -149,13 +149,13 @@ export default async function handler(req: any, res: any) {
       .join(', ');
 
     // Construtor de transporte SMTP Google Workspace com fallback de portas (465 SSL -> 587 STARTTLS)
-    const createTransporter = (port: number, secure: boolean) => {
+    const createTransporter = (port: number, secure: boolean, authUserOverride?: string) => {
       return nodemailer.createTransport({
         host: 'smtp.gmail.com',
         port,
         secure,
         auth: {
-          user: effectiveAuthUser,
+          user: authUserOverride || effectiveAuthUser,
           pass: appPassword,
         },
         tls: {
@@ -167,11 +167,8 @@ export default async function handler(req: any, res: any) {
       });
     };
 
-    let info: any;
-    try {
-      // 1ª Tentativa: porta 465 (SSL direto)
-      const transporter465 = createTransporter(465, true);
-      info = await transporter465.sendMail({
+    const sendWithFallbackPorts = async (authUserToUse: string) => {
+      const mailOptions = {
         from: `"${senderName}" <${senderEmail}>`,
         to: toAddresses,
         cc: ccAddresses || undefined,
@@ -180,32 +177,53 @@ export default async function handler(req: any, res: any) {
         text: text || undefined,
         html: finalHtml || undefined,
         attachments: processedAttachments,
-      });
-    } catch (primaryErr: any) {
-      const msg = primaryErr?.message || '';
-      // Fallback para porta 587 (STARTTLS) caso haja bloqueio ou timeout no socket 465
-      if (
-        msg.includes('ETIMEDOUT') ||
-        msg.includes('ECONNREFUSED') ||
-        msg.includes('ESOCKET') ||
-        msg.includes('greeting') ||
-        primaryErr?.code === 'ECONNECTION'
-      ) {
-        console.warn('[send-email] Porta 465 falhou, executando fallback para porta 587 (TLS)...', primaryErr);
-        const transporter587 = createTransporter(587, false);
-        info = await transporter587.sendMail({
-          from: `"${senderName}" <${senderEmail}>`,
-          to: toAddresses,
-          cc: ccAddresses || undefined,
-          replyTo: replyTo || senderEmail,
-          subject: subject,
-          text: text || undefined,
-          html: finalHtml || undefined,
-          attachments: processedAttachments,
-        });
-      } else {
+      };
+      try {
+        const transporter465 = createTransporter(465, true, authUserToUse);
+        return await transporter465.sendMail(mailOptions);
+      } catch (primaryErr: any) {
+        const msg = primaryErr?.message || '';
+        if (
+          msg.includes('ETIMEDOUT') ||
+          msg.includes('ECONNREFUSED') ||
+          msg.includes('ESOCKET') ||
+          msg.includes('greeting') ||
+          primaryErr?.code === 'ECONNECTION'
+        ) {
+          console.warn('[send-email] Porta 465 falhou, executando fallback para porta 587 (TLS)...', primaryErr);
+          const transporter587 = createTransporter(587, false, authUserToUse);
+          return await transporter587.sendMail(mailOptions);
+        }
         throw primaryErr;
       }
+    };
+
+    const authCandidates = Array.from(
+      new Set(
+        [effectiveAuthUser, senderEmail, 'contato@transcunhaoficial.com.br', process.env.GWORKSPACE_USER]
+          .filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
+          .map(v => v.trim())
+      )
+    );
+
+    let info: any;
+    let lastAuthErr: any = null;
+    for (const candidateAuth of authCandidates) {
+      try {
+        info = await sendWithFallbackPorts(candidateAuth);
+        lastAuthErr = null;
+        break;
+      } catch (authErr: any) {
+        lastAuthErr = authErr;
+        const errMsg = authErr?.message || '';
+        const isBadCreds = errMsg.includes('Invalid login') || errMsg.includes('535') || authErr?.responseCode === 535;
+        if (!isBadCreds) {
+          throw authErr;
+        }
+      }
+    }
+    if (lastAuthErr) {
+      throw lastAuthErr;
     }
 
     if (!info.accepted || info.accepted.length === 0) {

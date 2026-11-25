@@ -71,7 +71,10 @@ export const WebmailWindowPage: React.FC<WebmailWindowPageProps> = ({ currentUse
   const handleManualSync = async () => {
     setIsSyncing(true);
     try {
-      await corporateEmailService.syncFromCloud();
+      await Promise.all([
+        corporateEmailService.syncFromCloud(),
+        corporateEmailService.syncFromGmailImap({ folder: 'inbox' }),
+      ]);
       loadAccounts();
       setLastSyncAt(new Date().toLocaleTimeString('pt-BR'));
     } finally {
@@ -82,7 +85,7 @@ export const WebmailWindowPage: React.FC<WebmailWindowPageProps> = ({ currentUse
   const hasOpener = typeof window !== 'undefined' && !!window.opener && !window.opener.closed;
 
   return (
-    <div className="h-screen w-screen flex flex-col bg-slate-950 text-slate-100 overflow-hidden select-none">
+    <div className="h-screen w-screen flex flex-col bg-slate-950 text-slate-100 overflow-hidden">
       {/* Barra Superior do Aplicativo Webmail Independente */}
       <header className="h-12 px-4 bg-slate-900/95 border-b border-slate-800 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3 min-w-0">

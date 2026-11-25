@@ -88,6 +88,32 @@ export const WebmailOutlookView: React.FC<WebmailOutlookViewProps> = ({
   const [isComposeOpen, setIsComposeOpen] = useState<boolean>(false);
   const [composeMode, setComposeMode] = useState<'new' | 'reply' | 'replyAll' | 'forward'>('new');
   const [targetMessageForCompose, setTargetMessageForCompose] = useState<CorporateEmailMessage | null>(null);
+  const [isSyncingImap, setIsSyncingImap] = useState<boolean>(false);
+  const [imapStatusText, setImapStatusText] = useState<string>('Google Workspace Online');
+
+  const syncWithGmailImap = React.useCallback(async (folderToSync: CorporateEmailFolder, silent = true) => {
+    setIsSyncingImap(true);
+    try {
+      const targetMailboxEmail = selectedMailbox !== 'all' ? selectedMailbox : undefined;
+      const result = await corporateEmailService.syncFromGmailImap({
+        folder: folderToSync,
+        email: targetMailboxEmail,
+      });
+      if (!result.error) {
+        setImapStatusText(`Gmail Sincronizado (${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })})`);
+        setRefreshTrigger(prev => prev + 1);
+      } else if (result.error === 'MISSING_APP_PASSWORD') {
+        setImapStatusText('Configure a Senha de App para IMAP');
+      } else {
+        setImapStatusText('Google Workspace Online');
+        if (!silent) {
+          showToast(result.error, 'warning');
+        }
+      }
+    } finally {
+      setIsSyncingImap(false);
+    }
+  }, [selectedMailbox, showToast]);
 
   // Escutar eventos de atualização de mensagens em tempo real (local, entre janelas e Supabase Realtime)
   useEffect(() => {
@@ -102,12 +128,19 @@ export const WebmailOutlookView: React.FC<WebmailOutlookViewProps> = ({
       setRefreshTrigger(prev => prev + 1);
     });
 
+    // Sincronização inicial imediata + polling em tempo real a cada 15s com o Gmail IMAP
+    void syncWithGmailImap(currentFolder, true);
+    const imapInterval = setInterval(() => {
+      void syncWithGmailImap(currentFolder, true);
+    }, 15000);
+
     return () => {
       window.removeEventListener('corporate_messages_updated', handleUpdate);
       window.removeEventListener('transcunha:new_corporate_email', handleUpdate);
       unsubscribeRealtime();
+      clearInterval(imapInterval);
     };
-  }, []);
+  }, [currentFolder, syncWithGmailImap]);
 
   // Mensagens filtradas pela caixa e pasta
   const messages = useMemo(() => {
@@ -356,8 +389,8 @@ export const WebmailOutlookView: React.FC<WebmailOutlookViewProps> = ({
         {/* Status de Conexão e Atalhos de Configurações */}
         <div className="p-3 border-t border-slate-200 dark:border-slate-800 space-y-2 bg-slate-100/50 dark:bg-slate-900/40">
           <div className="flex items-center gap-2 text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span>Google Workspace Online</span>
+            <span className={`w-2 h-2 rounded-full ${isSyncingImap ? 'bg-blue-500 animate-ping' : 'bg-emerald-500 animate-pulse'}`} />
+            <span className="truncate" title={imapStatusText}>{imapStatusText}</span>
           </div>
           <p className="text-[10px] text-slate-500">
             SSL 465 (smtp.gmail.com)
@@ -414,12 +447,12 @@ export const WebmailOutlookView: React.FC<WebmailOutlookViewProps> = ({
               <button
                 onClick={() => {
                   void corporateEmailService.syncFromCloud().then(() => setRefreshTrigger(c => c + 1));
-                  setRefreshTrigger(c => c + 1);
+                  void syncWithGmailImap(currentFolder, false);
                 }}
                 className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                title="Sincronizar correio agora"
+                title="Sincronizar correio agora com Gmail"
               >
-                <RefreshCw className="w-3.5 h-3.5" />
+                <RefreshCw className={`w-3.5 h-3.5 ${isSyncingImap ? 'animate-spin text-blue-500' : ''}`} />
               </button>
             </div>
           </div>
