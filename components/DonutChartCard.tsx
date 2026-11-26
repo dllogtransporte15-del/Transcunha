@@ -44,6 +44,7 @@ const DonutChartCard: React.FC<DonutChartCardProps> = ({
   headerExtra 
 }) => {
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const total = data.reduce((sum, item) => sum + item.value, 0);
 
   const radius = 80;
@@ -54,12 +55,15 @@ const DonutChartCard: React.FC<DonutChartCardProps> = ({
     setExpandedIndex(prev => (prev === index ? null : index));
   };
 
+  const hoveredItem = hoveredIndex !== null ? data[hoveredIndex] : null;
+  const hoveredPct = hoveredItem && total > 0 ? (hoveredItem.value / total) * 100 : 0;
+
   return (
-    <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-md border border-gray-100 dark:border-gray-700/60">
+    <div className="interactive-spotlight bg-white dark:bg-gray-800/95 p-6 rounded-2xl shadow-md hover:shadow-xl hover:shadow-blue-900/10 dark:hover:shadow-sky-950/35 border border-gray-100 dark:border-gray-700/60 hover:border-primary/35 dark:hover:border-sky-500/40 transition-all duration-300">
       <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
         <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-200">{title}</h3>
         {badge && (
-          <div className="flex items-center gap-2.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 px-3 py-1.5 rounded-xl shadow-xs">
+          <div className="flex items-center gap-2.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 hover:border-emerald-400 dark:hover:border-emerald-500/70 hover:shadow-md hover:-translate-y-0.5 px-3 py-1.5 rounded-xl shadow-xs transition-all duration-200">
             {badge.icon && (
               <div className="w-7 h-7 rounded-lg bg-emerald-500 text-white flex items-center justify-center shrink-0 shadow-xs">
                 {badge.icon}
@@ -78,8 +82,8 @@ const DonutChartCard: React.FC<DonutChartCardProps> = ({
         {headerExtra}
       </div>
       <div className="flex flex-col md:flex-row items-center justify-center gap-6">
-        <div className="relative w-48 h-48 shrink-0">
-          <svg className="w-full h-full" viewBox="-100 -100 200 200" transform="rotate(-90)">
+        <div className="relative w-48 h-48 shrink-0 group/chart">
+          <svg className="w-full h-full overflow-visible" viewBox="-100 -100 200 200" transform="rotate(-90)">
             <circle
                 className="stroke-gray-200 dark:stroke-gray-700"
                 r={radius}
@@ -113,44 +117,89 @@ const DonutChartCard: React.FC<DonutChartCardProps> = ({
               const currentOffset = offset;
               offset += dash;
 
+              const isHovered = hoveredIndex === index;
+              const isDimmed = hoveredIndex !== null && !isHovered;
+
               return (
                 <circle
                   key={index}
-                  className={strokeColor}
+                  className={`${strokeColor} cursor-pointer`}
                   r={radius}
                   cx="0"
                   cy="0"
                   fill="transparent"
-                  strokeWidth="25"
+                  strokeWidth={isHovered ? 31 : 25}
                   strokeDasharray={`${dash} ${circumference - dash}`}
                   strokeDashoffset={-currentOffset}
-                  style={{ transition: 'stroke-dashoffset 0.5s ease-in-out' }}
+                  onMouseEnter={() => setHoveredIndex(index)}
+                  onMouseLeave={() => setHoveredIndex(null)}
+                  onClick={() => {
+                    if (item.subItems && item.subItems.length > 0) {
+                      toggleExpand(index);
+                    } else if (item.clientId && onViewClientHistory) {
+                      onViewClientHistory(item.clientId);
+                    }
+                  }}
+                  style={{
+                    opacity: isDimmed ? 0.35 : 1,
+                    filter: isHovered ? 'drop-shadow(0 0 8px rgba(56, 189, 248, 0.45))' : 'none',
+                    transition: 'stroke-dashoffset 0.5s ease-in-out, stroke-width 0.22s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.2s ease, filter 0.22s ease'
+                  }}
                 />
               );
             })}
           </svg>
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div className="text-center">
-              <span className="text-xl font-bold text-gray-800 dark:text-white">
-                {total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                {unit && <span className="text-xs ml-0.5">{unit}</span>}
-              </span>
-              <span className="block text-xs text-gray-500 dark:text-gray-400">Total</span>
-            </div>
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none px-5">
+            {hoveredItem ? (
+              <div className="text-center animate-fade-in">
+                <div className="inline-flex items-center justify-center gap-1 mb-0.5 max-w-[118px]">
+                  <span className={`w-2 h-2 rounded-full shrink-0 ${hoveredItem.color}`}></span>
+                  <span className="text-[10px] font-bold text-gray-600 dark:text-gray-300 truncate uppercase" title={hoveredItem.label}>
+                    {hoveredItem.label}
+                  </span>
+                </div>
+                <span className="block text-lg font-extrabold text-primary dark:text-sky-400 leading-tight">
+                  {hoveredItem.value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  {unit && <span className="text-[11px] ml-0.5">{unit}</span>}
+                </span>
+                <span className="inline-block mt-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 dark:bg-sky-500/20 text-primary dark:text-sky-300 border border-blue-200/70 dark:border-sky-500/30">
+                  {hoveredPct.toFixed(1).replace('.', ',')}%
+                </span>
+              </div>
+            ) : (
+              <div className="text-center transition-all duration-200">
+                <span className="text-xl font-bold text-gray-800 dark:text-white">
+                  {total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  {unit && <span className="text-xs ml-0.5">{unit}</span>}
+                </span>
+                <span className="block text-xs text-gray-500 dark:text-gray-400">Total</span>
+              </div>
+            )}
           </div>
         </div>
         <div className="w-full md:flex-1 min-w-0">
-          <ul className="space-y-2">
+          <ul className="space-y-1">
             {data.map((item, index) => {
               const hasSubItems = item.subItems && item.subItems.length > 0;
               const isExpanded = expandedIndex === index;
+              const isHovered = hoveredIndex === index;
+              const itemPct = total > 0 ? (item.value / total) * 100 : 0;
 
               return (
-                <li key={index} className="flex flex-col text-sm border-b border-gray-100/70 dark:border-gray-700/50 last:border-b-0 pb-1.5 first:pt-0">
+                <li
+                  key={index}
+                  onMouseEnter={() => setHoveredIndex(index)}
+                  onMouseLeave={() => setHoveredIndex(null)}
+                  className={`flex flex-col text-sm rounded-xl px-2.5 py-2 -mx-2.5 border-b border-gray-100/70 dark:border-gray-700/50 last:border-b-0 transition-all duration-200 cursor-pointer ${
+                    isHovered
+                      ? 'bg-blue-50/80 dark:bg-sky-950/35 translate-x-1 shadow-xs ring-1 ring-blue-200/70 dark:ring-sky-500/30'
+                      : 'hover:bg-gray-50/80 dark:hover:bg-gray-700/30'
+                  }`}
+                >
                   <div className="flex items-center justify-between gap-2 w-full">
                     <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                      <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${item.color}`}></span>
-                      <span className="text-gray-700 dark:text-gray-300 font-medium truncate text-xs sm:text-sm" title={item.label}>
+                      <span className={`w-2.5 h-2.5 rounded-full shrink-0 transition-transform duration-200 ${item.color} ${isHovered ? 'scale-125 ring-2 ring-offset-1 ring-blue-400/50 dark:ring-offset-gray-800' : ''}`}></span>
+                      <span className={`font-medium truncate text-xs sm:text-sm transition-colors ${isHovered ? 'text-primary dark:text-sky-300 font-semibold' : 'text-gray-700 dark:text-gray-300'}`} title={item.label}>
                         {item.label}:
                       </span>
                       {hasSubItems ? (
@@ -182,9 +231,16 @@ const DonutChartCard: React.FC<DonutChartCardProps> = ({
                         )
                       )}
                     </div>
-                    <span className="font-bold ml-auto text-gray-800 dark:text-gray-200 shrink-0 text-xs sm:text-sm pl-2">
-                      {item.value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {unit}
-                    </span>
+                    <div className="flex items-center gap-2 ml-auto shrink-0 pl-2">
+                      {isHovered && (
+                        <span className="px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-blue-100 dark:bg-sky-500/20 text-primary dark:text-sky-300 animate-fade-in">
+                          {itemPct.toFixed(1).replace('.', ',')}%
+                        </span>
+                      )}
+                      <span className={`font-bold text-xs sm:text-sm transition-colors ${isHovered ? 'text-primary dark:text-sky-300' : 'text-gray-800 dark:text-gray-200'}`}>
+                        {item.value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {unit}
+                      </span>
+                    </div>
                   </div>
 
                   {/* Expanded Sub-items (Filiais) */}

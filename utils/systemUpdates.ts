@@ -27,6 +27,77 @@ export interface SystemRelease {
  */
 export const SYSTEM_RELEASES: SystemRelease[] = [
   {
+    id: 'rel_2026_11_25_v2_118_26',
+    version: 'v2.118.26',
+    date: '25/11/2026',
+    title: 'Filiais: Exibição Global da TRANSCUNHA PR FILIAL em Todos os Campos e Filtros',
+    summary: 'Garantida a presença automática da unidade TRANSCUNHA PR FILIAL em todos os seletores de filiais, cadastros de usuários, relatórios e filtros financeiros.',
+    items: [
+      {
+        category: 'improvement',
+        title: 'TRANSCUNHA PR FILIAL em Todos os Filtros e Seletores',
+        description: 'A filial TRANSCUNHA PR FILIAL passa a constar automaticamente na lista global de filiais do sistema (usuários, relatórios, financeiro e controle de embarques).'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_25_v2_118_25',
+    version: 'v2.118.25',
+    date: '25/11/2026',
+    title: 'Financeiro (Contas a Pagar): Novas Categorias RETIRADA e PRO-LABORE',
+    summary: 'Adicionadas as categorias RETIRADA e PRO-LABORE no seletor de categorias de Lançamento Avulso em Contas a Pagar.',
+    items: [
+      {
+        category: 'feature',
+        title: 'Categorias RETIRADA e PRO-LABORE',
+        description: 'Agora é possível classificar lançamentos avulsos de Contas a Pagar diretamente nas categorias RETIRADA e PRO-LABORE.'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_25_v2_118_24',
+    version: 'v2.118.24',
+    date: '25/11/2026',
+    title: 'Dashboard & Operacional: Gráficos de Pizza e Cartões de Carga Interativos',
+    summary: 'Os gráficos de rosca do Dashboard e os cartões de Oportunidades de Carga agora respondem de forma sincronizada ao passar o cursor, exibindo percentuais dinâmicos, destaque de fatias e micro-interações em cada bloco.',
+    items: [
+      {
+        category: 'feature',
+        title: 'Gráficos de Pizza/Rosca Interativos no Dashboard',
+        description: 'Ao passar o mouse sobre qualquer fatia ou item da legenda, o gráfico expande a fatia correspondente, exibe o percentual e o valor exato no centro e destaca a linha relacionada.'
+      },
+      {
+        category: 'improvement',
+        title: 'Cartões de Oportunidades de Carga Responsivos ao Cursor',
+        description: 'Efeito spotlight nos cartões, elevação nos cards de programação diária, realce nos blocos de balanço Geral/Diário, barras de volume e valores de frete PJ/PF.'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_25_v2_118_23',
+    version: 'v2.118.23',
+    date: '25/11/2026',
+    title: 'Interface Moderna & Micro-Interações Globais ao Passar o Cursor',
+    summary: 'Aprimoramento visual e interativo em todo o sistema: todos os campos de formulário, seletores, tabelas, botões e cartões agora respondem ao cursor com transições fluidas, brilho de foco/hover, destaque automático de rótulos e efeito spotlight reativo.',
+    items: [
+      {
+        category: 'improvement',
+        title: 'Campos e Formulários Mais Interativos',
+        description: 'Inputs, selects, textareas, checkboxes e seletores pesquisáveis ganharam transições suaves, bordas luminosas no hover/foco e destaque sutil no rótulo correspondente.'
+      },
+      {
+        category: 'feature',
+        title: 'Efeito Spotlight Reativo ao Cursor',
+        description: 'Cartões de indicadores e painéis com glassmorphism acompanham o movimento do cursor em 60fps com uma aura luminosa sutil, tanto no tema claro quanto no escuro.'
+      },
+      {
+        category: 'improvement',
+        title: 'Tabelas, Menus e Botões Sofisticados',
+        description: 'Linhas de tabelas exibem indicador lateral ao passar o mouse, menus suspensos deslizam suavemente e botões principais contam com efeito shimmer e resposta tátil.'
+      }
+    ]
+  },
+  {
     id: 'rel_2026_11_25_v2_118_22',
     version: 'v2.118.22',
     date: '25/11/2026',

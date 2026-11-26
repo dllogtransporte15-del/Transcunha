@@ -6963,6 +6963,8 @@ export const AccountsPayableTab: React.FC<AccountsPayableTabProps> = ({
                     <option value="Pessoal e Encargos">Pessoal e Encargos</option>
                     <option value="Despesas Administrativas">Despesas Administrativas</option>
                     <option value="Despesas Financeiras / Tarifas">Despesas Financeiras</option>
+                    <option value="RETIRADA">RETIRADA</option>
+                    <option value="PRO-LABORE">PRO-LABORE</option>
                   </select>
                 </div>
                 <div>

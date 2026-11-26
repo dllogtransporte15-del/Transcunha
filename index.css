@@ -600,3 +600,317 @@ textarea[data-no-uppercase]::placeholder,
 .lowercase * {
   text-transform: lowercase !important;
 }
+
+/* ==========================================================================
+   CAMADA GLOBAL DE INTERATIVIDADE MODERNA & SOFISTICADA (HOVER / FOCUS / CURSOR)
+   ========================================================================== */
+
+:root {
+  --ease-spring: cubic-bezier(0.22, 1, 0.36, 1);
+  --glow-primary: rgba(11, 102, 228, 0.16);
+  --glow-primary-strong: rgba(11, 102, 228, 0.28);
+  --glow-sky: rgba(56, 189, 248, 0.22);
+}
+
+/* Animações suaves para dropdowns e modais */
+@keyframes animate-fade-in {
+  0% {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.985);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-fade-in {
+  animation: animate-fade-in 0.2s var(--ease-spring) forwards;
+}
+
+@keyframes modal-pop-in {
+  0% {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+[role="dialog"] > div {
+  animation: modal-pop-in 0.24s var(--ease-spring);
+}
+
+/* Todos os campos de formulário (inputs, selects, textareas, comboboxes) */
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="hidden"]),
+select,
+textarea,
+.form-input,
+.form-select,
+.form-textarea,
+.form-control,
+[role="combobox"],
+[role="searchbox"] {
+  transition:
+    border-color 0.22s var(--ease-spring),
+    box-shadow 0.24s var(--ease-spring),
+    background-color 0.22s ease,
+    color 0.2s ease;
+}
+
+/* Efeito sofisticado ao passar o cursor (hover) sobre qualquer campo no Modo Claro */
+html:not(.dark) input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="hidden"]):not(:disabled):not([readonly]):hover,
+html.light input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="hidden"]):not(:disabled):not([readonly]):hover,
+html:not(.dark) select:not(:disabled):hover,
+html.light select:not(:disabled):hover,
+html:not(.dark) textarea:not(:disabled):not([readonly]):hover,
+html.light textarea:not(:disabled):not([readonly]):hover,
+html:not(.dark) .form-input:not(:disabled):hover,
+html.light .form-input:not(:disabled):hover,
+html:not(.dark) .form-select:not(:disabled):hover,
+html.light .form-select:not(:disabled):hover,
+html:not(.dark) .form-textarea:not(:disabled):hover,
+html.light .form-textarea:not(:disabled):hover,
+html:not(.dark) [role="combobox"]:not([aria-disabled="true"]):hover,
+html.light [role="combobox"]:not([aria-disabled="true"]):hover,
+html:not(.dark) [role="searchbox"]:not(:disabled):hover,
+html.light [role="searchbox"]:not(:disabled):hover {
+  border-color: rgba(11, 102, 228, 0.58) !important;
+  box-shadow:
+    0 4px 14px -4px rgba(11, 102, 228, 0.14),
+    0 0 0 3px rgba(11, 102, 228, 0.08) !important;
+}
+
+/* Efeito sofisticado ao passar o cursor (hover) sobre qualquer campo no Modo Escuro */
+html.dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="hidden"]):not(:disabled):not([readonly]):hover,
+html.dark select:not(:disabled):hover,
+html.dark textarea:not(:disabled):not([readonly]):hover,
+html.dark .form-input:not(:disabled):hover,
+html.dark .form-select:not(:disabled):hover,
+html.dark .form-textarea:not(:disabled):hover,
+html.dark [role="combobox"]:not([aria-disabled="true"]):hover,
+html.dark [role="searchbox"]:not(:disabled):hover {
+  border-color: rgba(56, 189, 248, 0.55) !important;
+  box-shadow:
+    0 4px 16px -4px rgba(2, 132, 199, 0.26),
+    0 0 0 3px rgba(56, 189, 248, 0.11) !important;
+}
+
+/* Foco luminoso premium para campos ativos */
+html:not(.dark) input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="hidden"]):not(:disabled):focus,
+html.light input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="hidden"]):not(:disabled):focus,
+html:not(.dark) select:not(:disabled):focus,
+html.light select:not(:disabled):focus,
+html:not(.dark) textarea:not(:disabled):focus,
+html.light textarea:not(:disabled):focus,
+html:not(.dark) .form-input:not(:disabled):focus,
+html.light .form-input:not(:disabled):focus,
+html:not(.dark) .form-select:not(:disabled):focus,
+html.light .form-select:not(:disabled):focus,
+html:not(.dark) .form-textarea:not(:disabled):focus,
+html.light .form-textarea:not(:disabled):focus {
+  border-color: var(--primary) !important;
+  box-shadow:
+    0 8px 22px -6px rgba(11, 102, 228, 0.22),
+    0 0 0 3.5px rgba(11, 102, 228, 0.18) !important;
+}
+
+html.dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="hidden"]):not(:disabled):focus,
+html.dark select:not(:disabled):focus,
+html.dark textarea:not(:disabled):focus,
+html.dark .form-input:not(:disabled):focus,
+html.dark .form-select:not(:disabled):focus,
+html.dark .form-textarea:not(:disabled):focus {
+  border-color: #38bdf8 !important;
+  box-shadow:
+    0 8px 24px -6px rgba(2, 132, 199, 0.35),
+    0 0 0 3.5px rgba(56, 189, 248, 0.22) !important;
+}
+
+/* Destaque sutil no rótulo (label) quando o cursor passa pelo campo correspondente */
+div:has(> input:hover:not(:disabled), > select:hover:not(:disabled), > textarea:hover:not(:disabled), > input:focus:not(:disabled), > select:focus:not(:disabled), > textarea:focus:not(:disabled)) > label {
+  color: var(--primary) !important;
+  transition: color 0.2s ease;
+}
+
+html.dark div:has(> input:hover:not(:disabled), > select:hover:not(:disabled), > textarea:hover:not(:disabled), > input:focus:not(:disabled), > select:focus:not(:disabled), > textarea:focus:not(:disabled)) > label {
+  color: #38bdf8 !important;
+}
+
+/* Select cursor */
+select:not(:disabled) {
+  cursor: pointer;
+}
+
+/* Checkboxes e Radios interativos */
+input[type="checkbox"]:not(:disabled),
+input[type="radio"]:not(:disabled) {
+  cursor: pointer;
+  transition: transform 0.18s var(--ease-spring), box-shadow 0.2s ease;
+}
+
+input[type="checkbox"]:not(:disabled):hover,
+input[type="radio"]:not(:disabled):hover {
+  transform: scale(1.12);
+  box-shadow: 0 0 0 4px rgba(11, 102, 228, 0.12);
+}
+
+input[type="checkbox"]:not(:disabled):active,
+input[type="radio"]:not(:disabled):active {
+  transform: scale(0.95);
+}
+
+/* Botões de upload de arquivo */
+input[type="file"]::file-selector-button {
+  cursor: pointer;
+  transition: all 0.2s var(--ease-spring);
+}
+
+input[type="file"]:hover::file-selector-button {
+  filter: brightness(1.06);
+  transform: translateY(-1px);
+}
+
+/* Micro-interações globais em botões e elementos clicáveis */
+button:not(:disabled),
+[role="button"]:not([aria-disabled="true"]) {
+  transition:
+    transform 0.2s var(--ease-spring),
+    box-shadow 0.22s var(--ease-spring),
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease,
+    filter 0.2s ease;
+}
+
+button:not(:disabled):active,
+[role="button"]:not([aria-disabled="true"]):active {
+  transform: scale(0.975);
+}
+
+/* Efeito shimmer sofisticado nos botões principais (.btn-premium e .btn-accent) */
+.btn-premium,
+.btn-accent {
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-premium::before,
+.btn-accent::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -120%;
+  width: 60%;
+  height: 100%;
+  background: linear-gradient(
+    110deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.28) 50%,
+    transparent 100%
+  );
+  transform: skewX(-20deg);
+  transition: left 0.55s var(--ease-spring);
+  pointer-events: none;
+}
+
+.btn-premium:hover::before,
+.btn-accent:hover::before {
+  left: 140%;
+}
+
+/* Linhas de tabela interativas com indicador lateral luminoso no hover */
+table tbody tr {
+  transition:
+    background-color 0.18s ease,
+    box-shadow 0.2s var(--ease-spring);
+}
+
+html:not(.dark) table tbody tr:hover {
+  background-color: rgba(11, 102, 228, 0.04) !important;
+  box-shadow: inset 3px 0 0 0 var(--primary);
+}
+
+html.dark table tbody tr:hover {
+  background-color: rgba(56, 189, 248, 0.065) !important;
+  box-shadow: inset 3px 0 0 0 #38bdf8;
+}
+
+/* Superfícies com Spotlight reativo ao cursor (.interactive-spotlight, .card-brand, .glass-panel) */
+.interactive-spotlight {
+  position: relative;
+  overflow: hidden;
+  transition:
+    transform 0.26s var(--ease-spring),
+    box-shadow 0.28s var(--ease-spring),
+    border-color 0.24s ease;
+}
+
+.interactive-spotlight::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(
+    280px circle at var(--cursor-x, 50%) var(--cursor-y, 50%),
+    rgba(11, 102, 228, 0.11),
+    transparent 65%
+  );
+  opacity: 0;
+  transition: opacity 0.28s ease;
+  pointer-events: none;
+  z-index: 0;
+}
+
+html.dark .interactive-spotlight::before {
+  background: radial-gradient(
+    300px circle at var(--cursor-x, 50%) var(--cursor-y, 50%),
+    rgba(56, 189, 248, 0.14),
+    transparent 65%
+  );
+}
+
+.interactive-spotlight[data-spotlight-active="true"]::before,
+.interactive-spotlight:hover::before {
+  opacity: 1;
+}
+
+.interactive-spotlight > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Elevação suave em cards de marca */
+.card-brand {
+  transition:
+    transform 0.26s var(--ease-spring),
+    box-shadow 0.28s var(--ease-spring),
+    border-color 0.24s ease;
+}
+
+.card-brand:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 24px 32px -8px rgba(11, 102, 228, 0.14), 0 10px 14px -6px rgba(0, 0, 0, 0.06);
+}
+
+html.dark .card-brand:hover {
+  box-shadow: 0 24px 36px -8px rgba(2, 132, 199, 0.25), 0 10px 14px -6px rgba(0, 0, 0, 0.4);
+}
+
+/* Proteção para mapas Leaflet e elementos de acessibilidade com movimento reduzido */
+.leaflet-container *,
+.leaflet-container *:hover {
+  box-shadow: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

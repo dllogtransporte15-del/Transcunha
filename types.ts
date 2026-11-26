@@ -994,6 +994,8 @@ export enum FinancialCategoryType {
   CustoPessoal = 'Pessoal e Encargos',
   CustoAdministrativo = 'Despesas Administrativas',
   CustoFinanceiro = 'Despesas Financeiras / Tarifas',
+  Retirada = 'RETIRADA',
+  ProLabore = 'PRO-LABORE',
   OutrasReceitas = 'Outras Receitas',
 }
 

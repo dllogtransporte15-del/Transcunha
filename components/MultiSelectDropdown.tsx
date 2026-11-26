@@ -76,10 +76,12 @@ const MultiSelectDropdown: React.FC<MultiSelectDropdownProps> = ({
         )}
         <button
           type="button"
+          role="combobox"
+          aria-expanded={isOpen}
           onClick={() => setIsOpen(!isOpen)}
-          className={`w-full flex items-center justify-between py-1 text-xs font-semibold rounded-lg border transition-all shadow-sm outline-none text-left ${
+          className={`w-full flex items-center justify-between py-1 text-xs font-semibold rounded-lg border transition-all duration-200 shadow-sm outline-none text-left cursor-pointer ${
             Icon ? 'pl-8' : 'pl-3'
-          } ${hasSelection ? 'pr-8 bg-blue-100/80 text-blue-900 border-blue-300 dark:bg-blue-900/40 dark:text-blue-200 dark:border-blue-700' : 'bg-blue-50/40 dark:bg-blue-900/20 text-gray-900 dark:text-white border-blue-200 dark:border-blue-800/60 hover:bg-blue-50/70'}`}
+          } ${hasSelection ? 'pr-8 bg-blue-100/80 text-blue-900 border-blue-300 hover:border-blue-500 hover:shadow-md dark:bg-blue-900/40 dark:text-blue-200 dark:border-blue-700 dark:hover:border-sky-400' : 'bg-blue-50/40 dark:bg-blue-900/20 text-gray-900 dark:text-white border-blue-200 dark:border-blue-800/60 hover:bg-blue-50/90 dark:hover:bg-blue-900/35 hover:border-primary/60 dark:hover:border-sky-400/60 hover:shadow-md'}`}
         >
           <span className="truncate flex-1 pr-1">
             {selectedValues.length === 0 ? placeholder :

@@ -80,6 +80,24 @@ function calculateNextIds(
 
 export type RealtimeStatus = 'connected' | 'connecting' | 'disconnected' | 'error';
 
+const ensureRequiredBranches = (dbBranches: Branch[]): Branch[] => {
+  const list = Array.isArray(dbBranches) ? [...dbBranches] : [];
+  const hasPrFilial = list.some(b => {
+    const upper = (b?.name || '').toUpperCase();
+    return upper.includes('TRANSCUNHA PR') || upper.includes('PR FILIAL') || upper.includes('FILIAL PR') || (b?.state || '').toUpperCase() === 'PR';
+  });
+  if (!hasPrFilial) {
+    list.push({
+      id: 'branch_transcunha_pr',
+      name: 'TRANSCUNHA PR FILIAL',
+      city: 'Curitiba',
+      state: 'PR',
+      createdAt: '2026-01-01T00:00:00.000Z',
+    });
+  }
+  return list;
+};
+
 export function useDatabase(currentUser: User | null) {
   const [realtimeStatus, setRealtimeStatus] = useState<RealtimeStatus>('connecting');
   const [lastSyncTime, setLastSyncTime] = useState<Date>(() => new Date());
@@ -260,7 +278,7 @@ export function useDatabase(currentUser: User | null) {
         setTickets(dbTickets);
         setFreightOffers(dbFreightOffers);
         setStays(dbStays);
-        setBranches(dbBranches);
+        setBranches(ensureRequiredBranches(dbBranches));
         setActiveLocks(dbLocks);
         if (dbRiskOptions && dbRiskOptions.length > 0) setRiskQueryOptions(dbRiskOptions);
         if (dbLoadingModels && dbLoadingModels.length > 0) setLoadingOrderModels(dbLoadingModels);
@@ -518,7 +536,7 @@ export function useDatabase(currentUser: User | null) {
           case 'branches': {
             const dbBranches = await fetchBranches();
             if (isSubscribed) {
-              setBranches(dbBranches);
+              setBranches(ensureRequiredBranches(dbBranches));
               setNextIds((prev: any) => ({ ...prev, branch: getMaxId(dbBranches, 10) }));
             }
             break;

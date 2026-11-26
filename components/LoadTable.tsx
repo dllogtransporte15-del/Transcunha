@@ -361,7 +361,7 @@ const LoadTable: React.FC<LoadTableProps> = ({ loads, clients, products, shipmen
           const netMarginPercentagePf = isNaN(marginPf) || !isFinite(marginPf) ? '0,00%' : `${marginPf.toFixed(2).replace('.', ',')}%`;
 
           return (
-            <div key={load.id} className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700 hover:border-primary/30 transition-colors">
+            <div key={load.id} className="interactive-spotlight group/card bg-white dark:bg-gray-800/95 rounded-xl shadow-sm hover:shadow-xl hover:shadow-blue-900/10 dark:hover:shadow-sky-950/35 border border-gray-100 dark:border-gray-700/80 hover:border-primary/45 dark:hover:border-sky-400/45 hover:-translate-y-0.5 transition-all duration-200">
               <div className="flex flex-col lg:flex-row lg:items-center p-4 gap-4">
                 {/* ID and Status */}
                 <div className="flex items-center gap-3 min-w-[120px]">
@@ -369,7 +369,7 @@ const LoadTable: React.FC<LoadTableProps> = ({ loads, clients, products, shipmen
                     <div className="flex items-center gap-1.5">
                       <button 
                         onClick={() => onShowDetails?.(load)}
-                        className="text-sm font-bold text-primary dark:text-blue-400 hover:underline text-left"
+                        className="text-sm font-bold text-primary dark:text-blue-400 hover:underline hover:bg-blue-50 dark:hover:bg-sky-500/15 px-1.5 py-0.5 -mx-1.5 rounded-md transition-all text-left cursor-pointer"
                       >
                         #{load.sequenceId}
                       </button>
@@ -505,7 +505,7 @@ const LoadTable: React.FC<LoadTableProps> = ({ loads, clients, products, shipmen
                              const typeDisplay = ds.type === DailyScheduleType.Fixo ? `F ${ds.tonnage || 0}t` : (statusSymbols[ds.type as DailyScheduleType] || ds.type);
                              
                              return (
-                               <div key={idx} className="flex flex-col items-center overflow-hidden bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-md shadow-sm w-[46px] h-[36px] shrink-0" title={`Data: ${ds.date} | Tipo: ${ds.type} | Vol: ${ds.tonnage || 'Livre'}`}>
+                               <div key={idx} className="flex flex-col items-center overflow-hidden bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 hover:border-indigo-400 dark:hover:border-sky-400 hover:-translate-y-1 hover:scale-105 hover:shadow-md rounded-md shadow-sm w-[46px] h-[36px] shrink-0 transition-all duration-200 cursor-pointer" title={`Data: ${ds.date} | Tipo: ${ds.type} | Vol: ${ds.tonnage || 'Livre'}`}>
                                   <div className="bg-indigo-50 dark:bg-indigo-900/40 border-b border-indigo-100 dark:border-indigo-800 w-full text-center h-[13px] flex items-center justify-center">
                                     <span className="text-[8px] text-indigo-700 dark:text-indigo-300 font-bold uppercase tracking-wider">{weekday}</span>
                                   </div>
@@ -517,7 +517,7 @@ const LoadTable: React.FC<LoadTableProps> = ({ loads, clients, products, shipmen
                              );
                           })}
                           {upcoming.length > 3 && (
-                             <div className="flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-md w-[32px] h-[36px] shrink-0" title={`Mais ${upcoming.length - 3} lançamentos`}>
+                             <div className="flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-600 hover:border-indigo-400 dark:hover:border-sky-400 hover:-translate-y-1 hover:scale-105 hover:shadow-md rounded-md w-[32px] h-[36px] shrink-0 transition-all duration-200 cursor-pointer" title={`Mais ${upcoming.length - 3} lançamentos`}>
                                <span className="text-[10px] font-bold text-gray-500 dark:text-gray-400">+{upcoming.length - 3}</span>
                              </div>
                           )}
@@ -618,7 +618,7 @@ const LoadTable: React.FC<LoadTableProps> = ({ loads, clients, products, shipmen
 
 
                 {/* Balanço Geral */}
-                <div className="min-w-[180px] space-y-1">
+                <div className="min-w-[180px] space-y-1 p-2 -m-1 rounded-lg border border-transparent hover:border-emerald-200/80 dark:hover:border-emerald-800/50 hover:bg-emerald-50/40 dark:hover:bg-emerald-950/20 transition-all duration-200">
                   <div className="flex justify-between items-start text-[10px] font-bold text-gray-500 uppercase">
                     <span>Geral</span>
                     <div className="text-right">
@@ -635,7 +635,7 @@ const LoadTable: React.FC<LoadTableProps> = ({ loads, clients, products, shipmen
                 </div>
 
                 {/* Balanço Diário */}
-                <div className="min-w-[180px] space-y-1 bg-gray-50 dark:bg-gray-700/30 p-2 rounded-md border border-gray-100 dark:border-gray-600">
+                <div className="min-w-[180px] space-y-1 bg-gray-50 dark:bg-gray-700/30 p-2 rounded-lg border border-gray-100 dark:border-gray-600 hover:bg-blue-50/70 dark:hover:bg-sky-950/30 hover:border-blue-300/80 dark:hover:border-sky-500/50 hover:shadow-sm transition-all duration-200">
                   <div className="flex justify-between text-[10px] font-bold text-gray-500 uppercase">
                     <span>Diário {dailyScheduleInfo?.type ? `(${dailyScheduleInfo.type})` : ''}</span>
                     <span className="text-blue-600 dark:text-blue-400">
@@ -658,7 +658,7 @@ const LoadTable: React.FC<LoadTableProps> = ({ loads, clients, products, shipmen
                   <div className="text-right flex flex-col items-end space-y-0.5">
                     <div className="text-[9px] text-gray-400 uppercase font-bold tracking-wider">FRETE</div>
                     {currentUser.profile === UserProfile.Cliente ? (
-                      <div className="text-sm font-bold text-primary dark:text-blue-400">
+                      <div className="text-sm font-bold text-primary dark:text-blue-400 px-1.5 py-0.5 -mx-1.5 rounded-md hover:bg-blue-50 dark:hover:bg-sky-950/30 transition-colors">
                         {load.companyFreightValuePerTon > 0 
                           ? `${formatCurrency(load.companyFreightValuePerTon)}${hasCompanyToll ? ' + Ped' : ''}` 
                           : 'A combinar'}
@@ -666,7 +666,7 @@ const LoadTable: React.FC<LoadTableProps> = ({ loads, clients, products, shipmen
                     ) : (
                       <div className="flex flex-col items-end gap-1">
                         {/* PJ Freight */}
-                        <div className="flex items-center justify-end gap-1">
+                        <div className="flex items-center justify-end gap-1 px-1.5 py-0.5 -mx-1.5 rounded-md hover:bg-emerald-50/80 dark:hover:bg-emerald-950/35 transition-colors">
                           <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">PJ</span>
                           <span className="text-xs font-extrabold text-emerald-700 dark:text-emerald-300">
                             {totalDriverFreightPj > 0 
@@ -681,7 +681,7 @@ const LoadTable: React.FC<LoadTableProps> = ({ loads, clients, products, shipmen
                         </div>
 
                         {/* PF Freight */}
-                        <div className="flex items-center justify-end gap-1">
+                        <div className="flex items-center justify-end gap-1 px-1.5 py-0.5 -mx-1.5 rounded-md hover:bg-orange-50/80 dark:hover:bg-orange-950/35 transition-colors">
                           <span className="text-[10px] font-bold text-orange-600 dark:text-orange-400">PF</span>
                           {isPfDisabled ? (
                             <span className="text-xs font-semibold text-gray-400 dark:text-gray-500 italic">Desabilitado</span>
@@ -707,7 +707,7 @@ const LoadTable: React.FC<LoadTableProps> = ({ loads, clients, products, shipmen
                   <div className="relative">
                     <button
                       onClick={() => setOpenActionMenu(openActionMenu === load.id ? null : load.id)}
-                      className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 transition-colors border border-gray-200 dark:border-gray-600"
+                      className="p-2 rounded-lg hover:bg-blue-50 dark:hover:bg-sky-500/20 text-gray-500 hover:text-primary dark:hover:text-sky-300 transition-all duration-200 border border-gray-200 dark:border-gray-600 hover:border-primary/60 dark:hover:border-sky-400/60 hover:scale-105 hover:shadow-md cursor-pointer"
                     >
                       <PlusIcon className="h-4 w-4" />
                     </button>

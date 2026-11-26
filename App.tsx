@@ -52,6 +52,7 @@ const ShipperCoursePage = React.lazy(() => import('./pages/ShipperCoursePage'));
 
 // Component Imports
 import TopNavBar from './components/TopNavBar';
+import InteractiveCursorLayer from './components/InteractiveCursorLayer';
 import TicketModal from './components/TicketModal';
 import PasswordChangeModal from './components/PasswordChangeModal';
 import DriverPortal from './components/DriverPortal';
@@ -5298,6 +5299,7 @@ const App: React.FC = () => {
       )}
 
 
+      <InteractiveCursorLayer />
     </div>
   );
 };

@@ -342,7 +342,7 @@ const TopNavBar: React.FC<TopNavBarProps> = ({
                                             <div className="mt-1 normal-case font-normal text-sm space-y-0.5">
                                               {child.children.map(grandChild => (
                                                 <a key={grandChild.id} href="#" onClick={(e) => { e.preventDefault(); handlePageSelect(grandChild.id as Page); }}
-                                                   className={`flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all ${currentPage === grandChild.id ? 'text-white bg-blue-600 shadow-sm' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/80'}`}
+                                                   className={`flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-150 ${currentPage === grandChild.id ? 'text-white bg-blue-600 shadow-sm' : 'text-slate-700 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-slate-800/90 hover:translate-x-1 hover:text-primary dark:hover:text-sky-300'}`}
                                                 >
                                                    <grandChild.icon className="w-4 h-4" />
                                                    {grandChild.label}
@@ -354,7 +354,7 @@ const TopNavBar: React.FC<TopNavBarProps> = ({
                                       }
                                       return (
                                         <a key={child.id} href="#" onClick={(e) => { e.preventDefault(); handlePageSelect(child.id as Page); }}
-                                           className={`flex items-center justify-between px-3.5 py-2 mx-1 rounded-xl text-sm font-medium transition-all ${currentPage === child.id ? 'text-white bg-blue-600 shadow-sm' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/80'}`}
+                                           className={`flex items-center justify-between px-3.5 py-2 mx-1 rounded-xl text-sm font-medium transition-all duration-150 ${currentPage === child.id ? 'text-white bg-blue-600 shadow-sm' : 'text-slate-700 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-slate-800/90 hover:translate-x-1 hover:text-primary dark:hover:text-sky-300'}`}
                                         >
                                            <div className="flex items-center gap-3 min-w-0">
                                              <child.icon className="w-4 h-4 shrink-0 text-blue-500 dark:text-blue-400" />
