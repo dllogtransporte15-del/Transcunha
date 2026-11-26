@@ -2,7 +2,7 @@
  * Sintetizador de áudio Web Audio API para alertas do sistema.
  * Não requer arquivos externos de áudio e funciona em todos os navegadores.
  */
-export function playAlertSound(type: 'warning' | 'critical' | 'order' = 'warning') {
+export function playAlertSound(type: 'warning' | 'critical' | 'order' | 'email' = 'warning') {
   try {
     const isMuted = localStorage.getItem('transcunha_audio_muted') === 'true';
     if (isMuted) return;
@@ -12,7 +12,26 @@ export function playAlertSound(type: 'warning' | 'critical' | 'order' = 'warning
 
     const ctx = new AudioContextClass();
 
-    if (type === 'critical') {
+    if (type === 'email') {
+      // Toque cristalino e distinto de chegada de novo e-mail (E5 -> B5 -> E6)
+      const notes = [659.25, 987.77, 1318.51];
+      notes.forEach((freq, idx) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, ctx.currentTime + idx * 0.09);
+
+        gain.gain.setValueAtTime(0.24, ctx.currentTime + idx * 0.09);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + idx * 0.09 + 0.35);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        osc.start(ctx.currentTime + idx * 0.09);
+        osc.stop(ctx.currentTime + idx * 0.09 + 0.35);
+      });
+    } else if (type === 'critical') {
       // Som triplo de alarme agudo de alta prioridade (880Hz -> 1174Hz -> 1318Hz)
       const notes = [880, 1174.66, 1318.51];
       notes.forEach((freq, idx) => {

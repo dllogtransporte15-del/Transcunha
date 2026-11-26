@@ -814,74 +814,71 @@ class CorporateEmailService {
 
     let messageId: string | undefined;
 
-    // Se houver senha de app, tenta envio real via /api/send-email
-    if (appPassword && appPassword.trim()) {
-      const allTo = to.filter(Boolean).join(', ');
-      const allCc = cc && cc.length > 0 ? cc.filter(Boolean).join(', ') : undefined;
-      const savedAuthUser =
-        typeof window !== 'undefined'
-          ? localStorage.getItem('transcunha_gworkspace_sender_email')
-          : null;
-      const authUser = (savedAuthUser && savedAuthUser.trim()) || accountEmail;
+    // Tenta envio real via /api/send-email (usa appPassword local ou GWORKSPACE_APP_PASSWORD do servidor)
+    const effectivePass = (appPassword || (typeof window !== 'undefined' ? localStorage.getItem('transcunha_gworkspace_app_password') : '') || '').replace(/\s+/g, '').trim();
+    const allTo = to.filter(Boolean).join(', ');
+    const allCc = cc && cc.length > 0 ? cc.filter(Boolean).join(', ') : undefined;
+    const savedAuthUser =
+      typeof window !== 'undefined'
+        ? localStorage.getItem('transcunha_gworkspace_sender_email')
+        : null;
+    const authUser = (savedAuthUser && savedAuthUser.trim()) || accountEmail;
 
-      const res = await fetch('/api/send-email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          to: allTo,
-          cc: allCc,
-          subject,
-          html: bodyHtml,
-          text: bodyText,
-          senderEmail: accountEmail,
-          authUser,
-          senderName,
-          appPassword: appPassword.replace(/\s+/g, ''),
-          attachments: attachments.map(a => ({
-            filename: a.filename,
-            url: a.url,
-            base64: a.base64,
-            contentType: a.contentType || 'application/pdf',
-          })),
-        }),
-      });
+    const res = await fetch('/api/send-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        to: allTo,
+        cc: allCc,
+        subject,
+        html: bodyHtml,
+        text: bodyText,
+        senderEmail: accountEmail,
+        authUser,
+        senderName,
+        ...(effectivePass ? { appPassword: effectivePass } : {}),
+        attachments: attachments.map(a => ({
+          filename: a.filename,
+          url: a.url,
+          base64: a.base64,
+          contentType: a.contentType || 'application/pdf',
+        })),
+      }),
+    });
 
-      const rawText = await res.text();
-      let json: any = null;
-      try {
-        json = JSON.parse(rawText || '{}');
-      } catch {
-        if (!res.ok) {
-          throw new Error(`Falha no servidor (${res.status}): ${rawText.substring(0, 150)}`);
-        }
-        throw new Error(
-          'O servidor de envio (/api/send-email) não retornou uma resposta JSON válida. Verifique se a API está ativa neste ambiente.'
-        );
-      }
-
+    const rawText = await res.text();
+    let json: any = null;
+    try {
+      json = JSON.parse(rawText || '{}');
+    } catch {
       if (!res.ok) {
-        const errMsg = json?.error || 'Erro no servidor de envio ao disparar e-mail';
-        const userHelp = json?.userHelp ? `\n\n👉 Dica: ${json.userHelp}` : '';
-        throw new Error(`${errMsg}${userHelp}`);
+        throw new Error(`Falha no servidor (${res.status}): ${rawText.substring(0, 150)}`);
       }
-
-      if (!json?.success || !json?.messageId) {
-        throw new Error(
-          json?.error ||
-            'O servidor não confirmou o disparo do e-mail (messageId ausente).'
-        );
-      }
-
-      if (Array.isArray(json?.rejected) && json.rejected.length > 0) {
-        if (!json.accepted || json.accepted.length === 0) {
-          throw new Error(`O servidor SMTP rejeitou o envio para: ${json.rejected.join(', ')}`);
-        }
-      }
-
-      messageId = json.messageId;
-    } else {
-      throw new Error('A Senha de App do Google Workspace não foi informada. Por favor, preencha a Senha de App de 16 caracteres para que o e-mail seja disparado efetivamente.');
+      throw new Error(
+        'O servidor de envio (/api/send-email) não retornou uma resposta JSON válida. Verifique se a API está ativa neste ambiente.'
+      );
     }
+
+    if (!res.ok) {
+      const errMsg = json?.error || 'Erro no servidor de envio ao disparar e-mail';
+      const userHelp = json?.userHelp ? `\n\n👉 Dica: ${json.userHelp}` : '';
+      throw new Error(`${errMsg}${userHelp}`);
+    }
+
+    if (!json?.success || !json?.messageId) {
+      throw new Error(
+        json?.error ||
+          'O servidor não confirmou o disparo do e-mail (messageId ausente).'
+      );
+    }
+
+    if (Array.isArray(json?.rejected) && json.rejected.length > 0) {
+      if (!json.accepted || json.accepted.length === 0) {
+        throw new Error(`O servidor SMTP rejeitou o envio para: ${json.rejected.join(', ')}`);
+      }
+    }
+
+    messageId = json.messageId;
 
     // Salva na pasta 'sent' (Enviados)
     const newMsg: CorporateEmailMessage = {
@@ -1152,10 +1149,6 @@ class CorporateEmailService {
         .replace(/\s+/g, '')
         .trim();
 
-      if (!appPassword) {
-        return { synced: 0, newUnread: 0, error: 'MISSING_APP_PASSWORD' };
-      }
-
       const sessionUser = this.getCurrentSessionUser();
       const email = (
         options?.email ||
@@ -1171,14 +1164,17 @@ class CorporateEmailService {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email,
-          appPassword,
+          ...(appPassword ? { appPassword } : {}),
           folder,
-          limit: options?.limit || 25,
+          limit: options?.limit || 30,
         }),
       });
 
       const json = await res.json().catch(() => ({}));
       if (!res.ok || !json?.success || !Array.isArray(json.messages)) {
+        if (json?.code === 'MISSING_APP_PASSWORD') {
+          return { synced: 0, newUnread: 0, error: 'MISSING_APP_PASSWORD' };
+        }
         return {
           synced: 0,
           newUnread: 0,
@@ -1187,9 +1183,6 @@ class CorporateEmailService {
       }
 
       const incoming: CorporateEmailMessage[] = json.messages;
-      if (incoming.length === 0) {
-        return { synced: 0, newUnread: 0 };
-      }
 
       const currentAll = this.getMessages();
       const existingMap = new Map<string, CorporateEmailMessage>();
@@ -1213,13 +1206,8 @@ class CorporateEmailService {
         });
       }
 
-      // Remove mensagens mock iniciais se já houver mensagens reais do IMAP na caixa de entrada
-      const merged = Array.from(existingMap.values()).filter(m => {
-        if (m.id.startsWith('msg_00') && incoming.some(im => im.folder === 'inbox')) {
-          return false;
-        }
-        return true;
-      });
+      // Remove mensagens mock iniciais assim que houver conexão real com o IMAP do Google Workspace
+      const merged = Array.from(existingMap.values()).filter(m => !m.id.startsWith('msg_00'));
 
       merged.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 

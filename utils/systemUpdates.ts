@@ -27,6 +27,53 @@ export interface SystemRelease {
  */
 export const SYSTEM_RELEASES: SystemRelease[] = [
   {
+    id: 'rel_2026_11_25_v2_118_29',
+    version: 'v2.118.29',
+    date: '25/11/2026',
+    title: 'Central de Alertas: Aviso Sonoro Automático na Chegada de E-mails',
+    summary: 'A Central de Alertas agora monitora a Caixa de Entrada em segundo plano e emite um toque sonoro exclusivo sempre que um novo e-mail chega na conta corporativa.',
+    items: [
+      {
+        category: 'feature',
+        title: 'Alerta Sonoro Dedicado para Novos E-mails',
+        description: 'Adicionado toque sonoro específico na Central de Alertas (NotificationBell) ao detectar novos e-mails não lidos na Caixa de Entrada, com sincronização automática a cada 30 segundos em qualquer tela do sistema.'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_25_v2_118_28',
+    version: 'v2.118.28',
+    date: '25/11/2026',
+    title: 'Webmail: Campo de Resposta Limpo (Sem Citação Automática)',
+    summary: 'Removida a inserção automática do texto citado da mensagem anterior ao clicar em Responder ou Responder a Todos no Webmail.',
+    items: [
+      {
+        category: 'improvement',
+        title: 'Resposta Limpa no Webmail',
+        description: 'Ao responder um e-mail, o campo de mensagem agora abre totalmente em branco para digitação direta.'
+      }
+    ]
+  },
+  {
+    id: 'rel_2026_11_25_v2_118_27',
+    version: 'v2.118.27',
+    date: '25/11/2026',
+    title: 'Webmail Corporativo: Sincronização Direta com Google Workspace (Entrada & Enviados)',
+    summary: 'Aprimorada a integração do Webmail Corporativo (/webmail) para sincronizar automaticamente Caixa de Entrada e Itens Enviados com o Google Workspace oficial via variáveis de servidor ou Senha de App configurada na janela.',
+    items: [
+      {
+        category: 'improvement',
+        title: 'Suporte a Credenciais no Servidor e na Janela Webmail',
+        description: 'O Webmail agora utiliza automaticamente GWORKSPACE_APP_PASSWORD do servidor quando configurada, além de permitir configurar a conta e Senha de App diretamente pela janela externa.'
+      },
+      {
+        category: 'feature',
+        title: 'Sincronização Real de Entrada e Enviados',
+        description: 'Ao conectar com o Google Workspace, mensagens de demonstração são removidas automaticamente e as pastas Caixa de Entrada e Enviados passam a refletir os e-mails reais.'
+      }
+    ]
+  },
+  {
     id: 'rel_2026_11_25_v2_118_26',
     version: 'v2.118.26',
     date: '25/11/2026',

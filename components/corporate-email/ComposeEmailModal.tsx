@@ -147,7 +147,7 @@ export const ComposeEmailModal: React.FC<ComposeEmailModalProps> = ({
           setShowCc(false);
         }
         setSubject(replyToMessage.subject.startsWith('Re:') ? replyToMessage.subject : `Re: ${replyToMessage.subject}`);
-        setBody(`\n\n--------------------------------------------------\nEm ${new Date(replyToMessage.date).toLocaleString('pt-BR')}, ${replyToMessage.fromName} <${replyToMessage.from}> escreveu:\n\n${replyToMessage.bodyText}`);
+        setBody('');
       } else if (initialMode === 'forward') {
         setTo('');
         setCc('');

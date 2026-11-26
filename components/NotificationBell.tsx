@@ -81,11 +81,19 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
 
   const dropdownRef = useRef<HTMLDivElement>(null);
   const lastAlertIdsRef = useRef<Set<string>>(new Set());
+  const lastEmailSoundAtRef = useRef<number>(0);
   const [emailUpdateTrigger, setEmailUpdateTrigger] = useState(0);
 
   useEffect(() => {
-    const handleEmailUpdate = () => {
+    const handleEmailUpdate = (evt: Event) => {
       setEmailUpdateTrigger(prev => prev + 1);
+      if (evt.type === 'transcunha:new_corporate_email' && !isAudioMuted) {
+        const now = Date.now();
+        if (now - lastEmailSoundAtRef.current > 1500) {
+          lastEmailSoundAtRef.current = now;
+          playAlertSound('email');
+        }
+      }
     };
     window.addEventListener('corporate_messages_updated', handleEmailUpdate);
     window.addEventListener('transcunha:new_corporate_email', handleEmailUpdate);
@@ -93,7 +101,25 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
       window.removeEventListener('corporate_messages_updated', handleEmailUpdate);
       window.removeEventListener('transcunha:new_corporate_email', handleEmailUpdate);
     };
-  }, []);
+  }, [isAudioMuted]);
+
+  // Polling em segundo plano da Caixa de Entrada (IMAP Google Workspace) para avisar novos e-mails em qualquer tela
+  useEffect(() => {
+    const isEligible = !isDemo && ![UserProfile.Motorista, UserProfile.Cliente, UserProfile.Embarcador].includes(user.profile);
+    if (!isEligible) return;
+
+    const checkInbox = () => {
+      void corporateEmailService.syncFromGmailImap({ folder: 'inbox', limit: 20 });
+    };
+
+    const initialTimer = window.setTimeout(checkInbox, 2500);
+    const intervalId = window.setInterval(checkInbox, 30000);
+
+    return () => {
+      window.clearTimeout(initialTimer);
+      window.clearInterval(intervalId);
+    };
+  }, [user.profile, isDemo]);
 
   // Fechar dropdown ao clicar fora
   useEffect(() => {
@@ -469,17 +495,24 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
     }
 
     const currentIds = new Set(activeAlerts.map(a => a.id));
-    let hasNewAlert = false;
-
-    currentIds.forEach(id => {
-      if (!lastAlertIdsRef.current.has(id)) {
-        hasNewAlert = true;
-      }
-    });
+    const newlyAddedAlerts = activeAlerts.filter(a => !lastAlertIdsRef.current.has(a.id));
+    const hasNewAlert = newlyAddedAlerts.length > 0;
 
     if (hasNewAlert && !isAudioMuted) {
-      const highestUrgency = criticalCount > 0 ? 'critical' : (activeAlerts.some(a => a.type === 'order_request') ? 'order' : 'warning');
-      playAlertSound(highestUrgency);
+      const hasNewEmail = newlyAddedAlerts.some(a => a.type === 'corporate_email');
+      const hasNewCritical = newlyAddedAlerts.some(a => a.urgency === 'critical' && a.type !== 'corporate_email');
+      const hasNewOrder = newlyAddedAlerts.some(a => a.type === 'order_request');
+
+      if (hasNewEmail && !hasNewCritical) {
+        const now = Date.now();
+        if (now - lastEmailSoundAtRef.current > 1500) {
+          lastEmailSoundAtRef.current = now;
+          playAlertSound('email');
+        }
+      } else {
+        const highestUrgency = hasNewCritical || criticalCount > 0 ? 'critical' : (hasNewOrder ? 'order' : 'warning');
+        playAlertSound(highestUrgency);
+      }
     }
 
     lastAlertIdsRef.current = currentIds;

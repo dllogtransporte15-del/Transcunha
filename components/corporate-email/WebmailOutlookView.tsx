@@ -90,6 +90,9 @@ export const WebmailOutlookView: React.FC<WebmailOutlookViewProps> = ({
   const [targetMessageForCompose, setTargetMessageForCompose] = useState<CorporateEmailMessage | null>(null);
   const [isSyncingImap, setIsSyncingImap] = useState<boolean>(false);
   const [imapStatusText, setImapStatusText] = useState<string>('Google Workspace Online');
+  const [isImapModalOpen, setIsImapModalOpen] = useState<boolean>(false);
+  const [imapEmailInput, setImapEmailInput] = useState<string>(() => (typeof window !== 'undefined' ? localStorage.getItem('transcunha_gworkspace_sender_email') : null) || 'contato@transcunhaoficial.com.br');
+  const [imapPassInput, setImapPassInput] = useState<string>(() => (typeof window !== 'undefined' ? localStorage.getItem('transcunha_gworkspace_app_password') : null) || '');
 
   const syncWithGmailImap = React.useCallback(async (folderToSync: CorporateEmailFolder, silent = true) => {
     setIsSyncingImap(true);
@@ -128,8 +131,11 @@ export const WebmailOutlookView: React.FC<WebmailOutlookViewProps> = ({
       setRefreshTrigger(prev => prev + 1);
     });
 
-    // Sincronização inicial imediata + polling em tempo real a cada 15s com o Gmail IMAP
+    // Sincronização inicial imediata (Entrada + Enviados) + polling em tempo real a cada 15s com o Gmail IMAP
     void syncWithGmailImap(currentFolder, true);
+    if (currentFolder !== 'sent') {
+      void syncWithGmailImap('sent', true);
+    }
     const imapInterval = setInterval(() => {
       void syncWithGmailImap(currentFolder, true);
     }, 15000);
@@ -388,12 +394,23 @@ export const WebmailOutlookView: React.FC<WebmailOutlookViewProps> = ({
 
         {/* Status de Conexão e Atalhos de Configurações */}
         <div className="p-3 border-t border-slate-200 dark:border-slate-800 space-y-2 bg-slate-100/50 dark:bg-slate-900/40">
-          <div className="flex items-center gap-2 text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
-            <span className={`w-2 h-2 rounded-full ${isSyncingImap ? 'bg-blue-500 animate-ping' : 'bg-emerald-500 animate-pulse'}`} />
+          <button
+            type="button"
+            onClick={() => setIsImapModalOpen(true)}
+            className={`w-full flex items-center gap-2 text-[11px] font-bold text-left cursor-pointer hover:opacity-80 transition-opacity ${
+              imapStatusText.includes('Configure')
+                ? 'text-amber-500 dark:text-amber-400'
+                : 'text-emerald-600 dark:text-emerald-400'
+            }`}
+            title="Clique para configurar a conta e Senha de App do Google Workspace"
+          >
+            <span className={`w-2 h-2 rounded-full shrink-0 ${
+              isSyncingImap ? 'bg-blue-500 animate-ping' : imapStatusText.includes('Configure') ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500 animate-pulse'
+            }`} />
             <span className="truncate" title={imapStatusText}>{imapStatusText}</span>
-          </div>
+          </button>
           <p className="text-[10px] text-slate-500">
-            SSL 465 (smtp.gmail.com)
+            SSL 465 / IMAP 993 (Google Workspace)
           </p>
 
           <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs">
@@ -406,14 +423,13 @@ export const WebmailOutlookView: React.FC<WebmailOutlookViewProps> = ({
                 Assinaturas
               </button>
             )}
-            {onOpenServerConfig && (
-              <button
-                onClick={onOpenServerConfig}
-                className="text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 text-[11px] font-bold cursor-pointer"
-              >
-                Servidor
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => (onOpenServerConfig ? onOpenServerConfig() : setIsImapModalOpen(true))}
+              className="text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 text-[11px] font-bold cursor-pointer"
+            >
+              {onOpenServerConfig ? 'Servidor' : 'Configurar Conta'}
+            </button>
           </div>
         </div>
 
@@ -770,6 +786,93 @@ export const WebmailOutlookView: React.FC<WebmailOutlookViewProps> = ({
         replyToMessage={targetMessageForCompose}
         onSuccess={() => setRefreshTrigger(c => c + 1)}
       />
+
+      {/* Modal Rápido de Conexão Google Workspace (IMAP / SMTP) */}
+      {isImapModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4" role="dialog">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-700 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+              <div>
+                <h3 className="text-base font-black text-slate-900 dark:text-white">
+                  Conectar Google Workspace Oficial
+                </h3>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Sincronize e-mails reais de Entrada e Enviados via IMAP/SMTP
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsImapModalOpen(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  E-mail Oficial Google Workspace
+                </label>
+                <input
+                  type="email"
+                  value={imapEmailInput}
+                  onChange={(e) => setImapEmailInput(e.target.value)}
+                  placeholder="contato@transcunhaoficial.com.br"
+                  className="w-full px-3 py-2 rounded-xl text-xs border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Senha de App do Google (16 caracteres)
+                </label>
+                <input
+                  type="password"
+                  value={imapPassInput}
+                  onChange={(e) => setImapPassInput(e.target.value)}
+                  placeholder="xxxx xxxx xxxx xxxx"
+                  className="w-full px-3 py-2 rounded-xl text-xs border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white outline-none font-mono"
+                />
+                <p className="text-[10px] text-slate-500 mt-1">
+                  Gere em: Conta Google → Segurança → Verificação em 2 etapas → Senhas de app.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setIsImapModalOpen(false)}
+                className="px-4 py-2 rounded-xl text-xs font-bold border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  const cleanEmail = imapEmailInput.trim() || 'contato@transcunhaoficial.com.br';
+                  const cleanPass = imapPassInput.replace(/\s+/g, '').trim();
+                  localStorage.setItem('transcunha_gworkspace_sender_email', cleanEmail);
+                  if (cleanPass) {
+                    localStorage.setItem('transcunha_gworkspace_app_password', cleanPass);
+                  } else {
+                    localStorage.removeItem('transcunha_gworkspace_app_password');
+                  }
+                  setIsImapModalOpen(false);
+                  await Promise.all([
+                    syncWithGmailImap('inbox', false),
+                    syncWithGmailImap('sent', true),
+                  ]);
+                }}
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-600/25 cursor-pointer"
+              >
+                Salvar e Sincronizar Agora
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
