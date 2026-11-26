@@ -27,6 +27,20 @@ export interface SystemRelease {
  */
 export const SYSTEM_RELEASES: SystemRelease[] = [
   {
+    id: 'rel_2026_11_26_v2_118_30',
+    version: 'v2.118.30',
+    date: '26/11/2026',
+    title: 'Correção do Menu de Ações (+) nos Cards de Cargas no Mobile',
+    summary: 'Corrigido o recorte visual do menu suspenso ao clicar no botão "+" dos cards de cargas, garantindo acesso completo às opções como "Novo Embarque" e "Histórico" no celular e desktop.',
+    items: [
+      {
+        category: 'fix',
+        title: 'Menu Suspenso (+) Visível Fora do Card',
+        description: 'Removido o bloqueio de overflow no card de cargas e elevada a prioridade de camada (z-index) quando o menu está aberto, evitando que opções como "Novo Embarque" fiquem cortadas em telas mobile.'
+      }
+    ]
+  },
+  {
     id: 'rel_2026_11_25_v2_118_29',
     version: 'v2.118.29',
     date: '25/11/2026',

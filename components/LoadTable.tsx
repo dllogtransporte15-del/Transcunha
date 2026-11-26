@@ -45,6 +45,22 @@ interface LoadTableProps {
 const LoadTable: React.FC<LoadTableProps> = ({ loads, clients, products, shipments, dailyBalanceDate, onDailyBalanceDateChange, onCreateShipment, onSuspend, onReactivate, onFinalize, onEdit, onClose, onShowHistory, onShowDetails, onEditSchedule, onShowShipments, onRecommendDrivers, onDelete, onRequestLoadOrder, onSaveLoad, currentUser, stays = [], tickets = [], onFilteredLoadsChange }) => {
   const isDemo = isDemoUser(currentUser);
   const [openActionMenu, setOpenActionMenu] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!openActionMenu) return;
+    const handleClickOutside = (e: MouseEvent | TouchEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (!target?.closest('[data-action-menu]')) {
+        setOpenActionMenu(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [openActionMenu]);
   const [tmsModalCargo, setTmsModalCargo] = useState<Cargo | null>(null);
   const [tmsLoteInput, setTmsLoteInput] = useState<string>('');
 
@@ -360,8 +376,10 @@ const LoadTable: React.FC<LoadTableProps> = ({ loads, clients, products, shipmen
           const marginPf = (totalCompanyFreightWithEstadias > 0) ? (netProfitPf / totalCompanyFreightWithEstadias) * 100 : 0;
           const netMarginPercentagePf = isNaN(marginPf) || !isFinite(marginPf) ? '0,00%' : `${marginPf.toFixed(2).replace('.', ',')}%`;
 
+          const isMenuOpen = openActionMenu === load.id;
+
           return (
-            <div key={load.id} className="interactive-spotlight group/card bg-white dark:bg-gray-800/95 rounded-xl shadow-sm hover:shadow-xl hover:shadow-blue-900/10 dark:hover:shadow-sky-950/35 border border-gray-100 dark:border-gray-700/80 hover:border-primary/45 dark:hover:border-sky-400/45 hover:-translate-y-0.5 transition-all duration-200">
+            <div key={load.id} className={`interactive-spotlight !overflow-visible group/card bg-white dark:bg-gray-800/95 rounded-xl shadow-sm hover:shadow-xl hover:shadow-blue-900/10 dark:hover:shadow-sky-950/35 border border-gray-100 dark:border-gray-700/80 hover:border-primary/45 dark:hover:border-sky-400/45 hover:-translate-y-0.5 transition-all duration-200 ${isMenuOpen ? 'z-30' : ''}`}>
               <div className="flex flex-col lg:flex-row lg:items-center p-4 gap-4">
                 {/* ID and Status */}
                 <div className="flex items-center gap-3 min-w-[120px]">
@@ -704,7 +722,7 @@ const LoadTable: React.FC<LoadTableProps> = ({ loads, clients, products, shipmen
                     )}
                   </div>
 
-                  <div className="relative">
+                  <div className="relative" data-action-menu="true">
                     <button
                       onClick={() => setOpenActionMenu(openActionMenu === load.id ? null : load.id)}
                       className="p-2 rounded-lg hover:bg-blue-50 dark:hover:bg-sky-500/20 text-gray-500 hover:text-primary dark:hover:text-sky-300 transition-all duration-200 border border-gray-200 dark:border-gray-600 hover:border-primary/60 dark:hover:border-sky-400/60 hover:scale-105 hover:shadow-md cursor-pointer"
