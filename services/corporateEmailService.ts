@@ -1225,6 +1225,113 @@ class CorporateEmailService {
     }
   }
 
+  /**
+   * Faz o download real de um anexo (base64 em memória, URL direta ou sob demanda via IMAP).
+   */
+  async downloadAttachment(
+    message: CorporateEmailMessage,
+    attachment: CorporateEmailAttachment
+  ): Promise<{ success: boolean; error?: string }> {
+    const triggerBlobDownload = (blob: Blob, filename: string) => {
+      const blobUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = filename || 'anexo';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 1500);
+    };
+
+    const base64ToBlob = (b64: string, contentType: string): Blob => {
+      const cleanBase64 = b64.includes(',') ? b64.split(',')[1] : b64;
+      const byteCharacters = atob(cleanBase64);
+      const byteArray = new Uint8Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteArray[i] = byteCharacters.charCodeAt(i);
+      }
+      return new Blob([byteArray], { type: contentType || 'application/octet-stream' });
+    };
+
+    try {
+      if (attachment.base64) {
+        triggerBlobDownload(base64ToBlob(attachment.base64, attachment.contentType), attachment.filename);
+        return { success: true };
+      }
+
+      if (attachment.url) {
+        try {
+          const resp = await fetch(attachment.url);
+          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          const blob = await resp.blob();
+          triggerBlobDownload(blob, attachment.filename);
+          return { success: true };
+        } catch {
+          window.open(attachment.url, '_blank', 'noopener,noreferrer');
+          return { success: true };
+        }
+      }
+
+      const attMatch = attachment.id?.match(/^imap_att_(\d+)_(\d+)$/);
+      const msgUidMatch = message.id?.match(/_(\d+)$/);
+      const uid = attMatch ? Number(attMatch[1]) : msgUidMatch ? Number(msgUidMatch[1]) : NaN;
+      const attachmentIndex = attMatch ? Number(attMatch[2]) : 0;
+
+      if (!message.id?.startsWith('imap_') && !attMatch) {
+        return {
+          success: false,
+          error: 'Este anexo de demonstração não possui arquivo físico disponível.',
+        };
+      }
+
+      if (!uid || isNaN(uid)) {
+        return { success: false, error: 'Não foi possível identificar o UID da mensagem no servidor.' };
+      }
+
+      const appPassword = (localStorage.getItem('transcunha_gworkspace_app_password') || '')
+        .replace(/\s+/g, '')
+        .trim();
+      const sessionUser = this.getCurrentSessionUser();
+      const email = (
+        message.accountEmail ||
+        localStorage.getItem('transcunha_gworkspace_sender_email') ||
+        sessionUser?.corporateEmail ||
+        'contato@transcunhaoficial.com.br'
+      ).trim();
+
+      const res = await fetch('/api/fetch-emails', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'download_attachment',
+          email,
+          ...(appPassword ? { appPassword } : {}),
+          folder: message.folder || 'inbox',
+          uid,
+          attachmentIndex,
+          filename: attachment.filename,
+        }),
+      });
+
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json?.success || !json?.base64) {
+        return {
+          success: false,
+          error: json?.userHelp || json?.error || `Falha ao baixar anexo (${res.status})`,
+        };
+      }
+
+      const blob = base64ToBlob(json.base64, json.contentType || attachment.contentType);
+      triggerBlobDownload(blob, json.filename || attachment.filename);
+      return { success: true };
+    } catch (err: any) {
+      return {
+        success: false,
+        error: err?.message || 'Erro inesperado ao baixar o anexo.',
+      };
+    }
+  }
+
   private getRealtimeChannel(): ReturnType<typeof supabase.channel> {
     if (!emailRealtimeChannel) {
       emailRealtimeChannel = supabase.channel(CORPORATE_EMAIL_REALTIME_CHANNEL, {

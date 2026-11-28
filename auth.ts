@@ -81,7 +81,7 @@ export const INITIAL_PERMISSIONS: ProfilePermissions = {
   [UserProfile.Diretor]: createPermissions(supervisorAndDiretorPages, true),
   [UserProfile.Motorista]: createPermissions(['operational-loads', 'shipment-history'], true),
   [UserProfile.GerenciadoraDeRisco]: createPermissionsWithoutDelete(gerenciadoraDeRiscoPages),
-  [UserProfile.Demonstracao]: createPermissions(allPages, true),
+  [UserProfile.Demonstracao]: createPermissions(allPages.filter(p => p !== 'corporate-email'), true),
 };
 
 if (INITIAL_PERMISSIONS[UserProfile.Fiscal] && INITIAL_PERMISSIONS[UserProfile.Fiscal]!['shipments']) {
@@ -187,8 +187,9 @@ export const can = (
 ): boolean => {
   if (!user) return false;
   
-  // Demonstracao / Demo user can ONLY read (all pages), never create, update or delete
+  // Demonstracao / Demo user can ONLY read (except restricted corporate-email), never create, update or delete
   if (isDemoUser(user)) {
+    if (page === 'corporate-email') return false;
     return action === 'read';
   }
 

@@ -13,8 +13,12 @@ import {
   TrendingUp, 
   Landmark,
   FileText,
-  ShieldCheck
+  ShieldCheck,
+  ShieldAlert,
+  Lock
 } from 'lucide-react';
+import { isDemoUser } from '../auth';
+import { useToast } from '../hooks/useToast';
 
 import { AccountsPayableTab } from '../components/financial/AccountsPayableTab';
 import { AccountsReceivableTab } from '../components/financial/AccountsReceivableTab';
@@ -65,6 +69,8 @@ export const FinancialPage: React.FC<FinancialPageProps> = ({
   owners = [],
   stays = [],
 }) => {
+  const { showToast } = useToast();
+  const isDemo = isDemoUser(_currentUser);
   const [searchParams, setSearchParams] = useSearchParams();
   const urlTab = searchParams.get('tab') as FinancialTab | null;
 
@@ -89,6 +95,7 @@ export const FinancialPage: React.FC<FinancialPageProps> = ({
 
   // State: Bank Accounts - Apenas saldos reais vindo do banco/integração (R$ 0,00 caso vazio)
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>(() => {
+    if (isDemoUser(_currentUser)) return [];
     try {
       const saved = localStorage.getItem(STORAGE_ACCOUNTS_KEY);
       if (saved) {
@@ -108,6 +115,7 @@ export const FinancialPage: React.FC<FinancialPageProps> = ({
 
   // State: Transactions
   const [transactions, setTransactions] = useState<FinancialTransaction[]>(() => {
+    if (isDemoUser(_currentUser)) return [];
     try {
       const saved = localStorage.getItem(STORAGE_TRANSACTIONS_KEY);
       if (saved) {
@@ -239,25 +247,39 @@ export const FinancialPage: React.FC<FinancialPageProps> = ({
     return initialT;
   });
 
+  // Notificação automática para perfil Demonstração ao acessar o módulo Financeiro
+  useEffect(() => {
+    if (isDemo) {
+      showToast(
+        'Área restrita: o módulo Financeiro contém dados particulares da empresa. O histórico e os valores reais estão ocultos para o perfil Demonstração, mas você pode visualizar todas as funções.',
+        'warning',
+        8000
+      );
+    }
+  }, [isDemo, showToast]);
+
   // Sync to local storage
   useEffect(() => {
+    if (isDemo) return;
     try {
       localStorage.setItem(STORAGE_ACCOUNTS_KEY, JSON.stringify(bankAccounts));
     } catch (e) {
       console.error(e);
     }
-  }, [bankAccounts]);
+  }, [bankAccounts, isDemo]);
 
   useEffect(() => {
+    if (isDemo) return;
     try {
       localStorage.setItem(STORAGE_TRANSACTIONS_KEY, JSON.stringify(transactions));
     } catch (e) {
       console.error(e);
     }
-  }, [transactions]);
+  }, [transactions, isDemo]);
 
   // Carrega transações compartilhadas na nuvem (Supabase row 890) e escuta em Tempo Real
   useEffect(() => {
+    if (isDemo) return;
     let isMounted = true;
 
     const loadRemoteTransactions = async () => {
@@ -298,6 +320,10 @@ export const FinancialPage: React.FC<FinancialPageProps> = ({
 
   // Financial Handlers
   const handleAddTransaction = (t: Omit<FinancialTransaction, 'id' | 'createdAt'>) => {
+    if (isDemo) {
+      showToast('Acesso restrito: alterações financeiras não são permitidas no perfil Demonstração.', 'warning');
+      return;
+    }
     const isTax = (t as any).taxType || (t.category && t.category.toLowerCase().includes('imposto'));
     const prefix = isTax ? 'tax' : 'tx';
     const newTx: FinancialTransaction = {
@@ -314,6 +340,10 @@ export const FinancialPage: React.FC<FinancialPageProps> = ({
   };
 
   const handleUpdateStatus = (id: string, status: FinancialTransactionStatus) => {
+    if (isDemo) {
+      showToast('Acesso restrito: alterações financeiras não são permitidas no perfil Demonstração.', 'warning');
+      return;
+    }
     const paymentDate = status === FinancialTransactionStatus.Pago ? new Date().toISOString().split('T')[0] : undefined;
     setTransactions(prev => prev.map(t => {
       if (t.id === id) {
@@ -333,6 +363,10 @@ export const FinancialPage: React.FC<FinancialPageProps> = ({
   };
 
   const handleUpdateTransaction = (id: string, updates: Partial<FinancialTransaction>) => {
+    if (isDemo) {
+      showToast('Acesso restrito: alterações financeiras não são permitidas no perfil Demonstração.', 'warning');
+      return;
+    }
     setTransactions(prev => prev.map(t => {
       if (t.id === id) {
         return {
@@ -350,6 +384,10 @@ export const FinancialPage: React.FC<FinancialPageProps> = ({
   };
 
   const handleDeleteTransaction = (id: string) => {
+    if (isDemo) {
+      showToast('Acesso restrito: alterações financeiras não são permitidas no perfil Demonstração.', 'warning');
+      return;
+    }
     setTransactions(prev => prev.filter(t => t.id !== id));
 
     // Exclui na nuvem Supabase e propaga para todos os usuários
@@ -359,6 +397,10 @@ export const FinancialPage: React.FC<FinancialPageProps> = ({
   };
 
   const handleAddBankAccount = (acc: Omit<BankAccount, 'id' | 'createdAt'>) => {
+    if (isDemo) {
+      showToast('Acesso restrito: alterações financeiras não são permitidas no perfil Demonstração.', 'warning');
+      return;
+    }
     const newAcc: BankAccount = {
       ...acc,
       id: `acc_${Date.now()}`,
@@ -368,8 +410,25 @@ export const FinancialPage: React.FC<FinancialPageProps> = ({
   };
 
   const handleUpdateAccountBalance = (id: string, newBalance: number) => {
+    if (isDemo) {
+      showToast('Acesso restrito: alterações financeiras não são permitidas no perfil Demonstração.', 'warning');
+      return;
+    }
     setBankAccounts(prev => prev.map(a => a.id === id ? { ...a, currentBalance: newBalance } : a));
   };
+
+  // Dados efetivos: no perfil Demonstração, oculta históricos e registros particulares da empresa mantendo todas as funções visíveis
+  const effectiveTransactions = isDemo ? [] : transactions;
+  const effectiveBankAccounts = isDemo ? [] : bankAccounts;
+  const effectiveShipments = isDemo ? [] : shipments;
+  const effectiveCargos = isDemo ? [] : cargos;
+  const effectiveClients = isDemo ? [] : clients;
+  const effectiveUsers = isDemo ? [] : users;
+  const effectiveBranches = isDemo ? [] : branches;
+  const effectiveProducts = isDemo ? [] : products;
+  const effectiveVehicles = isDemo ? [] : vehicles;
+  const effectiveOwners = isDemo ? [] : owners;
+  const effectiveStays = isDemo ? [] : stays;
 
   // High level Financial KPIs
   const summaryKpis = useMemo(() => {
@@ -395,20 +454,20 @@ export const FinancialPage: React.FC<FinancialPageProps> = ({
 
   // Calculations for 1st, 2nd, and 3rd Results + Control Shipments
   const firstLevelResult = useMemo(() => {
-    return calculateFirstResult(shipments, cargos);
-  }, [shipments, cargos]);
+    return calculateFirstResult(effectiveShipments, effectiveCargos);
+  }, [effectiveShipments, effectiveCargos]);
 
   const secondLevelResult = useMemo(() => {
-    return calculateSecondResult(firstLevelResult, transactions);
-  }, [firstLevelResult, transactions]);
+    return calculateSecondResult(firstLevelResult, effectiveTransactions);
+  }, [firstLevelResult, effectiveTransactions]);
 
   const thirdLevelResult = useMemo(() => {
-    return calculateThirdResult(secondLevelResult, transactions);
-  }, [secondLevelResult, transactions]);
+    return calculateThirdResult(secondLevelResult, effectiveTransactions);
+  }, [secondLevelResult, effectiveTransactions]);
 
   const shipmentControlItems = useMemo(() => {
-    return buildShipmentControlSheet(shipments, cargos, clients);
-  }, [shipments, cargos, clients]);
+    return buildShipmentControlSheet(effectiveShipments, effectiveCargos, effectiveClients);
+  }, [effectiveShipments, effectiveCargos, effectiveClients]);
 
   // Tab definitions
   const tabsConfig: { id: FinancialTab; label: string; icon: React.ElementType; badge?: string; group?: string }[] = [
@@ -452,25 +511,25 @@ export const FinancialPage: React.FC<FinancialPageProps> = ({
             <div className="px-3 py-1.5">
               <span className="text-[11px] font-semibold text-slate-400 block uppercase tracking-wider">Saldo Bancário</span>
               <span className="text-base sm:text-lg font-black text-emerald-400">
-                R$ {summaryKpis.totalBankBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {isDemo ? 'R$ ••••••' : `R$ ${summaryKpis.totalBankBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
               </span>
             </div>
             <div className="px-3 py-1.5 border-l border-white/10">
               <span className="text-[11px] font-semibold text-slate-400 block uppercase tracking-wider">A Receber</span>
               <span className="text-base sm:text-lg font-black text-sky-400">
-                R$ {summaryKpis.pendingReceivables.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {isDemo ? 'R$ ••••••' : `R$ ${summaryKpis.pendingReceivables.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
               </span>
             </div>
             <div className="px-3 py-1.5 border-l border-white/10">
               <span className="text-[11px] font-semibold text-slate-400 block uppercase tracking-wider">A Pagar</span>
               <span className="text-base sm:text-lg font-black text-rose-400">
-                R$ {summaryKpis.pendingPayables.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {isDemo ? 'R$ ••••••' : `R$ ${summaryKpis.pendingPayables.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
               </span>
             </div>
             <div className="px-3 py-1.5 border-l border-white/10">
               <span className="text-[11px] font-semibold text-slate-400 block uppercase tracking-wider">Saldo Projetado</span>
               <span className="text-base sm:text-lg font-black text-amber-400">
-                R$ {summaryKpis.projectedCashBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {isDemo ? 'R$ ••••••' : `R$ ${summaryKpis.projectedCashBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
               </span>
             </div>
           </div>
@@ -509,20 +568,38 @@ export const FinancialPage: React.FC<FinancialPageProps> = ({
         </div>
       </div>
 
+      {/* Aviso de Área Restrita para Perfil Demonstração */}
+      {isDemo && (
+        <div className="rounded-2xl border border-amber-300/70 dark:border-amber-700/60 bg-amber-50/90 dark:bg-amber-950/40 p-4 flex items-start gap-3 shadow-sm">
+          <div className="p-2 rounded-xl bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300 shrink-0">
+            <Lock className="w-5 h-5" />
+          </div>
+          <div className="space-y-0.5">
+            <h2 className="text-sm font-bold text-amber-900 dark:text-amber-200 flex items-center gap-1.5">
+              <ShieldAlert className="w-4 h-4 shrink-0" />
+              Campo Restrito — Dados Particulares da Empresa
+            </h2>
+            <p className="text-xs sm:text-sm text-amber-800 dark:text-amber-300/90 leading-relaxed">
+              O módulo <strong>Financeiro</strong> contém informações e históricos particulares da empresa. No perfil <strong>Demonstração</strong>, você pode navegar e visualizar todas as funções, abas e ferramentas disponíveis, porém o histórico de lançamentos, saldos e registros financeiros reais permanece oculto.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Tab Content Display */}
       <div className="transition-all duration-200">
         {(activeTab === 'payables' || activeTab === 'invoices') && (
           <AccountsPayableTab
-            transactions={transactions}
+            transactions={effectiveTransactions}
             onAddTransaction={handleAddTransaction}
             onUpdateStatus={handleUpdateStatus}
             onUpdateTransaction={handleUpdateTransaction}
             onDeleteTransaction={handleDeleteTransaction}
-            shipments={shipments}
-            cargos={cargos}
-            clients={clients}
-            users={users}
-            branches={branches}
+            shipments={effectiveShipments}
+            cargos={effectiveCargos}
+            clients={effectiveClients}
+            users={effectiveUsers}
+            branches={effectiveBranches}
             currentUser={_currentUser}
             initialSection={urlTab === 'invoices' ? 'invoices' : 'all'}
           />
@@ -530,21 +607,21 @@ export const FinancialPage: React.FC<FinancialPageProps> = ({
 
         {activeTab === 'receivables' && (
           <AccountsReceivableTab
-            transactions={transactions}
+            transactions={effectiveTransactions}
             onAddTransaction={handleAddTransaction}
             onUpdateStatus={handleUpdateStatus}
-            shipments={shipments}
-            cargos={cargos}
-            clients={clients}
-            users={users}
+            shipments={effectiveShipments}
+            cargos={effectiveCargos}
+            clients={effectiveClients}
+            users={effectiveUsers}
             currentUser={_currentUser}
           />
         )}
 
         {activeTab === 'ofx' && (
           <OfxReconciliationTab
-            transactions={transactions}
-            bankAccounts={bankAccounts}
+            transactions={effectiveTransactions}
+            bankAccounts={effectiveBankAccounts}
             currentUser={_currentUser}
             onUpdateTransaction={handleUpdateTransaction}
             onAddTransaction={handleAddTransaction}
@@ -557,60 +634,60 @@ export const FinancialPage: React.FC<FinancialPageProps> = ({
         {activeTab === 'result-1' && (
           <FirstResultTab
             data={firstLevelResult}
-            shipments={shipments}
-            cargos={cargos}
-            clients={clients}
-            users={users}
-            branches={branches}
+            shipments={effectiveShipments}
+            cargos={effectiveCargos}
+            clients={effectiveClients}
+            users={effectiveUsers}
+            branches={effectiveBranches}
           />
         )}
 
         {activeTab === 'result-2' && (
           <SecondResultTab
             data={secondLevelResult}
-            shipments={shipments}
-            cargos={cargos}
-            transactions={transactions}
+            shipments={effectiveShipments}
+            cargos={effectiveCargos}
+            transactions={effectiveTransactions}
           />
         )}
 
         {activeTab === 'result-3' && (
           <ThirdResultTab
             data={thirdLevelResult}
-            shipments={shipments}
-            cargos={cargos}
-            transactions={transactions}
+            shipments={effectiveShipments}
+            cargos={effectiveCargos}
+            transactions={effectiveTransactions}
           />
         )}
 
         {activeTab === 'control-shipments' && (
           <ControlShipmentsTab
             items={shipmentControlItems}
-            shipments={shipments}
-            cargos={cargos}
-            clients={clients}
-            users={users}
+            shipments={effectiveShipments}
+            cargos={effectiveCargos}
+            clients={effectiveClients}
+            users={effectiveUsers}
             currentUser={_currentUser}
-            products={products}
-            vehicles={vehicles}
-            owners={owners}
-            branches={branches}
-            stays={stays}
+            products={effectiveProducts}
+            vehicles={effectiveVehicles}
+            owners={effectiveOwners}
+            branches={effectiveBranches}
+            stays={effectiveStays}
             onNavigateToFiscal={() => handleTabChange('control-fiscal')}
           />
         )}
 
         {activeTab === 'control-fiscal' && (
           <ControlFiscalTab
-            branches={branches}
-            clients={clients}
+            branches={effectiveBranches}
+            clients={effectiveClients}
             currentUser={_currentUser}
           />
         )}
 
         {activeTab === 'control-banking' && (
           <ControlBankingTab
-            accounts={bankAccounts}
+            accounts={effectiveBankAccounts}
             onAddAccount={handleAddBankAccount}
             onUpdateAccountBalance={handleUpdateAccountBalance}
           />

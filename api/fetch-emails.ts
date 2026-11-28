@@ -2,10 +2,14 @@ import { ImapFlow } from 'imapflow';
 import { simpleParser } from 'mailparser';
 
 interface FetchEmailsBody {
+  action?: 'list' | 'download_attachment';
   email?: string;
   appPassword?: string;
   folder?: 'inbox' | 'sent' | 'starred' | 'drafts' | 'trash';
   limit?: number;
+  uid?: number;
+  attachmentIndex?: number;
+  filename?: string;
 }
 
 const FOLDER_CANDIDATES: Record<string, string[]> = {
@@ -74,6 +78,42 @@ export default async function handler(req: any, res: any) {
 
     await client.connect();
     const openedBox = await openTargetMailbox(client, folder);
+
+    if (body.action === 'download_attachment') {
+      const uid = Number(body.uid);
+      const attachmentIndex = Math.max(0, Number(body.attachmentIndex) || 0);
+      if (!uid || isNaN(uid)) {
+        await client.logout().catch(() => {});
+        return res.status(400).json({ error: 'UID da mensagem inválido para download do anexo.' });
+      }
+
+      const msg = await client.fetchOne(String(uid), { source: true }, { uid: true });
+      if (!msg || !msg.source) {
+        await client.logout().catch(() => {});
+        return res.status(404).json({ error: 'Mensagem não encontrada no servidor IMAP.' });
+      }
+
+      const parsed = await simpleParser(msg.source as Buffer);
+      const attachmentsList = parsed.attachments || [];
+      const targetAtt =
+        attachmentsList[attachmentIndex] ||
+        (body.filename ? attachmentsList.find((a: any) => a.filename === body.filename) : undefined);
+
+      await client.logout().catch(() => {});
+
+      if (!targetAtt || !targetAtt.content) {
+        return res.status(404).json({ error: 'Anexo não encontrado nesta mensagem.' });
+      }
+
+      return res.status(200).json({
+        success: true,
+        filename: targetAtt.filename || body.filename || `anexo_${attachmentIndex + 1}`,
+        contentType: targetAtt.contentType || 'application/octet-stream',
+        sizeBytes: targetAtt.size || targetAtt.content.length,
+        base64: targetAtt.content.toString('base64'),
+      });
+    }
+
     const totalMessages = client.mailbox ? (client.mailbox as any).exists || 0 : 0;
 
     if (totalMessages === 0) {

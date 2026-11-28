@@ -10,7 +10,7 @@ import type {
 import { FinancialTransactionStatus } from '../../types';
 import { parseOfxFileContent } from '../../utils/ofxParser';
 import { financialInvoiceService } from '../../services/financialInvoiceService';
-import { canUnreconcileTransaction } from '../../auth';
+import { canUnreconcileTransaction, isDemoUser } from '../../auth';
 import { 
   UploadCloud, 
   CheckCircle2, 
@@ -98,6 +98,7 @@ export const OfxReconciliationTab: React.FC<OfxReconciliationTabProps> = ({
 }) => {
   // Estado do Extrato Importado (com persistência local)
   const [importLog, setImportLog] = useState<OfxImportLog | null>(() => {
+    if (isDemoUser(currentUser)) return null;
     try {
       const saved = localStorage.getItem(STORAGE_OFX_KEY);
       if (saved) return JSON.parse(saved);

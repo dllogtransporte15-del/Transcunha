@@ -28,7 +28,8 @@ import {
   MoreVertical,
   Check,
   X,
-  AppWindow
+  AppWindow,
+  Loader2
 } from 'lucide-react';
 import type { CorporateEmailAccount, CorporateEmailFolder, CorporateEmailMessage, CorporateEmailAttachment } from '../../types';
 import { corporateEmailService } from '../../services/corporateEmailService';
@@ -89,6 +90,7 @@ export const WebmailOutlookView: React.FC<WebmailOutlookViewProps> = ({
   const [composeMode, setComposeMode] = useState<'new' | 'reply' | 'replyAll' | 'forward'>('new');
   const [targetMessageForCompose, setTargetMessageForCompose] = useState<CorporateEmailMessage | null>(null);
   const [isSyncingImap, setIsSyncingImap] = useState<boolean>(false);
+  const [downloadingAttachmentId, setDownloadingAttachmentId] = useState<string | null>(null);
   const [imapStatusText, setImapStatusText] = useState<string>('Google Workspace Online');
   const [isImapModalOpen, setIsImapModalOpen] = useState<boolean>(false);
   const [imapEmailInput, setImapEmailInput] = useState<string>(() => (typeof window !== 'undefined' ? localStorage.getItem('transcunha_gworkspace_sender_email') : null) || 'contato@transcunhaoficial.com.br');
@@ -746,13 +748,30 @@ export const WebmailOutlookView: React.FC<WebmailOutlookViewProps> = ({
                       </div>
 
                       <button
-                        onClick={() => {
+                        disabled={downloadingAttachmentId === att.id}
+                        onClick={async () => {
+                          if (!selectedMessage) return;
+                          setDownloadingAttachmentId(att.id);
                           showToast(`Iniciando download de ${att.filename}...`, 'info');
+                          try {
+                            const result = await corporateEmailService.downloadAttachment(selectedMessage, att);
+                            if (result.success) {
+                              showToast(`Download de ${att.filename} concluído!`, 'success');
+                            } else {
+                              showToast(result.error || `Não foi possível baixar ${att.filename}.`, 'error');
+                            }
+                          } finally {
+                            setDownloadingAttachmentId(null);
+                          }
                         }}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-800 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-wait"
                         title="Baixar anexo"
                       >
-                        <Download className="w-4 h-4" />
+                        {downloadingAttachmentId === att.id ? (
+                          <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                        ) : (
+                          <Download className="w-4 h-4" />
+                        )}
                       </button>
                     </div>
                   ))}

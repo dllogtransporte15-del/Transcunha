@@ -5,10 +5,12 @@ import { UserProfile } from '../types';
 import { WhatsAppIcon } from './icons';
 import { Building2, Smartphone, PhoneOff, Eye, Mail, Copy, Check } from 'lucide-react';
 import { useToast } from '../hooks/useToast';
+import { isDemoUser } from '../auth';
 
 interface UserTableProps {
   users: User[];
   allUsers?: User[];
+  currentUser?: User | null;
   onEdit?: (user: User) => void;
   onDelete?: (userId: string) => void;
   onInspectUser?: (user: User) => void;
@@ -21,6 +23,7 @@ interface UserTableProps {
 const UserTable: React.FC<UserTableProps> = ({ 
   users, 
   allUsers, 
+  currentUser,
   onEdit, 
   onDelete, 
   onInspectUser, 
@@ -29,6 +32,7 @@ const UserTable: React.FC<UserTableProps> = ({
   showAppOptionColumn = false, 
   onToggleDriverRequests 
 }) => {
+  const isDemo = isDemoUser(currentUser);
   const [copiedUserId, setCopiedUserId] = useState<string | null>(null);
 
   let toastApi: ReturnType<typeof useToast> | null = null;
@@ -293,28 +297,30 @@ Qualquer dúvida, estamos à disposição! 🚛💨`;
                   <td className="px-3 sm:px-4 py-3 whitespace-nowrap text-right text-sm font-medium">
                     <div className="inline-flex items-center justify-end gap-2">
                       {/* Botão Copiar Mensagem de Acesso para WhatsApp */}
-                      <button
-                        type="button"
-                        onClick={() => handleCopyAccess(user)}
-                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-md border transition-all shadow-2xs active:scale-95 cursor-pointer ${
-                          copiedUserId === user.id
-                            ? 'bg-emerald-600 text-white border-emerald-600 dark:bg-emerald-600 dark:text-white'
-                            : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-900/60 border-emerald-200 dark:border-emerald-800'
-                        }`}
-                        title="Copiar mensagem com link (transcunha.digital), usuário e senha para WhatsApp"
-                      >
-                        {copiedUserId === user.id ? (
-                          <>
-                            <Check className="w-3.5 h-3.5 text-white" />
-                            <span>Copiado!</span>
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                            <span>Copiar Acesso</span>
-                          </>
-                        )}
-                      </button>
+                      {!isDemo && (
+                        <button
+                          type="button"
+                          onClick={() => handleCopyAccess(user)}
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-md border transition-all shadow-2xs active:scale-95 cursor-pointer ${
+                            copiedUserId === user.id
+                              ? 'bg-emerald-600 text-white border-emerald-600 dark:bg-emerald-600 dark:text-white'
+                              : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-900/60 border-emerald-200 dark:border-emerald-800'
+                          }`}
+                          title="Copiar mensagem com link (transcunha.digital), usuário e senha para WhatsApp"
+                        >
+                          {copiedUserId === user.id ? (
+                            <>
+                              <Check className="w-3.5 h-3.5 text-white" />
+                              <span>Copiado!</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                              <span>Copiar Acesso</span>
+                            </>
+                          )}
+                        </button>
+                      )}
 
                       {/* Botão Direto para Abrir no WhatsApp se tiver telefone */}
                       {user.phone && (

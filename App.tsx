@@ -1702,7 +1702,55 @@ const App: React.FC = () => {
   const handleCreateShipment = async (data: NewShipmentRequestData) => {
     if (!currentUser) return;
     if (isDemoUser(currentUser)) {
-      showToast('Usuário em modo demonstração possui acesso apenas de visualização.', 'warning');
+      const targetCargo = findCargoById(cargos, data.cargoId);
+      const demoId = `DEMO-EMB-${Math.floor(1000 + Math.random() * 9000)}`;
+      const ton = Number(data.shipmentTonnage) || 37;
+      const driverRate = targetCargo?.driverFreightValuePerTon || 130;
+      const companyRate = targetCargo?.companyFreightValuePerTon || 165;
+      const demoShipment: Shipment = {
+        id: demoId,
+        orderId: demoId,
+        embarcadorId: currentUser.id,
+        cargoId: data.cargoId,
+        driverName: data.driverName || 'MOTORISTA TESTE DEMO',
+        driverCpf: data.driverCpf || '000.000.000-00',
+        driverContact: data.driverContact || '(34) 99999-0000',
+        horsePlate: (data.horsePlate || 'DEM1234').toUpperCase(),
+        trailer1Plate: data.trailer1Plate?.toUpperCase(),
+        trailer2Plate: data.trailer2Plate?.toUpperCase(),
+        vehicleSetType: data.vehicleSetType || VehicleSetType.Rodotrem,
+        vehicleBodyType: data.vehicleBodyType || VehicleBodyType.Graneleiro,
+        shipmentTonnage: ton,
+        scheduledDate: data.scheduledDate || new Date().toISOString().split('T')[0],
+        paymentMethod: data.paymentMethod || 'PIX - E-FRETE',
+        advancePercentage: data.advancePercentage ?? 70,
+        pixKey: data.pixKey || '00.000.000/0001-00',
+        bankDetails: data.bankDetails || 'Banco Teste (001) • Ag 0001 • CC 12345-6',
+        driverFreightRateSnapshot: driverRate,
+        companyFreightRateSnapshot: companyRate,
+        driverFreightValue: Number((driverRate * ton).toFixed(2)),
+        status: ShipmentStatus.PreCadastro,
+        statusHistory: [
+          {
+            status: ShipmentStatus.PreCadastro,
+            timestamp: new Date().toISOString(),
+            userId: currentUser.id,
+          },
+        ],
+        createdAt: new Date().toISOString(),
+        createdById: currentUser.id,
+        documents: {},
+        history: [
+          {
+            id: `log_demo_${Date.now()}`,
+            userId: currentUser.id,
+            timestamp: new Date().toISOString(),
+            description: 'Embarque teste criado automaticamente no Ambiente Demonstração.',
+          },
+        ],
+      };
+      setShipments(prev => [demoShipment, ...prev]);
+      showToast(`Embarque teste #${demoId} criado no Ambiente Demonstração!`, 'success');
       return;
     }
     
@@ -2397,8 +2445,76 @@ const App: React.FC = () => {
     }
 
     if (isDemoUser(currentUser)) {
-      showToast('Usuário em modo demonstração possui acesso apenas de visualização.', 'warning');
-      throw new Error('Usuário em modo demonstração possui acesso apenas de visualização.');
+      const originalShipment = shipments.find(s => s.id === shipmentId);
+      if (!originalShipment) {
+        showToast('Embarque de teste não encontrado.', 'error');
+        return;
+      }
+
+      const relatedCargo = findCargoById(cargos, originalShipment.cargoId);
+      const relatedProduct = findProductForCargo(products, relatedCargo);
+      const needsRisk = checkRequiresRiskManagement(relatedCargo, relatedProduct);
+      const requiresScheduling = Boolean(relatedCargo?.requiresScheduling);
+      const isComplementar = Boolean(originalShipment.isComplementar || (originalShipment.documents as any)?.is_complementar);
+
+      let demoNextStatus: ShipmentStatus = originalShipment.status;
+      if (originalShipment.status === ShipmentStatus.PreCadastro) {
+        demoNextStatus = needsRisk ? ShipmentStatus.AguardandoSeguradora : ShipmentStatus.AguardandoCarregamento;
+      } else if (originalShipment.status === ShipmentStatus.AguardandoSeguradora) {
+        demoNextStatus = ShipmentStatus.AguardandoCarregamento;
+      } else if (originalShipment.status === ShipmentStatus.AguardandoCarregamento) {
+        demoNextStatus = ShipmentStatus.AguardandoNota;
+      } else if (originalShipment.status === ShipmentStatus.AguardandoNota) {
+        demoNextStatus = ShipmentStatus.AguardandoFiscal;
+      } else if (originalShipment.status === ShipmentStatus.AguardandoFiscal) {
+        const is0Pct = isShipment0PercentAdvance(originalShipment, advancePercentage);
+        demoNextStatus = is0Pct
+          ? (requiresScheduling && !isComplementar ? ShipmentStatus.AguardandoAgendamento : ShipmentStatus.AguardandoDescarga)
+          : ShipmentStatus.AguardandoAdiantamento;
+      } else if (originalShipment.status === ShipmentStatus.AguardandoAdiantamento) {
+        demoNextStatus = (requiresScheduling && !isComplementar) ? ShipmentStatus.AguardandoAgendamento : ShipmentStatus.AguardandoDescarga;
+      } else if (originalShipment.status === ShipmentStatus.AguardandoAgendamento) {
+        demoNextStatus = ShipmentStatus.AguardandoDescarga;
+      } else if (originalShipment.status === ShipmentStatus.AguardandoDescarga) {
+        demoNextStatus = isComplementar
+          ? (isShipment100PercentAdvance(originalShipment) ? ShipmentStatus.Finalizado : ShipmentStatus.AguardandoPagamentoSaldo)
+          : ShipmentStatus.ValidacaoTicket;
+      } else if (originalShipment.status === ShipmentStatus.ValidacaoTicket) {
+        demoNextStatus = isShipment100PercentAdvance(originalShipment) ? ShipmentStatus.Finalizado : ShipmentStatus.AguardandoPagamentoSaldo;
+      } else if (originalShipment.status === ShipmentStatus.AguardandoPagamentoSaldo) {
+        demoNextStatus = ShipmentStatus.Finalizado;
+      }
+
+      const updatedDemoShipment: Shipment = {
+        ...originalShipment,
+        status: demoNextStatus,
+        ...(codigoAtua ? { codigoAtua } : {}),
+        ...(riskReleaseCode ? { riskReleaseCode } : {}),
+        ...(riskQueryType ? { riskQueryType } : {}),
+        ...(route ? { route } : {}),
+        ...(loadedTonnage !== undefined ? { loadedTonnage } : {}),
+        ...(bankDetails ? { bankDetails } : {}),
+        ...(advancePercentage !== undefined ? { advancePercentage } : {}),
+        ...(advanceValue !== undefined ? { advanceValue } : {}),
+        ...(tollValue !== undefined ? { tollValue } : {}),
+        ...(unloadedTonnage !== undefined ? { unloadedTonnage } : {}),
+        ...(balanceToReceiveValue !== undefined ? { balanceToReceiveValue } : {}),
+        ...(discountValue !== undefined ? { discountValue } : {}),
+        ...(isBreakageWaived !== undefined ? { isBreakageWaived } : {}),
+        history: [
+          ...originalShipment.history,
+          {
+            id: `log_demo_${Date.now()}`,
+            userId: currentUser.id,
+            timestamp: new Date().toISOString(),
+            description: `[Teste Demonstração] Status avançado de "${originalShipment.status}" para "${demoNextStatus}" com dados fictícios.`,
+          },
+        ],
+      };
+
+      setShipments(prev => prev.map(s => (s.id === shipmentId ? updatedDemoShipment : s)));
+      showToast(`Embarque teste avançado para "${demoNextStatus}" (Ambiente Demonstração)!`, 'success');
+      return;
     }
 
     const originalShipment = shipments.find(s => s.id === shipmentId);
@@ -4072,7 +4188,29 @@ const App: React.FC = () => {
   
   const handleSaveLoad = async (loadData: Cargo | Omit<Cargo, 'id' | 'history' | 'createdAt' | 'createdById'>) => {
     if (isDemoUser(currentUser)) {
-      showToast('Usuário em modo demonstração possui acesso apenas de visualização.', 'warning');
+      if ('id' in loadData && loadData.id) {
+        setCargos(prev => prev.map(c => (c.id === loadData.id ? { ...c, ...loadData } : c)));
+        showToast('Carga de teste atualizada no Ambiente Demonstração!', 'success');
+        return;
+      }
+      const demoSeqId = 9000 + Math.floor(Math.random() * 900);
+      const demoCargo: Cargo = {
+        ...(loadData as Omit<Cargo, 'id' | 'history' | 'createdAt' | 'createdById'>),
+        id: `DEMO-CRG-${Date.now()}`,
+        sequenceId: demoSeqId,
+        createdAt: new Date().toISOString(),
+        createdById: currentUser?.id || 'USR-292',
+        history: [
+          {
+            id: `log_demo_${Date.now()}`,
+            userId: currentUser?.id || 'USR-292',
+            timestamp: new Date().toISOString(),
+            description: 'Carga teste criada no Ambiente Demonstração (sem impacto nos dados reais).',
+          },
+        ],
+      };
+      setCargos(prev => [demoCargo, ...prev]);
+      showToast(`Carga teste #${demoSeqId} criada no Ambiente Demonstração!`, 'success');
       return;
     }
     // Sanitize branchId to avoid FK violations ('' is not a valid UUID)

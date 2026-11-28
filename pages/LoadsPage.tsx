@@ -11,6 +11,7 @@ import BulkCargoImportModal from '../components/BulkCargoImportModal';
 import type { Cargo, Client, Product, Driver, User, ProfilePermissions, Shipment, DailyScheduleEntry, Vehicle, Branch, Owner, ExpedidorRecebedor } from '../types';
 import { CargoStatus, UserProfile } from '../types';
 import { can, isDemoUser } from '../auth';
+import { createDemoTestCargo } from '../utils/demoSandbox';
 import { StayRecord } from '../utils/toolStorage';
 import type { Ticket, FreightOffer } from '../types';
 
@@ -157,22 +158,33 @@ const LoadsPage: React.FC<LoadsPageProps> = ({ loads, setLoads, clients, product
   return (
     <>
       <Header title="Cadastro de Cargas">
-        {canCreate && (
-          <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2">
+          {isDemo && (
             <button
-              onClick={() => setIsBulkImportModalOpen(true)}
-              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg shadow-md hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 transition-all flex items-center gap-2 text-sm"
+              onClick={() => onSaveLoad(createDemoTestCargo(clients, products, branches, currentUser))}
+              className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-lg shadow-md hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 transition-all flex items-center gap-2 text-sm cursor-pointer"
+              title="Cria automaticamente uma carga fictícia para testar embarques no perfil Demonstração"
             >
-              📦 Importar em Lote
+              ⚡ Criar Carga Teste
             </button>
-            <button
-              onClick={handleOpenModal}
-              className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary text-sm font-medium"
-            >
-              Adicionar Carga
-            </button>
-          </div>
-        )}
+          )}
+          {canCreate && (
+            <>
+              <button
+                onClick={() => setIsBulkImportModalOpen(true)}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg shadow-md hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 transition-all flex items-center gap-2 text-sm"
+              >
+                📦 Importar em Lote
+              </button>
+              <button
+                onClick={handleOpenModal}
+                className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary text-sm font-medium"
+              >
+                Adicionar Carga
+              </button>
+            </>
+          )}
+        </div>
       </Header>
       
       <div className="mt-6">

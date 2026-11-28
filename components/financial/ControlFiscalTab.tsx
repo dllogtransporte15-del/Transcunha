@@ -28,6 +28,7 @@ import { DocumentPreviewModal } from '../DocumentPreviewModal';
 import { FiscalHomologationModal } from './FiscalHomologationModal';
 import { useToast } from '../../hooks/useToast';
 import { supabase } from '../../supabase';
+import { isDemoUser } from '../../auth';
 
 interface ControlFiscalTabProps {
   branches?: Branch[];
@@ -69,6 +70,10 @@ export const ControlFiscalTab: React.FC<ControlFiscalTabProps> = ({
   const [internalClients, setInternalClients] = useState<Client[]>(clients);
 
   useEffect(() => {
+    if (isDemoUser(currentUser)) {
+      setInternalClients([]);
+      return;
+    }
     if (clients && clients.length > 0) {
       setInternalClients(clients);
     } else {
@@ -146,7 +151,7 @@ export const ControlFiscalTab: React.FC<ControlFiscalTabProps> = ({
   const [isSavingInlineTitle, setIsSavingInlineTitle] = useState(false);
 
   const reloadData = () => {
-    setDocuments(getFiscalDocuments());
+    setDocuments(isDemoUser(currentUser) ? [] : getFiscalDocuments());
     setDocumentTypes(getFiscalDocumentTypes());
   };
 

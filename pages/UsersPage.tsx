@@ -288,6 +288,7 @@ const UsersPage: React.FC<UsersPageProps> = ({
       <UserTable 
         users={filteredUsers} 
         allUsers={visibleUsersList}
+        currentUser={currentUser}
         onEdit={canUpdateUser ? handleEditUser : undefined} 
         onDelete={canDeleteUser ? handleDeleteUser : undefined}
         onInspectUser={isAdmin ? (user) => setUserToInspect(user) : undefined}

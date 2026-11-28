@@ -453,7 +453,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
     }
 
     // 7. REGRA E-MAIL CORPORATIVO: Alertas para e-mails não lidos na Caixa de Entrada
-    const isEligibleForEmailAlerts = ![UserProfile.Motorista, UserProfile.Cliente, UserProfile.Embarcador].includes(user.profile);
+    const isEligibleForEmailAlerts = !isDemo && ![UserProfile.Motorista, UserProfile.Cliente, UserProfile.Embarcador].includes(user.profile);
     if (isEligibleForEmailAlerts) {
       try {
         const unreadEmails = corporateEmailService.getMessages(undefined, 'inbox').filter(m => !m.isRead);

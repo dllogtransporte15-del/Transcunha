@@ -13,6 +13,7 @@ import BulkCargoImportModal from '../components/BulkCargoImportModal';
 import { REQUIRED_DOCUMENT_MAP } from '../types';
 import type { Cargo, Client, Product, Driver, Shipment, Vehicle, User, ProfilePermissions, VehicleSetType, VehicleBodyType, Branch, RiskQueryOption, Owner } from '../types';
 import { can, isDemoUser } from '../auth';
+import { createDemoTestCargo } from '../utils/demoSandbox';
 import { CopyIcon } from '../components/icons/CopyIcon';
 import { CargoStatus, UserProfile, ShipmentStatus, FreightCalculationType } from '../types';
 import ShipmentTable from '../components/ShipmentTable';
@@ -396,6 +397,15 @@ const OperationalLoadsPage: React.FC<OperationalLoadsPageProps> = ({
       <Header title="Cargas em Operação">
         {currentUser.profile !== UserProfile.Cliente && currentUser.profile !== UserProfile.Motorista && (
           <div className="flex items-center gap-2">
+            {isDemo && (
+              <button
+                onClick={() => onSaveLoad(createDemoTestCargo(clients, products, branches, currentUser))}
+                className="flex items-center px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 font-bold focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 shadow-sm transition-all text-sm cursor-pointer"
+                title="Cria automaticamente uma carga fictícia para testes no perfil Demonstração"
+              >
+                ⚡ Criar Carga Teste
+              </button>
+            )}
             {!isDemo && can('create', currentUser, 'loads', profilePermissions) && (
               <button
                 onClick={() => setIsBulkImportModalOpen(true)}
@@ -451,7 +461,7 @@ const OperationalLoadsPage: React.FC<OperationalLoadsPageProps> = ({
         shipments={allShipments}
         dailyBalanceDate={dailyBalanceDate}
         onDailyBalanceDateChange={setDailyBalanceDate}
-        onCreateShipment={!isDemo && canCreateShipment ? handleOpenNewShipmentModal : undefined} 
+        onCreateShipment={(isDemo || canCreateShipment) ? handleOpenNewShipmentModal : undefined}
         onEdit={!isDemo && canUpdateLoad ? handleEditLoad : undefined}
         onShowHistory={handleShowHistory}
         onReactivate={!isDemo && (currentUser.profile !== UserProfile.Embarcador && currentUser.profile !== UserProfile.Motorista) ? onReactivateLoad : undefined}

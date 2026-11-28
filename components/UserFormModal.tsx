@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import type { User, Client, Branch } from '../types';
 import { UserProfile } from '../types';
-import { isDeveloperUser, filterVisibleUsers, filterVisibleProfiles, INTERNAL_JOB_FUNCTIONS, getDefaultJobFunctionByName } from '../auth';
+import { isDeveloperUser, isDemoUser, filterVisibleUsers, filterVisibleProfiles, INTERNAL_JOB_FUNCTIONS, getDefaultJobFunctionByName } from '../auth';
 import { useToast } from '../hooks/useToast';
 import { autoFormatInput, formatCPF } from '../utils/formatters';
 import { X, Copy, Check, CheckCircle2, Mail, Key, Building2 } from 'lucide-react';
@@ -339,7 +339,7 @@ Qualquer dúvida, estamos à disposição! 🚛💨`;
                   <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wide">
                     Senha de Acesso
                   </label>
-                  {userToEdit && (
+                  {userToEdit && !isDemoUser(currentUser) && (
                     <button
                       type="button"
                       onClick={handleCopyAccessInModal}

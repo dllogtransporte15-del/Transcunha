@@ -555,7 +555,6 @@ export const generateConsubeLoadingOrderPDF = (
   const driverCnh = (shipment as any).driverCnh || (shipment as any).cnh || 'N/A';
   const driverReg = (shipment as any).driverCnhRegister || driverCnh;
   const vctoCnh = (shipment as any).driverCnhExpiry || 'EM DIA';
-  const driverPhone = shipment.driverContact || 'N/A';
   const driverRg = (shipment as any).driverRg || 'N/A';
   const horsePlate = normalizePlate(shipment.horsePlate) || 'N/A';
   const trailer1 = normalizePlate(shipment.trailer1Plate) || '-';
@@ -587,9 +586,8 @@ export const generateConsubeLoadingOrderPDF = (
   doc.text(`Vcto CNH : ${vctoCnh}`, margin + 125, sY);
 
   sY += lineGap;
-  // Linha 4: Fone : ... RG : ...
-  doc.text(`Fone      : ${driverPhone}`, margin + 3, sY);
-  doc.text(`RG       : ${driverRg}`, margin + 125, sY);
+  // Linha 4: RG : ...
+  doc.text(`RG        : ${driverRg}`, margin + 3, sY);
 
   sY += lineGap;
   // Linha 5: Cavalo : ...
@@ -870,33 +868,11 @@ export const generateLoadingOrderPDF = (
     body: [
       ["MOTORISTA", shipment.driverName.toUpperCase()],
       ["CPF DO CONDUTOR", shipment.driverCpf || "N/A"],
-      ["TELEFONE CONTATO", shipment.driverContact || "N/A"],
       ["PLACA (CAVALO)", shipment.horsePlate.toUpperCase()],
       ["TIPO DE VEÍCULO", (mainVehicle?.setType || shipment.vehicleSetType || "N/A").toUpperCase()],
       ["CARROCERIA", (mainVehicle?.bodyType || shipment.vehicleBodyType || "N/A").toUpperCase()],
       ["PLACA(S) CARRETA(S)", [shipment.trailer1Plate, shipment.trailer2Plate, shipment.trailer3Plate].filter(Boolean).join(" / ").toUpperCase() || "N/A"],
       ["PROPRIETÁRIO / TITULAR", (shipment.anttOwnerIdentifier || shipment.ownerContact || "N/A").toUpperCase()],
-    ],
-    theme: "striped",
-    headStyles: { fillColor: primaryBlue, fontSize: 10, fontStyle: 'bold' },
-    bodyStyles: { fontSize: 9 },
-    columnStyles: { 0: { fontStyle: 'bold', cellWidth: 55, textColor: primaryBlue } }
-  });
-
-  const paymentY = (doc as any).lastAutoTable.finalY + 8;
-
-  // --- Pagamento & Adiantamento ---
-  doc.setFontSize(11);
-  doc.setTextColor(primaryBlue[0], primaryBlue[1], primaryBlue[2]);
-  doc.text("3. CONDIÇÕES DE PAGAMENTO E ADIANTAMENTO", margin, paymentY);
-
-  autoTable(doc, {
-    startY: paymentY + 3,
-    head: [["Item de Pagamento", "Detalhamento"]],
-    body: [
-      ["FORMA DE PAGAMENTO", (shipment.paymentMethod || "PIX - E-FRETE").toUpperCase()],
-      ["ADIANTAMENTO (%)", `${shipment.advancePercentage !== undefined ? shipment.advancePercentage : 70}%`],
-      ["CHAVE PIX / DADOS BANCÁRIOS", (shipment.paymentMethod === 'PIX - E-FRETE' ? (shipment.pixKey || shipment.bankDetails || "N/A") : (shipment.bankDetails || shipment.pixKey || "N/A")).toUpperCase()],
     ],
     theme: "striped",
     headStyles: { fillColor: primaryBlue, fontSize: 10, fontStyle: 'bold' },

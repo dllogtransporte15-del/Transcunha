@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Shipment, ShipmentStatus, User, UserProfile, Cargo, RiskQueryType, RISK_QUERY_COST_MAP, Product, Client, ClientBranchCnpj, PaymentMethod, RiskQueryOption, DEFAULT_RISK_QUERY_OPTIONS, RealProfitData, CancelledCteRecord, DriverExtraPayment, SubCteRecord } from '../types';
 import { upsertClient, upsertCargo, uploadShipmentAttachment } from '../lib/db';
 import { isDemoUser, isDeveloperUser } from '../auth';
+import { buildDemoAdvancePayload } from '../utils/demoSandbox';
 import { PaperclipIcon, ExternalLinkIcon, MapPinIcon, LoaderIcon } from './icons';
 import { fetchRouteGeometry, getRouteSuggestions, RouteSuggestion } from '../services/routing';
 import { formatWeightPtBr, isCteApplicableForStatus } from '../utils';
@@ -2438,7 +2439,28 @@ const AttachmentModal: React.FC<AttachmentModalProps> = ({
 
   const handleSave = async () => {
     if (isDemo) {
-      showToast('Usuário em modo demonstração possui acesso apenas de visualização.', 'warning');
+      setError('');
+      setIsSaving(true);
+      try {
+        const demoPayload = buildDemoAdvancePayload(shipment, cargo, {
+          codigoAtua,
+          riskReleaseCode,
+          riskQueryType,
+          route,
+          loadedTonnage,
+          bankDetails,
+          unloadedTonnage,
+          advanceValue,
+          tollValue,
+          balanceToReceiveValue,
+        });
+        await onSave(demoPayload);
+        onClose();
+      } catch (err: any) {
+        setError(err?.message || 'Erro ao avançar embarque de teste.');
+      } finally {
+        setIsSaving(false);
+      }
       return;
     }
     if (isAguardandoAdiantamento && hasUnresolvedAdvanceDivergence) {
@@ -5732,6 +5754,12 @@ const AttachmentModal: React.FC<AttachmentModalProps> = ({
               </div>
             )}
 
+            {isDemo && (
+              <div className="mt-4 p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300/70 dark:border-amber-700/60 text-xs text-amber-800 dark:text-amber-200 font-medium">
+                🧪 <strong>Ambiente Demonstração:</strong> ao clicar em <strong>Salvar e Avançar</strong>, os dados fictícios necessários para esta etapa serão preenchidos automaticamente sem impactar os dados reais.
+              </div>
+            )}
+
             {error && <p className="mt-4 text-sm text-red-500 font-bold">{error}</p>}
 
             <div className="mt-8 flex justify-between items-center">
@@ -5748,26 +5776,28 @@ const AttachmentModal: React.FC<AttachmentModalProps> = ({
                   <button
                     onClick={handleSave}
                     disabled={
-                      isSaving || 
-                      (shipment.status === ShipmentStatus.AguardandoAdiantamento && (!canSave || isMissingAdiantamentoReceipt)) || 
-                      (shipment.status === ShipmentStatus.ValidacaoTicket && (!canValidateTicket || !isTicketValidated)) ||
-                      (shipment.status === ShipmentStatus.PreCadastro && (!codigoAtua || !codigoAtua.trim())) ||
-                      hasUnresolvedFiscalDivergence ||
-                      (isAguardandoAdiantamento && hasUnresolvedAdvanceDivergence) ||
-                      hasAttachmentMismatch
-                      || hasMissingFiscalDocs
-                      || fiscalAttachmentMismatches.length > 0
+                      isSaving || (!isDemo && (
+                        (shipment.status === ShipmentStatus.AguardandoAdiantamento && (!canSave || isMissingAdiantamentoReceipt)) || 
+                        (shipment.status === ShipmentStatus.ValidacaoTicket && (!canValidateTicket || !isTicketValidated)) ||
+                        (shipment.status === ShipmentStatus.PreCadastro && (!codigoAtua || !codigoAtua.trim())) ||
+                        hasUnresolvedFiscalDivergence ||
+                        (isAguardandoAdiantamento && hasUnresolvedAdvanceDivergence) ||
+                        hasAttachmentMismatch
+                        || hasMissingFiscalDocs
+                        || fiscalAttachmentMismatches.length > 0
+                      ))
                     }
                     className={`px-8 py-2 text-white rounded-xl font-bold shadow-lg transition-all active:scale-95 flex items-center gap-2 ${(
-                      isSaving || 
-                      (shipment.status === ShipmentStatus.AguardandoAdiantamento && (!canSave || isMissingAdiantamentoReceipt)) || 
-                      (shipment.status === ShipmentStatus.ValidacaoTicket && (!canValidateTicket || !isTicketValidated)) ||
-                      (shipment.status === ShipmentStatus.PreCadastro && (!codigoAtua || !codigoAtua.trim())) ||
-                      hasUnresolvedFiscalDivergence ||
-                      (isAguardandoAdiantamento && hasUnresolvedAdvanceDivergence) ||
-                      hasAttachmentMismatch
-                      || hasMissingFiscalDocs
-                      || fiscalAttachmentMismatches.length > 0
+                      isSaving || (!isDemo && (
+                        (shipment.status === ShipmentStatus.AguardandoAdiantamento && (!canSave || isMissingAdiantamentoReceipt)) || 
+                        (shipment.status === ShipmentStatus.ValidacaoTicket && (!canValidateTicket || !isTicketValidated)) ||
+                        (shipment.status === ShipmentStatus.PreCadastro && (!codigoAtua || !codigoAtua.trim())) ||
+                        hasUnresolvedFiscalDivergence ||
+                        (isAguardandoAdiantamento && hasUnresolvedAdvanceDivergence) ||
+                        hasAttachmentMismatch
+                        || hasMissingFiscalDocs
+                        || fiscalAttachmentMismatches.length > 0
+                      ))
                     )
                         ? 'bg-gray-400 dark:bg-gray-600 cursor-not-allowed shadow-none'
                         : 'bg-primary hover:bg-primary-dark shadow-primary/20'

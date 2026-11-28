@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Mail, RefreshCw, ArrowLeft, Wifi, X } from 'lucide-react';
 import type { User, CorporateEmailAccount } from '../types';
-import { isDeveloperUser, filterVisibleUsers } from '../auth';
+import { isDeveloperUser, isDemoUser, filterVisibleUsers } from '../auth';
 import { corporateEmailService } from '../services/corporateEmailService';
 import { WebmailOutlookView } from '../components/corporate-email/WebmailOutlookView';
 
@@ -83,6 +83,20 @@ export const WebmailWindowPage: React.FC<WebmailWindowPageProps> = ({ currentUse
   };
 
   const hasOpener = typeof window !== 'undefined' && !!window.opener && !window.opener.closed;
+
+  if (isDemoUser(currentUser)) {
+    return (
+      <div className="h-screen w-screen flex items-center justify-center bg-slate-950 text-slate-100 p-6">
+        <div className="max-w-md w-full rounded-2xl border border-amber-500/30 bg-slate-900 p-6 text-center space-y-3 shadow-2xl">
+          <Mail className="w-10 h-10 text-amber-400 mx-auto" />
+          <h1 className="text-lg font-bold text-white">Acesso Restrito — E-mail Corporativo</h1>
+          <p className="text-sm text-slate-300">
+            A visualização de e-mails corporativos não está disponível para o perfil <strong>Demonstração</strong> por conter comunicações particulares da empresa.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen w-screen flex flex-col bg-slate-950 text-slate-100 overflow-hidden">

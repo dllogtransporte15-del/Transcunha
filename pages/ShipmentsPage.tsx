@@ -329,7 +329,7 @@ const ShipmentsPage: React.FC<ShipmentsPageProps> = ({
         vehicles={vehicles}
         filterCte={filterCte}
         onFilterCteChange={setFilterCte}
-        onAttach={!isDemo && (canUpdate || isClient || isFinanceiro) ? handleOpenAttachmentModal : undefined}
+        onAttach={(isDemo || canUpdate || isClient || isFinanceiro) ? handleOpenAttachmentModal : undefined}
         onAddAttachments={!isDemo ? onAddAttachments : undefined}
         onEditPrice={canEditPrice ? handleEditPrice : undefined}
         onCancel={canCancelShipment ? handleCancelShipment : undefined}
@@ -356,7 +356,7 @@ const ShipmentsPage: React.FC<ShipmentsPageProps> = ({
         onSwapCargo={!isDemo ? handleOpenSwapCargoModal : undefined}
         onPerformSwapCargo={!isDemo ? onSwapCargo : undefined}
         tickets={tickets}
-        onCreateShipment={!isDemo ? onCreateShipment : undefined}
+        onCreateShipment={onCreateShipment}
       />
 
       {selectedShipment && (

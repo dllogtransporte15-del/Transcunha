@@ -7,6 +7,7 @@ import type {
   User 
 } from '../../types';
 import { FinancialTransactionStatus, ShipmentStatus } from '../../types';
+import { isDemoUser } from '../../auth';
 import { 
   Plus, 
   Search, 
@@ -103,6 +104,7 @@ export const AccountsReceivableTab: React.FC<AccountsReceivableTabProps> = ({
 
   // Status de Baixa de CT-e em cache local
   const [cteStatusOverrides, setCteStatusOverrides] = useState<Record<string, 'Pendente' | 'Recebido' | 'Atrasado'>>(() => {
+    if (isDemoUser(currentUser)) return {};
     try {
       const saved = localStorage.getItem(STORAGE_CTE_RECEIVABLES_STATUS_KEY);
       if (saved) return JSON.parse(saved);
@@ -114,6 +116,7 @@ export const AccountsReceivableTab: React.FC<AccountsReceivableTabProps> = ({
 
   // Faturas / Boletos vinculados aos recebíveis
   const [invoicesMap, setInvoicesMap] = useState<Record<string, CteInvoice>>(() => {
+    if (isDemoUser(currentUser)) return {};
     try {
       const saved = localStorage.getItem(STORAGE_CTE_INVOICES_KEY);
       if (saved) return JSON.parse(saved);

@@ -8,6 +8,8 @@ import { calculateAdvanceAndBalance } from '../utils/freightCalculation';
 import { autoFormatInput } from '../utils/formatters';
 import { AlertTriangle, CheckCircle2, X, RefreshCw, ShieldCheck, Zap, Building2, User as UserIcon, Search, Loader2, Edit3 } from 'lucide-react';
 import { calculateCargoBalance } from '../utils/cargoBalance';
+import { isDemoUser } from '../auth';
+import { createDemoTestShipment } from '../utils/demoSandbox';
 
 
 interface NewShipmentModalProps {
@@ -68,12 +70,39 @@ const NewShipmentModal: React.FC<NewShipmentModalProps> = ({ isOpen, onClose, on
   const [activeShipmentsFound, setActiveShipmentsFound] = useState<Shipment[]>([]);
   const [pendingPayload, setPendingPayload] = useState<any>(null);
   const { showToast } = useToast();
+  const isDemo = isDemoUser(currentUser);
 
   useEffect(() => {
     if (cargo) {
       setActiveCargo(cargo);
     }
   }, [cargo]);
+
+  // No perfil Demonstração, pré-preenche a Tela de Solicitação de Embarque com dados fictícios de teste
+  useEffect(() => {
+    if (!isOpen || !isDemo || !cargo) return;
+    const demoData = createDemoTestShipment(cargo, drivers, vehicles);
+    setDriverName(demoData.driverName);
+    setDriverCpf(demoData.driverCpf || '000.000.000-00');
+    setDriverContact(demoData.driverContact || '(34) 99999-0000');
+    setHorsePlate(demoData.horsePlate);
+    setTrailer1Plate(demoData.trailer1Plate || '');
+    setTrailer2Plate(demoData.trailer2Plate || '');
+    setVehicleSetType(demoData.vehicleSetType || VehicleSetType.Rodotrem);
+    setVehicleBodyType(demoData.vehicleBodyType || VehicleBodyType.Graneleiro);
+    setShipmentTonnage(demoData.shipmentTonnage);
+    setScheduledDate(demoData.scheduledDate || new Date().toISOString().split('T')[0]);
+    setScheduledTime('23:59');
+    setEmbarcadorId(currentUser?.id || users[0]?.id || 'USR-292');
+    setPaymentMethod(demoData.paymentMethod || DriverPaymentMethod.PixEFrete);
+    setAdvancePercentage(demoData.advancePercentage ?? 70);
+    setPixKey(demoData.pixKey || '00.000.000/0001-00');
+    setBankDetails(demoData.bankDetails || 'Banco Teste (001) • Ag 0001 • CC 12345-6');
+    setOwnerName('PROPRIETÁRIO TESTE DEMO');
+    setOwnerContact('(34) 99999-0000');
+    setAnttModality(AnttModality.TAC);
+    setAnttOwnerIdentifier('000.000.000-00');
+  }, [isOpen, isDemo, cargo, currentUser, drivers, vehicles, users]);
 
   const handleScanDocument = async (files: File[]) => {
     if (files.length === 0) {
@@ -1001,7 +1030,7 @@ const NewShipmentModal: React.FC<NewShipmentModalProps> = ({ isOpen, onClose, on
         return;
     }
 
-    if (currentCargo?.dailySchedule) {
+    if (!isDemo && currentCargo?.dailySchedule) {
         const scheduleRule = currentCargo.dailySchedule.find(rule => rule.date === scheduledDate);
         if (!scheduleRule) {
             showToast('Não é permitido criar ordens para datas sem programação lançada na carga. Verifique a Data Programada.', 'error');
@@ -1023,11 +1052,13 @@ const NewShipmentModal: React.FC<NewShipmentModalProps> = ({ isOpen, onClose, on
     }
 
     // Validation: Only allow future date/time
-    const now = new Date();
-    const inputDateTime = new Date(`${scheduledDate}T${scheduledTime}`);
-    if (inputDateTime <= now) {
-        showToast('Data/Hora Inválida: A data e hora programada deve ser posterior ao momento atual.', 'warning');
-        return;
+    if (!isDemo) {
+      const now = new Date();
+      const inputDateTime = new Date(`${scheduledDate}T${scheduledTime}`);
+      if (inputDateTime <= now) {
+          showToast('Data/Hora Inválida: A data e hora programada deve ser posterior ao momento atual.', 'warning');
+          return;
+      }
     }
 
     if (paymentMethod === DriverPaymentMethod.PixEFrete && !pixKey.trim()) {
@@ -1260,6 +1291,11 @@ const NewShipmentModal: React.FC<NewShipmentModalProps> = ({ isOpen, onClose, on
           }}
           className="space-y-5"
         >
+            {isDemo && (
+              <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300/70 dark:border-amber-700/60 text-xs text-amber-800 dark:text-amber-200 font-medium">
+                🧪 <strong>Ambiente Demonstração:</strong> os campos desta solicitação de embarque foram pré-preenchidos com dados fictícios de teste. Você pode revisar todos os campos e confirmar para gerar o embarque de teste sem impactar o sistema real.
+              </div>
+            )}
             {/* Date & Time */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
